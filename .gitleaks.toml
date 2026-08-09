@@ -1,0 +1,18 @@
+title = "Pulso CRM"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Valores de ejemplo y de desarrollo"
+paths = [
+  '''\.env\.example$''',
+  '''\.github/workflows/ci\.yml$''',
+  '''docs/.*\.md$''',
+]
+regexes = [
+  '''dev-only-change-me''',
+  '''ci-only-not-a-real-secret''',
+  '''Demo\.1234''',
+  '''postgres:postgres@localhost''',
+]

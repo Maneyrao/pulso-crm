@@ -1,0 +1,8 @@
+packages:
+  - 'apps/api'
+  - 'apps/web'
+  - 'apps/worker'
+  - 'packages/*'
+
+# apps/local-agent queda deliberadamente fuera: es un proyecto C#/.NET,
+# no un paquete de Node. Ver ADR-015.

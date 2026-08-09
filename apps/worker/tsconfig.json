@@ -1,0 +1,5 @@
+{
+  "extends": "@pulso/tsconfig/node.json",
+  "compilerOptions": { "noEmit": true, "tsBuildInfoFile": "./.turbo/worker.tsbuildinfo" },
+  "include": ["src/**/*.ts"]
+}

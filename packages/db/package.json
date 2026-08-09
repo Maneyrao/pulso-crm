@@ -1,0 +1,51 @@
+{
+  "name": "@pulso/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./tenant": {
+      "types": "./dist/tenant-extension.d.ts",
+      "default": "./dist/tenant-extension.js"
+    },
+    "./testing": {
+      "types": "./src/testing.ts",
+      "default": "./src/testing.ts"
+    }
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "deploy": "prisma migrate deploy",
+    "seed": "tsx prisma/seed.ts",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "vitest run",
+    "test": "vitest run",
+    "build": "prisma generate && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1"
+  },
+  "devDependencies": {
+    "@pulso/eslint-config": "workspace:*",
+    "@pulso/tsconfig": "workspace:*",
+    "eslint": "^9.18.0",
+    "prisma": "^6.2.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "dotenv": "^16.4.7",
+    "vitest": "^2.1.8",
+    "@pulso/contracts": "workspace:*",
+    "argon2": "^0.41.1"
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ]
+}

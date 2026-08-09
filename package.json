@@ -1,0 +1,47 @@
+{
+  "name": "pulso-crm",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "turbo run test:e2e",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md,css}\"",
+    "dev:services": "bash scripts/dev-services.sh",
+    "check:env": "tsx scripts/check-env.ts",
+    "db:migrate": "pnpm --filter @pulso/db exec prisma migrate dev",
+    "db:deploy": "pnpm --filter @pulso/db exec prisma migrate deploy",
+    "db:generate": "pnpm --filter @pulso/db exec prisma generate",
+    "db:seed": "pnpm --filter @pulso/db run seed",
+    "db:reset": "bash scripts/db-reset.sh",
+    "db:studio": "pnpm --filter @pulso/db exec prisma studio"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "prettier": "^3.4.2",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "argon2",
+      "@nestjs/core",
+      "sharp",
+      "unrs-resolver"
+    ]
+  }
+}
