@@ -3,11 +3,13 @@ import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import { createTestDatabase, type TestDatabase } from '@pulso/db/testing';
+import { createPrismaClient } from '@pulso/db';
 import { SYSTEM_ROLE_CODES, SYSTEM_ROLE_PERMISSIONS } from '@pulso/contracts';
 import argon2 from 'argon2';
 import { AppModule } from '../src/app.module.js';
 import { AppConfig } from '../src/common/config/app-config.js';
 import { PrismaService } from '../src/infra/prisma/prisma.service.js';
+import { TenantContextStore } from '../src/common/auth/tenant-context.js';
 import { GlobalExceptionFilter } from '../src/common/errors/exception.filter.js';
 import { RequestContextMiddleware } from '../src/common/logging/request-context.middleware.js';
 
@@ -28,13 +30,25 @@ export interface TestApp {
 export async function createTestApp(label: string): Promise<TestApp> {
   const db = await createTestDatabase(label);
 
+  // El cliente de `db.prisma` (de @pulso/db/testing) resuelve el tenant por una
+  // variable local del harness (`setTenant`/`asTenant`), pensada para tests que
+  // manipulan Prisma directo, SIN pasar por HTTP. Acá la app corre de verdad
+  // (guards, interceptores, controllers reales) y el tenant lo fija
+  // `AuthGuard` en `TenantContextStore` (el `AsyncLocalStorage` de producción)
+  // en cada request — así que el `PrismaService` de la app necesita SU PROPIO
+  // cliente, resuelto por ese mismo store, apuntando al esquema efímero.
+  const appPrisma = createPrismaClient({
+    resolveGymId: () => TenantContextStore.getGymId(),
+    datasourceUrl: db.url,
+  });
+
   const moduleRef: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
   })
     // El PrismaService del test apunta al esquema efímero, no a la base de desarrollo.
     .overrideProvider(PrismaService)
     .useValue({
-      client: db.prisma,
+      client: appPrisma,
       unscoped: () => db.raw,
       isHealthy: async () => true,
       pendingMigrationsCheck: async () => ({ applied: 3 }),
@@ -59,6 +73,7 @@ export async function createTestApp(label: string): Promise<TestApp> {
     baseUrl: url,
     async close() {
       await app.close();
+      await appPrisma.$disconnect();
       await db.destroy();
     },
   };
