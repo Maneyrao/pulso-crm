@@ -11,9 +11,20 @@ import { PrismaModule } from './infra/prisma/prisma.module.js';
 import { RedisModule } from './infra/redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { MembersModule } from './modules/members/members.module.js';
+import { CashConfigModule } from './modules/cash/cash-config.module.js';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, RedisModule, AuditModule, HealthModule, AuthModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    RedisModule,
+    AuditModule,
+    HealthModule,
+    AuthModule,
+    MembersModule,
+    CashConfigModule,
+  ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
     // Guard global: por defecto TODO endpoint exige sesión y permisos

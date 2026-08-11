@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { PrismaClient } from '@pulso/db';
-import { PrismaService } from '../../infra/prisma/prisma.service.js';
-import { PasswordService } from '../../common/auth/password.service.js';
-import { TokenService } from '../../common/auth/token.service.js';
+import { type PrismaService } from '../../infra/prisma/prisma.service.js';
+import { type PasswordService } from '../../common/auth/password.service.js';
+import { type TokenService } from '../../common/auth/token.service.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
 import { getLogger } from '../../common/logging/logger.js';
@@ -27,11 +27,17 @@ export interface AuthenticatedSession extends SessionTokens {
     lastName: string;
     mustChangePassword: boolean;
   };
-  gym: { id: string; slug: string; name: string; currency: string; locale: string };
+  gym: {
+    id: string;
+    slug: string;
+    name: string;
+    currency: string;
+    locale: string;
+    features: string[];
+  };
   branches: { id: string; name: string; timezone: string }[];
   activeBranchId: string | null;
   permissions: string[];
-  features: string[];
 }
 
 @Injectable()
@@ -206,11 +212,11 @@ export class AuthService {
         name: user.gym.name,
         currency: user.gym.currency,
         locale: user.gym.locale,
+        features,
       },
       branches,
       activeBranchId,
       permissions,
-      features,
     };
   }
 
@@ -342,12 +348,12 @@ export class AuthService {
         name: user.gym.name,
         currency: user.gym.currency,
         locale: user.gym.locale,
+        features: this.resolveFeatures(user.gym),
       },
       branches,
       activeBranchId: activeBranchId ?? branches[0]?.id ?? null,
       roles: user.roleAssignments.map((a) => ({ code: a.role.code, name: a.role.name })),
       permissions: [...new Set(user.roleAssignments.flatMap((a) => a.role.permissions))],
-      features: this.resolveFeatures(user.gym),
     };
   }
 

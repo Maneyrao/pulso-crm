@@ -3,6 +3,7 @@ packages:
   - 'apps/web'
   - 'apps/worker'
   - 'packages/*'
+  - 'e2e'
 
 # apps/local-agent queda deliberadamente fuera: es un proyecto C#/.NET,
 # no un paquete de Node. Ver ADR-015.

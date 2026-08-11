@@ -1,0 +1,182 @@
+/**
+ * Tokens de diseño — Pulso CRM.
+ *
+ * Identidad propia, no derivada del producto auditado (ControlFit: Material UI,
+ * tema oscuro, acento azul). Acá el acento es violeta ("Pulso Violeta"): tiene
+ * carácter y energía sin caer en el rojo/naranja típico de marca fitness (que
+ * ya está reservado para "peligro" en el sistema) ni en el azul de Material.
+ * Tema claro por defecto — mostrador de recepción con luz ambiente alta — con
+ * `.dark` disponible para el resto de los turnos.
+ *
+ * Todos los pares texto/fondo listados cumplen WCAG AA (4.5:1) para texto
+ * normal; los tokens `access-*` (usados en el resultado de /access) están
+ * reforzados para acercarse a AAA, porque ese banner se lee a distancia y
+ * nunca puede depender sólo del color (ver StatusBadge).
+ */
+
+@theme {
+  /* ---- Color: base neutra ---- */
+  --color-bg: #fafafa;
+  --color-surface: #ffffff;
+  --color-surface-foreground: #18181b;
+  --color-border: #e4e4e9;
+  --color-border-strong: #c9c9d2;
+  --color-text: #18181b;
+  --color-text-foreground: #ffffff;
+  --color-muted: #6b6b76;
+  --color-muted-foreground: #ffffff;
+  --color-muted-subtle: #f1f1f4;
+  --color-muted-subtle-foreground: #3f3f46;
+
+  /* ---- Color: acento primario (Pulso Violeta) ---- */
+  --color-primary: #6d28d9;
+  --color-primary-foreground: #ffffff;
+  --color-primary-subtle: #f2ebfe;
+  --color-primary-subtle-foreground: #4c1d95;
+  --color-primary-hover: #5b21b6;
+  --color-primary-active: #4c1d95;
+
+  /* ---- Color: estados semánticos ---- */
+  --color-success: #15803d;
+  --color-success-foreground: #ffffff;
+  --color-success-subtle: #e7f6ec;
+  --color-success-subtle-foreground: #14532d;
+
+  --color-warning: #92400e;
+  --color-warning-foreground: #ffffff;
+  --color-warning-subtle: #fdf0dc;
+  --color-warning-subtle-foreground: #78350f;
+
+  --color-danger: #b91c1c;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #fde8e8;
+  --color-danger-subtle-foreground: #7f1d1d;
+
+  --color-info: #0e7490;
+  --color-info-foreground: #ffffff;
+  --color-info-subtle: #e0f5f9;
+  --color-info-subtle-foreground: #164e63;
+
+  /* ---- Color: control de acceso — contraste reforzado ----
+   * Se usan en el banner grande de /access (ALLOWED/DENIED). Nunca solas:
+   * siempre acompañadas de texto + ícono (ver StatusBadge, AccessResultCard). */
+  --color-access-allowed: #0f6b30;
+  --color-access-allowed-foreground: #ffffff;
+  --color-access-allowed-subtle: #dcf3e3;
+  --color-access-allowed-subtle-foreground: #0a4a20;
+
+  --color-access-denied: #a01515;
+  --color-access-denied-foreground: #ffffff;
+  --color-access-denied-subtle: #fadada;
+  --color-access-denied-subtle-foreground: #6b0f0f;
+
+  /* ---- Radios ---- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  /* ---- Sombras (elevación sutil, sin dramatismo) ---- */
+  --shadow-sm: 0 1px 2px 0 rgb(24 24 27 / 0.05);
+  --shadow-md: 0 2px 8px -2px rgb(24 24 27 / 0.1), 0 1px 2px -1px rgb(24 24 27 / 0.06);
+  --shadow-lg: 0 8px 24px -4px rgb(24 24 27 / 0.14), 0 2px 6px -2px rgb(24 24 27 / 0.08);
+
+  /* ---- Tipografía ---- */
+  --font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  /* Tamaño mínimo del nombre en el resultado de acceso (FRONTEND_PLAN §6.3: ≥20px). */
+  --text-access-result: 1.375rem;
+
+  /* ---- Espaciado semántico (además de la escala utilitaria de Tailwind) ---- */
+  --control-height-sm: 2rem;
+  --control-height-md: 2.5rem;
+  --control-height-lg: 3rem;
+
+  /* ---- Foco visible (nunca se quita el outline) ---- */
+  --focus-ring: var(--color-primary);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}
+
+/* Tema oscuro: mismos tokens, valores propios. Se activa con la clase `.dark`
+ * en un ancestro (normalmente <html>), controlada por preferencia del usuario. */
+.dark {
+  --color-bg: #121116;
+  --color-surface: #1b1a21;
+  --color-surface-foreground: #f4f4f6;
+  --color-border: #313039;
+  --color-border-strong: #45434f;
+  --color-text: #f4f4f6;
+  --color-text-foreground: #18181b;
+  --color-muted: #a8a6b3;
+  --color-muted-foreground: #18181b;
+  --color-muted-subtle: #242229;
+  --color-muted-subtle-foreground: #d4d2db;
+
+  --color-primary: #a78bfa;
+  --color-primary-foreground: #1e1033;
+  --color-primary-subtle: #2c2140;
+  --color-primary-subtle-foreground: #e4d9fe;
+  --color-primary-hover: #bda6fb;
+  --color-primary-active: #c9b6fc;
+
+  --color-success: #4ade80;
+  --color-success-foreground: #0a2b16;
+  --color-success-subtle: #163524;
+  --color-success-subtle-foreground: #b7f0cc;
+
+  --color-warning: #fbbf24;
+  --color-warning-foreground: #3a2504;
+  --color-warning-subtle: #3a2c10;
+  --color-warning-subtle-foreground: #fde4b0;
+
+  --color-danger: #f87171;
+  --color-danger-foreground: #3a0d0d;
+  --color-danger-subtle: #3a1717;
+  --color-danger-subtle-foreground: #fecaca;
+
+  --color-info: #22d3ee;
+  --color-info-foreground: #062730;
+  --color-info-subtle: #123138;
+  --color-info-subtle-foreground: #a5e9f5;
+
+  --color-access-allowed: #34d399;
+  --color-access-allowed-foreground: #062017;
+  --color-access-allowed-subtle: #103524;
+  --color-access-allowed-subtle-foreground: #b7f0d5;
+
+  --color-access-denied: #fb7185;
+  --color-access-denied-foreground: #2c0a10;
+  --color-access-denied-subtle: #3a1620;
+  --color-access-denied-subtle-foreground: #fecdd6;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 2px 8px -2px rgb(0 0 0 / 0.45), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.35);
+}
+
+/* Foco visible global: nunca se elimina el outline, sólo se estiliza. */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

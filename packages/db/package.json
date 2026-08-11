@@ -23,6 +23,7 @@
     "migrate": "prisma migrate dev",
     "deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts",
+    "onboard": "tsx prisma/onboard-gym.ts",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test:integration": "vitest run",

@@ -3,6 +3,20 @@ import { type TenantResolver, tenantExtension } from './tenant-extension.js';
 
 export type PulsoPrismaClient = ReturnType<typeof createPrismaClient>;
 
+/**
+ * Tipo del cliente que reciben los callbacks de `PulsoPrismaClient.$transaction()`.
+ *
+ * No es `Prisma.TransactionClient`: ese tipo corresponde al cliente SIN
+ * extender, y los delegados por modelo del cliente extendido (filtro de
+ * tenant) usan una restricción genérica distinta (`Exact` en vez de
+ * `SelectSubset`), así que uno no es asignable al otro pese a comportarse
+ * igual en tiempo de ejecución. Se deriva acá, de la firma real, para que
+ * cualquier helper que reciba un `tx` de una transacción de
+ * `PulsoPrismaClient` tenga el tipo correcto en vez de `Prisma.TransactionClient`.
+ */
+export type PulsoTransactionClient =
+  Parameters<PulsoPrismaClient['$transaction']>[0] extends (tx: infer TX) => unknown ? TX : never;
+
 export interface CreatePrismaOptions {
   /** Devuelve el gymId activo. Null fuera de un request con sesión. */
   resolveGymId: TenantResolver;

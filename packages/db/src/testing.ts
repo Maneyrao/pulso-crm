@@ -89,6 +89,11 @@ export async function createTestDatabase(label = 'test'): Promise<TestDatabase> 
       }
     },
     async truncate() {
+      // `schema` viene de un bind param ($1), no interpolado, y la query en
+      // sí es texto estático: no hay concatenación de input externo.
+      // $queryRawUnsafe es necesario acá sólo porque $queryRaw (tagged
+      // template) no admite pasar bind params por separado.
+      // eslint-disable-next-line no-restricted-syntax -- ver comentario arriba
       const rows = await raw.$queryRawUnsafe<{ tablename: string }[]>(
         `SELECT tablename FROM pg_tables WHERE schemaname = $1 AND tablename <> '_prisma_migrations'`,
         schema,
@@ -96,7 +101,12 @@ export async function createTestDatabase(label = 'test'): Promise<TestDatabase> 
       if (rows.length === 0) return;
       const list = rows.map((r) => `"${schema}"."${r.tablename}"`).join(', ');
       // Los triggers append-only bloquean DELETE pero no TRUNCATE, que es
-      // justamente lo que hace falta para limpiar entre tests.
+      // justamente lo que hace falta para limpiar entre tests. Postgres no
+      // permite parametrizar identificadores de esquema/tabla en DDL:
+      // `schema` sale saneado a [a-z0-9_] de createTestDatabase() (arriba) y
+      // `r.tablename` sale del catálogo pg_tables de ese mismo esquema
+      // generado por el harness — ninguno de los dos viene de input externo.
+      // eslint-disable-next-line no-restricted-syntax -- ver comentario arriba
       await raw.$executeRawUnsafe(`TRUNCATE ${list} RESTART IDENTITY CASCADE`);
     },
     async destroy() {
@@ -104,6 +114,10 @@ export async function createTestDatabase(label = 'test'): Promise<TestDatabase> 
       await raw.$disconnect();
       const cleanup = new PrismaClient({ datasourceUrl: urlForSchema('public') });
       try {
+        // Mismo caso que el TRUNCATE de arriba: DROP SCHEMA no admite un
+        // identificador parametrizado, y `schema` está saneado a [a-z0-9_]
+        // por createTestDatabase(), nunca proviene de input externo.
+        // eslint-disable-next-line no-restricted-syntax -- ver comentario arriba
         await cleanup.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
       } finally {
         await cleanup.$disconnect();

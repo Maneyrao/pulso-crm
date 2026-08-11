@@ -1,7 +1,7 @@
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { PrismaService } from '../../infra/prisma/prisma.service.js';
-import { RedisService } from '../../infra/redis/redis.service.js';
+import { type PrismaService } from '../../infra/prisma/prisma.service.js';
+import { type RedisService } from '../../infra/redis/redis.service.js';
 import { Public } from '../../common/auth/decorators.js';
 
 /**

@@ -1,7 +1,7 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import type { CookieOptions, Request, Response } from 'express';
 import { z } from 'zod';
-import { AppConfig } from '../../common/config/app-config.js';
+import { type AppConfig } from '../../common/config/app-config.js';
 import { Public, RequiresPermission, Tenant } from '../../common/auth/decorators.js';
 import type { TenantContext } from '../../common/auth/tenant-context.js';
 import {
@@ -12,7 +12,7 @@ import {
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
 import { ZodBody } from '../../common/validation/zod.pipe.js';
-import { AuthService, type AuthenticatedSession } from './auth.service.js';
+import { type AuthService, type AuthenticatedSession } from './auth.service.js';
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Ingresá un email válido.'),
@@ -110,7 +110,6 @@ export class AuthController {
       branches: session.branches,
       activeBranchId: session.activeBranchId,
       permissions: session.permissions,
-      features: session.features,
     };
   }
 

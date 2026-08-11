@@ -2,6 +2,8 @@ import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
+import nextPlugin from '@next/eslint-plugin-next';
 
 /**
  * Configuración base compartida.
@@ -30,17 +32,14 @@ export const base = tseslint.config(
       'no-restricted-syntax': [
         'error',
         {
-          // SECURITY_MODEL §7 — inyección SQL
+          // SECURITY_MODEL §7 — inyección SQL. Sólo se prohíben las variantes
+          // *Unsafe*: reciben SQL como string y no parametrizan nada. Las
+          // formas de tagged-template ($queryRaw`...`, $executeRaw`...`) sí
+          // parametrizan automáticamente y quedan permitidas.
           selector:
             'CallExpression[callee.property.name=/^\\$queryRawUnsafe$|^\\$executeRawUnsafe$/]',
           message:
             'Prohibido $queryRawUnsafe/$executeRawUnsafe. Usá Prisma.sql con parámetros (SECURITY_MODEL §7).',
-        },
-        {
-          // SECURITY_MODEL §7 — interpolación directa en raw SQL
-          selector: 'TaggedTemplateExpression[tag.property.name=/^\\$queryRaw$|^\\$executeRaw$/]',
-          message:
-            'Usá Prisma.sql`...` en vez de $queryRaw`...` directo, para que los parámetros queden explícitos (SECURITY_MODEL §7).',
         },
         {
           // ADR-010 — dinero
@@ -75,27 +74,41 @@ export const backend = tseslint.config(...base, {
 });
 
 /** Frontend: además prohíbe XSS por dangerouslySetInnerHTML y tokens en storage. */
-export const frontend = tseslint.config(...base, {
-  languageOptions: {
-    globals: { ...globals.browser, ...globals.es2022 },
+export const frontend = tseslint.config(
+  ...base,
+  reactHooks.configs['recommended-latest'],
+  {
+    plugins: { '@next/next': nextPlugin },
+    rules: {
+      ...nextPlugin.flatConfig.recommended.rules,
+      // El monorepo usa exclusivamente App Router (apps/web/app), no existe
+      // ningún directorio pages/. Esta regla es específica de Pages Router y
+      // sólo genera ruido ("Pages directory cannot be found") sin aportar nada.
+      '@next/next/no-html-link-for-pages': 'off',
+    },
   },
-  rules: {
-    'no-restricted-syntax': [
-      'error',
-      {
-        // SECURITY_MODEL §6 — XSS
-        selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
-        message: 'dangerouslySetInnerHTML está prohibido (SECURITY_MODEL §6).',
-      },
-      {
-        // ADR-007 — tokens nunca accesibles por JS
-        selector:
-          'MemberExpression[object.name=/^localStorage$|^sessionStorage$/][property.name=/^setItem$/]',
-        message:
-          'Revisá qué guardás: los tokens y el deviceToken NUNCA van a storage (ADR-007). Si es UI state, usá el store de Zustand no persistido.',
-      },
-    ],
+  {
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.es2022 },
+    },
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          // SECURITY_MODEL §6 — XSS
+          selector: 'JSXAttribute[name.name="dangerouslySetInnerHTML"]',
+          message: 'dangerouslySetInnerHTML está prohibido (SECURITY_MODEL §6).',
+        },
+        {
+          // ADR-007 — tokens nunca accesibles por JS
+          selector:
+            'MemberExpression[object.name=/^localStorage$|^sessionStorage$/][property.name=/^setItem$/]',
+          message:
+            'Revisá qué guardás: los tokens y el deviceToken NUNCA van a storage (ADR-007). Si es UI state, usá el store de Zustand no persistido.',
+        },
+      ],
+    },
   },
-});
+);
 
 export default base;

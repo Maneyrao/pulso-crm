@@ -3,9 +3,9 @@ import {
   type ExecutionContext,
   Injectable,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { type Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { type PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AppError } from '../errors/app-error.js';
 import { ErrorCode } from '../errors/error-codes.js';
 import { RequestContextStore } from '../logging/logger.js';
@@ -16,7 +16,7 @@ import {
   PUBLIC_KEY,
 } from './decorators.js';
 import { TenantContextStore, type TenantContext } from './tenant-context.js';
-import { ACCESS_COOKIE, TokenService } from './token.service.js';
+import { ACCESS_COOKIE, type TokenService } from './token.service.js';
 
 /**
  * Guard único que resuelve autenticación, contexto de tenant, permisos y

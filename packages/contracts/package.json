@@ -1,0 +1,41 @@
+{
+  "name": "@pulso/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./common": "./src/common.ts",
+    "./permissions": "./src/permissions.ts",
+    "./features": "./src/features.ts",
+    "./auth": "./src/auth.ts",
+    "./tenancy": "./src/tenancy.ts",
+    "./iam": "./src/iam.ts",
+    "./members": "./src/members.ts",
+    "./catalog": "./src/catalog.ts",
+    "./memberships": "./src/memberships.ts",
+    "./cash": "./src/cash.ts",
+    "./access": "./src/access.ts",
+    "./reporting": "./src/reporting.ts",
+    "./messaging": "./src/messaging.ts"
+  },
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@pulso/config": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.2.1",
+    "@pulso/eslint-config": "workspace:*",
+    "@pulso/tsconfig": "workspace:*",
+    "eslint": "^9.18.0",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -84,7 +84,7 @@ describe('aislamiento entre gimnasios', () => {
           lastName: 'Gómez',
           documentType: 'DNI',
           documentNumber: '90000030',
-        },
+        } as any,
       }),
     );
     expect(created.gymId).toBe(gymA.id);

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { SignJWT, jwtVerify } from 'jose';
-import { AppConfig } from '../config/app-config.js';
+import { type AppConfig } from '../config/app-config.js';
 
 /**
  * Emisión y verificación de tokens (ADR-007).

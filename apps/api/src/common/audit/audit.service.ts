@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@pulso/db';
-import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { type PrismaService } from '../../infra/prisma/prisma.service.js';
 import { TenantContextStore } from '../auth/tenant-context.js';
 import { RequestContextStore } from '../logging/logger.js';
 import { redact } from '../logging/redaction.js';

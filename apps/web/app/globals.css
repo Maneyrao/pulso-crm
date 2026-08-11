@@ -1,0 +1,9 @@
+@import 'tailwindcss';
+@import '@pulso/ui/tokens.css';
+
+/* Superficie de base: cuerpo de la app usa el fondo/texto de los tokens. */
+body {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}

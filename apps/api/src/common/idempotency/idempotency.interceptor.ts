@@ -6,12 +6,12 @@ import {
   type NestInterceptor,
   SetMetadata,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { type Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
 import { from, of, switchMap, tap } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { scoped } from '@pulso/db';
-import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { type PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AppError } from '../errors/app-error.js';
 import { ErrorCode } from '../errors/error-codes.js';
 import { serialize } from '../money/decimal.serializer.js';

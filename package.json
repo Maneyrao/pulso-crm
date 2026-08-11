@@ -22,6 +22,7 @@
     "db:deploy": "pnpm --filter @pulso/db exec prisma migrate deploy",
     "db:generate": "pnpm --filter @pulso/db exec prisma generate",
     "db:seed": "pnpm --filter @pulso/db run seed",
+    "db:onboard": "pnpm --filter @pulso/db run onboard",
     "db:reset": "bash scripts/db-reset.sh",
     "db:studio": "pnpm --filter @pulso/db exec prisma studio"
   },
