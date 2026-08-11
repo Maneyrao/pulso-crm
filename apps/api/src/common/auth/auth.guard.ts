@@ -3,20 +3,26 @@ import {
   type ExecutionContext,
   Injectable,
 } from '@nestjs/common';
-import { type Reflector } from '@nestjs/core';
+// Los tres imports de abajo son de VALOR a propósito, no `type`: son
+// dependencias del constructor y Nest las resuelve por metadata de decorador
+// en runtime. Un import `type` se borra en la compilación y el inyector ve
+// `undefined` (detalle completo en infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { type PrismaService } from '../../infra/prisma/prisma.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AppError } from '../errors/app-error.js';
 import { ErrorCode } from '../errors/error-codes.js';
 import { RequestContextStore } from '../logging/logger.js';
 import {
   AGENT_ONLY_KEY,
-  FEATURE_KEY,
   PERMISSIONS_KEY,
   PUBLIC_KEY,
 } from './decorators.js';
 import { TenantContextStore, type TenantContext } from './tenant-context.js';
-import { ACCESS_COOKIE, type TokenService } from './token.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { ACCESS_COOKIE, TokenService } from './token.service.js';
 
 /**
  * Guard único que resuelve autenticación, contexto de tenant, permisos y
@@ -79,13 +85,11 @@ export class AuthGuard implements CanActivate {
       );
     }
 
-    const feature = this.reflector.getAllAndOverride<string>(FEATURE_KEY, [handler, controller]);
-    if (feature && !ctx.features.has(feature)) {
-      throw AppError.forbidden(
-        ErrorCode.FEATURE_NOT_ENABLED,
-        'Esta funcionalidad no está incluida en el plan del gimnasio.',
-      );
-    }
+    // La feature (@RequiresFeature) NO se valida acá: la resuelve FeatureGuard,
+    // el guard global que corre después de éste, con caché en Redis (ADR-022,
+    // T-2.8). Este guard deja `ctx.features` disponible en el contexto de
+    // tenant por si algún handler necesita consultarla directamente, pero el
+    // rechazo `403 FEATURE_NOT_ENABLED` es responsabilidad de FeatureGuard.
 
     const missing = required.filter((p) => !ctx.permissions.has(p));
     if (missing.length > 0) {
