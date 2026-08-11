@@ -9,7 +9,9 @@ import {
 import { uuidSchema } from '@pulso/contracts/common';
 import { RequiresPermission } from '../../common/auth/decorators.js';
 import { ZodBody, ZodParam, ZodQuery } from '../../common/validation/zod.pipe.js';
-import { type CashConfigService } from './cash-config.service.js';
+// Import de VALOR: dependencia del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { CashConfigService } from './cash-config.service.js';
 import {
   createCashRegisterRequestSchema,
   listCashRegistersQuerySchema,

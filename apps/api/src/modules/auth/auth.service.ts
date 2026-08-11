@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import type { PrismaClient } from '@pulso/db';
-import { type PrismaService } from '../../infra/prisma/prisma.service.js';
-import { type PasswordService } from '../../common/auth/password.service.js';
-import { type TokenService } from '../../common/auth/token.service.js';
+// Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { PasswordService } from '../../common/auth/password.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { TokenService } from '../../common/auth/token.service.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
 import { getLogger } from '../../common/logging/logger.js';

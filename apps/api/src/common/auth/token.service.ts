@@ -1,7 +1,10 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { SignJWT, jwtVerify } from 'jose';
-import { type AppConfig } from '../config/app-config.js';
+// Import de VALOR: dependencia del constructor, resuelta por Nest via
+// metadata de decorador (detalle en infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { AppConfig } from '../config/app-config.js';
 
 /**
  * Emisión y verificación de tokens (ADR-007).

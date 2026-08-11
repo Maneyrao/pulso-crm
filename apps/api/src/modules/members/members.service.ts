@@ -16,11 +16,14 @@ import type {
 import { normalizeDocument } from '@pulso/config/document';
 import { normalizePhone } from '@pulso/config/phone';
 import { endOfBusinessDayExclusive, startOfBusinessDay } from '@pulso/config/time';
-import { type AuditService, diff } from '../../common/audit/audit.service.js';
+// Import de VALOR: dependencia del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { AuditService, diff } from '../../common/audit/audit.service.js';
 import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
-import { type PrismaService } from '../../infra/prisma/prisma.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { fromDateOnly, toDateOnly } from './date-only.js';
 import { isUniqueViolation, uniqueViolationTarget } from './db-errors.js';
 import { maskedDocument, serializeMember, type MemberDto } from './member-serializer.js';

@@ -6,12 +6,15 @@ import {
   type NestInterceptor,
   SetMetadata,
 } from '@nestjs/common';
-import { type Reflector } from '@nestjs/core';
+// Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { Reflector } from '@nestjs/core';
 import type { Request, Response } from 'express';
 import { from, of, switchMap, tap } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { scoped } from '@pulso/db';
-import { type PrismaService } from '../../infra/prisma/prisma.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AppError } from '../errors/app-error.js';
 import { ErrorCode } from '../errors/error-codes.js';
 import { serialize } from '../money/decimal.serializer.js';

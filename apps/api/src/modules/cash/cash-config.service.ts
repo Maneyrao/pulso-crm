@@ -6,8 +6,11 @@ import type {
   CreateCashConceptRequest,
   UpdateCashConceptRequest,
 } from '@pulso/contracts/cash';
-import { type PrismaService } from '../../infra/prisma/prisma.service.js';
-import { type AuditService } from '../../common/audit/audit.service.js';
+// Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { AuditService } from '../../common/audit/audit.service.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { translateCashConstraintError } from './lib/pg-errors.js';

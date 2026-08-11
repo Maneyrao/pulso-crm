@@ -1,7 +1,9 @@
 import { Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
 import type { CookieOptions, Request, Response } from 'express';
 import { z } from 'zod';
-import { type AppConfig } from '../../common/config/app-config.js';
+// Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { AppConfig } from '../../common/config/app-config.js';
 import { Public, RequiresPermission, Tenant } from '../../common/auth/decorators.js';
 import type { TenantContext } from '../../common/auth/tenant-context.js';
 import {
@@ -12,7 +14,8 @@ import {
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
 import { ZodBody } from '../../common/validation/zod.pipe.js';
-import { type AuthService, type AuthenticatedSession } from './auth.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { AuthService, type AuthenticatedSession } from './auth.service.js';
 
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Ingresá un email válido.'),

@@ -1,7 +1,10 @@
 import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import type { Response } from 'express';
-import { type PrismaService } from '../../infra/prisma/prisma.service.js';
-import { type RedisService } from '../../infra/redis/redis.service.js';
+// Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { RedisService } from '../../infra/redis/redis.service.js';
 import { Public } from '../../common/auth/decorators.js';
 
 /**

@@ -1,6 +1,12 @@
 import { Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { Redis } from 'ioredis';
-import { type AppConfig } from '../../common/config/app-config.js';
+// NOTA: import de VALOR (no `type`), aunque sólo se use como tipo acá. Nest
+// resuelve las dependencias del constructor por metadata de decorador
+// (`emitDecoratorMetadata`), que necesita la referencia en tiempo de
+// ejecución. Un import `type` se borra en la compilación y el parámetro
+// queda `undefined` para el inyector — falla en runtime, no en el typecheck.
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { AppConfig } from '../../common/config/app-config.js';
 
 @Injectable()
 export class RedisService implements OnModuleDestroy {

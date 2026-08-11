@@ -15,7 +15,9 @@ import { uuidSchema } from '@pulso/contracts/common';
 import { Idempotent } from '../../common/idempotency/idempotency.interceptor.js';
 import { RequiresPermission } from '../../common/auth/decorators.js';
 import { ZodBody, ZodParam, ZodQuery } from '../../common/validation/zod.pipe.js';
-import { type MembersService } from './members.service.js';
+// Import de VALOR: dependencia del constructor (ver infra/redis/redis.service.ts).
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { MembersService } from './members.service.js';
 
 @Controller('members')
 export class MembersController {
