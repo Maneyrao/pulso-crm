@@ -2,11 +2,13 @@ import type { ComponentType } from 'react';
 import {
   AlertCircle,
   BookOpen,
+  Building2,
   ClipboardList,
   DoorOpen,
   Dumbbell,
   LayoutDashboard,
   Users,
+  UserCog,
   Wallet,
 } from 'lucide-react';
 import type { FeatureKey } from '@pulso/contracts/features';
@@ -31,4 +33,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: '/activities', label: 'Actividades', icon: Dumbbell, permission: 'plan:read' },
   { href: '/cash', label: 'Caja', icon: Wallet, permission: 'cash:read' },
   { href: '/cash/daybook', label: 'Libro diario', icon: BookOpen, permission: 'cash:read' },
+  { href: '/settings/branches', label: 'Sedes', icon: Building2, permission: 'config:read' },
+  { href: '/settings/users', label: 'Usuarios', icon: UserCog, permission: 'user:read' },
 ] as const;

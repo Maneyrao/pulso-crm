@@ -17,6 +17,11 @@ export const qk = {
   plans: (gymId: string) => ['plans', gymId] as const,
   activities: (gymId: string) => ['activities', gymId] as const,
 
+  gym: (gymId: string) => ['gym', gymId] as const,
+  branches: (gymId: string) => ['branches', gymId] as const,
+  users: (gymId: string, filters: Readonly<Record<string, unknown>>) => ['users', gymId, filters] as const,
+  roles: (gymId: string) => ['roles', gymId] as const,
+
   cashSession: (gymId: string, branchId: string | null) => ['cash-session', gymId, branchId] as const,
   cashMovements: (gymId: string, cashSessionId: string) => ['cash-movements', gymId, cashSessionId] as const,
   cashOperations: (gymId: string, branchId: string | null) => ['cash-operations', gymId, branchId] as const,
