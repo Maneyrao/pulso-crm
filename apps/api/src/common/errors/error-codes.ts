@@ -29,6 +29,12 @@ export const ErrorCode = {
   BRANCH_NOT_ALLOWED: 'BRANCH_NOT_ALLOWED',
   PLAN_LIMIT_REACHED: 'PLAN_LIMIT_REACHED',
 
+  // Tenancy e IAM (API_CONTRACTS §4/§5) — mismos strings que
+  // packages/contracts/src/common.ts (ERROR_CODES), que es el catálogo que
+  // valida el frontend.
+  BRANCH_HAS_ACTIVE_DATA: 'BRANCH_HAS_ACTIVE_DATA',
+  LAST_OWNER: 'LAST_OWNER',
+
   // Idempotencia
   IDEMPOTENCY_KEY_REQUIRED: 'IDEMPOTENCY_KEY_REQUIRED',
   IDEMPOTENCY_KEY_REUSED: 'IDEMPOTENCY_KEY_REUSED',
