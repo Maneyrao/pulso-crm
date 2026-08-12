@@ -172,6 +172,19 @@ export class TestClient {
     if (this.cookies.size > 0) {
       headers['cookie'] = [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
     }
+    // Emula al browser client (apps/web/lib/api/client.ts): en mutaciones,
+    // reenvía el token CSRF de la cookie `pulso_csrf` como header
+    // `X-CSRF-Token` (SECURITY_MODEL §6, double-submit). Sin esto, todos los
+    // POST/PATCH/DELETE de los tests fallarían con 403 CSRF_INVALID.
+    // Un test puede sobrescribir el header (ver auth.spec.ts) para probar el
+    // negativo del guard sin evadirlo por accidente.
+    if (
+      (method === 'POST' || method === 'PATCH' || method === 'PUT' || method === 'DELETE') &&
+      headers['x-csrf-token'] === undefined
+    ) {
+      const csrf = this.cookies.get('pulso_csrf');
+      if (csrf) headers['x-csrf-token'] = csrf;
+    }
 
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,

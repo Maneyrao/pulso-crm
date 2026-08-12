@@ -22,7 +22,20 @@ import {
 } from './decorators.js';
 import { TenantContextStore, type TenantContext } from './tenant-context.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
-import { ACCESS_COOKIE, TokenService } from './token.service.js';
+import { ACCESS_COOKIE, CSRF_COOKIE, TokenService } from './token.service.js';
+
+const WRITE_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const CSRF_HEADER = 'x-csrf-token';
+
+/** Comparación en tiempo constante — no filtra por early-exit cuál byte difiere. */
+function timingSafeEquals(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
 
 /**
  * Guard único que resuelve autenticación, contexto de tenant, permisos y
@@ -58,12 +71,30 @@ export class AuthGuard implements CanActivate {
     }
 
     const req = context.switchToHttp().getRequest<Request>();
-    const token = this.extractToken(req);
-    if (!token) {
+    const extracted = this.extractToken(req);
+    if (!extracted) {
       throw AppError.unauthorized(ErrorCode.SESSION_EXPIRED, 'Necesitás iniciar sesión.');
     }
 
-    const claims = await this.tokens.verifyAccessToken(token);
+    // Double-submit CSRF (SECURITY_MODEL §6): las mutaciones autenticadas por
+    // cookie deben venir con el header `X-CSRF-Token` igual a la cookie
+    // `pulso_csrf` (JS-readable). Sin esto, un sitio malicioso puede embarcar
+    // al navegador del usuario en un POST autenticado a nuestro dominio,
+    // porque la cookie httpOnly se adjunta sola. Bearer no está afectado (lo
+    // usan tests y agentes locales, que no llegan por navegador).
+    if (extracted.source === 'cookie' && WRITE_METHODS.has(req.method)) {
+      const headerCsrf = req.headers[CSRF_HEADER];
+      const headerValue = Array.isArray(headerCsrf) ? headerCsrf[0] : headerCsrf;
+      const cookieCsrf = (req as Request & { cookies?: Record<string, string> }).cookies?.[CSRF_COOKIE];
+      if (!headerValue || !cookieCsrf || !timingSafeEquals(headerValue, cookieCsrf)) {
+        throw AppError.forbidden(
+          ErrorCode.CSRF_INVALID,
+          'Token CSRF ausente o inválido. Recargá la página e iniciá sesión de nuevo.',
+        );
+      }
+    }
+
+    const claims = await this.tokens.verifyAccessToken(extracted.token);
     if (!claims) {
       throw AppError.unauthorized(ErrorCode.SESSION_EXPIRED, 'Tu sesión expiró.');
     }
@@ -111,15 +142,16 @@ export class AuthGuard implements CanActivate {
     return true;
   }
 
-  private extractToken(req: Request): string | null {
+  private extractToken(req: Request): { token: string; source: 'cookie' | 'bearer' } | null {
     const cookies = (req as Request & { cookies?: Record<string, string> }).cookies;
     const fromCookie = cookies?.[ACCESS_COOKIE];
-    if (fromCookie) return fromCookie;
+    if (fromCookie) return { token: fromCookie, source: 'cookie' };
 
     // Authorization Bearer se acepta sólo para pruebas automatizadas y para el
-    // agente local. El navegador usa la cookie httpOnly (ADR-007).
+    // agente local. El navegador usa la cookie httpOnly (ADR-007). Bearer no
+    // requiere CSRF: el atacante web no puede setear ese header por CORS.
     const header = req.headers.authorization;
-    if (header?.startsWith('Bearer ')) return header.slice(7);
+    if (header?.startsWith('Bearer ')) return { token: header.slice(7), source: 'bearer' };
     return null;
   }
 
