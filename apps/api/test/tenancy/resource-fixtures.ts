@@ -279,4 +279,8 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'body requerido (reason mínimo 5); el id se lee scoped por gymId, un movement ajeno responde 404. Cross-tenant se cubrirá en test/cash/movements.spec.ts (pendiente para M5).',
   'GET /api/v1/cash/daybook':
     'query-based (from/to opcionales); sin id de recurso, resultado scoped por gymId + sede activa',
+  'POST /api/v1/access/check':
+    'body requerido (branchId, method, identifier); un branchId de otro gym se rechaza por TenantContextStore.requireBranch → 404. Cobertura funcional en apps/api/src/modules/access/access-decision.spec.ts (regla de decisión) y evidencia de que el service escribe scoped por gymId (extensión de Prisma).',
+  'GET /api/v1/access/attempts':
+    'list con paginación offset, scoped por gymId + branchId activo; sin id de recurso',
 };

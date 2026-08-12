@@ -12,6 +12,7 @@ import { PrismaModule } from './infra/prisma/prisma.module.js';
 import { RedisModule } from './infra/redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
+import { AccessModule } from './modules/access/access.module.js';
 import { MembersModule } from './modules/members/members.module.js';
 import { CashModule } from './modules/cash/cash.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
@@ -33,6 +34,7 @@ import { IamModule } from './modules/iam/iam.module.js';
     MembershipsModule,
     TenancyModule,
     IamModule,
+    AccessModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
