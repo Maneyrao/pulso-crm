@@ -146,6 +146,18 @@ describe('cross-tenant: acceder o mutar un recurso de otro gimnasio', () => {
     const fixture = key ? RESOURCE_FIXTURES[key] : undefined;
     const label = `${route.method} ${route.path}`;
 
+    if (NON_TENANT_ALLOWLIST[routeKey(route)]) {
+      // La allowlist se aplica también al bucle por :id: rutas que exigen un
+      // body válido (p.ej. POST /members/:id/memberships con planId, branchId,
+      // startDate y charge obligatorios) darían 422 antes de que la comprobación
+      // cross-tenant del service pueda correr — bodyFor() no puede fabricar
+      // esos bodies genéricamente. El aislamiento cross-tenant de esas rutas
+      // se cubre explícitamente en el spec dedicado del recurso; ver la
+      // entrada de la ruta en NON_TENANT_ALLOWLIST para el motivo.
+      it.skip(`${label} — allowlisted (${NON_TENANT_ALLOWLIST[routeKey(route)]})`, () => undefined);
+      continue;
+    }
+
     if (!fixture) {
       it.skip(`${label} — sin fixture (cubierto por la allowlist, no por un recurso)`, () => undefined);
       continue;

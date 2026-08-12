@@ -161,6 +161,81 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
     },
     readRaw: (raw, id) => raw.cashRegister.findUnique({ where: { id } }),
   },
+  activities: {
+    async createId(raw, gymId) {
+      const row = await raw.activity.create({
+        data: { gymId, name: `Actividad cross-tenant ${unique()}` },
+      });
+      return row.id;
+    },
+    async createBody() {
+      return { name: `Actividad create-route ${unique()}` };
+    },
+    readRaw: (raw, id) => raw.activity.findUnique({ where: { id } }),
+  },
+  plans: {
+    async createId(raw, gymId) {
+      const row = await raw.plan.create({
+        data: {
+          gymId,
+          name: `Plan cross-tenant ${unique()}`,
+          price: '1000.00',
+          billingCycle: 'MONTHLY',
+        },
+      });
+      return row.id;
+    },
+    async createBody() {
+      return {
+        name: `Plan create-route ${unique()}`,
+        price: '1500.00',
+        billingCycle: 'MONTHLY',
+      };
+    },
+    readRaw: (raw, id) => raw.plan.findUnique({ where: { id } }),
+  },
+  memberships: {
+    async createId(raw, gymId, branchId) {
+      // El EXCLUDE constraint impide dos ACTIVE del mismo miembro solapadas,
+      // así que cada llamada crea un socio y un plan efímero propio — de lo
+      // contrario dos createId() consecutivos (p.ej., un GET :id + un
+      // listado) chocarían en el gimnasio A antes de que el suite pueda
+      // probar la carrera cross-tenant.
+      const memberNumber = unique();
+      const member = await raw.member.create({
+        data: {
+          gymId,
+          branchId,
+          memberNumber,
+          firstName: 'Fixture',
+          lastName: 'Membership',
+          documentType: 'DNI',
+          documentNumber: String(70_000_000 + memberNumber),
+        },
+      });
+      const plan = await raw.plan.create({
+        data: {
+          gymId,
+          name: `Plan fixture ${memberNumber}`,
+          price: '1000.00',
+          billingCycle: 'MONTHLY',
+        },
+      });
+      const row = await raw.membership.create({
+        data: {
+          gymId,
+          memberId: member.id,
+          planId: plan.id,
+          branchId,
+          startDate: new Date('2026-01-01T00:00:00.000Z'),
+          endDate: new Date('2026-01-31T00:00:00.000Z'),
+          pricePaid: '1000.00',
+        },
+      });
+      return row.id;
+    },
+    readRaw: (raw, id) => raw.membership.findUnique({ where: { id } }),
+  },
 };
 
 /**
@@ -182,4 +257,8 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'ya tiene su propio test de cross-tenant en test/auth.spec.ts (seleccionar sede de otro gimnasio → 404)',
   'GET /api/v1/gym': 'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
   'PATCH /api/v1/gym': 'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
+  'POST /api/v1/members/:memberId/memberships':
+    'body requerido (planId, branchId, startDate, charge): sin body válido la validación Zod dispara 422 antes de la comprobación cross-tenant. Cross-tenant cubierto explícitamente en test/memberships/memberships.spec.ts (memberId/planId/branchId ajenos → 404).',
+  'POST /api/v1/memberships/:id/cancel':
+    'body requerido (reason mínimo 5): sin body válido la validación Zod dispara 422 antes de la comprobación cross-tenant. Cross-tenant cubierto explícitamente en test/memberships/memberships.spec.ts.',
 };
