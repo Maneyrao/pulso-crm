@@ -62,11 +62,15 @@ export default function DashboardPage() {
             <>
               <KpiCard title="Ingresos de hoy" loading />
               <KpiCard title="Asistencias de hoy" loading />
+              <KpiCard title="Deuda total" loading />
+              <KpiCard title="Vencen en 7 días" loading />
             </>
           ) : dashboard.isError ? (
             <>
               <KpiCard title="Ingresos de hoy" error="No pudimos cargar este dato." />
               <KpiCard title="Asistencias de hoy" error="No pudimos cargar este dato." />
+              <KpiCard title="Deuda total" error="No pudimos cargar este dato." />
+              <KpiCard title="Vencen en 7 días" error="No pudimos cargar este dato." />
             </>
           ) : dashboard.data ? (
             <>
@@ -79,15 +83,7 @@ export default function DashboardPage() {
                 hint="Membresías próximas a vencer"
               />
             </>
-          ) : (
-            // Placeholder honesto: el endpoint de reportes todavía no existe
-            // en la API. No se inventan números.
-            <KpiCard
-              title="Ingresos, asistencia y vencimientos"
-              value="—"
-              hint="Disponible cuando el módulo de reportes esté listo."
-            />
-          )
+          ) : null
         ) : null}
       </div>
 

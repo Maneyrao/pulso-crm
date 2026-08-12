@@ -283,4 +283,6 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'body requerido (branchId, method, identifier); un branchId de otro gym se rechaza por TenantContextStore.requireBranch → 404. Cobertura funcional en apps/api/src/modules/access/access-decision.spec.ts (regla de decisión) y evidencia de que el service escribe scoped por gymId (extensión de Prisma).',
   'GET /api/v1/access/attempts':
     'list con paginación offset, scoped por gymId + branchId activo; sin id de recurso',
+  'GET /api/v1/reports/dashboard':
+    'singleton scoped por gymId + sede activa (agrega socios/deuda/ingresos/asistencias); sin id de recurso',
 };
