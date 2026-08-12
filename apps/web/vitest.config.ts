@@ -18,6 +18,5 @@ export default defineConfig({
     setupFiles: ['./lib/test/vitest.setup.ts'],
     include: ['**/*.spec.tsx', '**/*.spec.ts'],
     exclude: ['node_modules/**', '.next/**'],
-    passWithNoTests: true,
   },
 });
