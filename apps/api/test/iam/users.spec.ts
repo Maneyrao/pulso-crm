@@ -200,6 +200,66 @@ describe('invariante del último OWNER', () => {
     const lastOne = await owner.post(`/api/v1/users/${gym.users['OWNER']!.id}/deactivate`);
     expect(lastOne.status).toBe(409);
   });
+
+  // Concurrencia: ver iam/users-concurrency.spec.ts — se aisló en su propio
+  // archivo (gimnasio propio) porque el escenario necesita reducir a
+  // propósito la cantidad de OWNERs activos a 2, y hacerlo acá contaminaría
+  // el estado que el resto de este archivo asume (`loginAs('OWNER')` deja
+  // de andar si el OWNER del seed queda desactivado por la propia carrera).
+});
+
+describe('un usuario no puede quitarse user:write a sí mismo', () => {
+  it('PATCH sobre el propio usuario que dejaría de tener user:write → 409', async () => {
+    const owner = await loginAs('OWNER');
+    const receptionistRoleId = await roleId('RECEPTIONIST');
+    const ownerRoleId = await roleId('OWNER');
+
+    // Un segundo OWNER (no el último, para aislar el chequeo de
+    // auto-remoción del de LAST_OWNER) que se edita a sí mismo.
+    const created = await owner.post('/api/v1/users', {
+      email: 'se-edita-a-si-mismo@iam-users-gym.test',
+      firstName: 'Self',
+      lastName: 'Edit',
+      roleIds: [ownerRoleId],
+      branchIds: [],
+    });
+    const selfId = (created.body as { user: { id: string } }).user.id;
+    const password = (created.body as { temporaryPassword: string }).temporaryPassword;
+
+    const self = new TestClient(ctx.baseUrl);
+    const login = await self.post('/api/v1/auth/login', {
+      email: 'se-edita-a-si-mismo@iam-users-gym.test',
+      password,
+    });
+    expect(login.status).toBe(200);
+
+    const res = await self.patch(`/api/v1/users/${selfId}`, { roleIds: [receptionistRoleId] });
+    expect(res.status).toBe(409);
+
+    // Y sigue teniendo su rol original — el PATCH no se aplicó parcialmente.
+    const stillOwner = await ctx.db.raw.userRoleAssignment.findFirst({
+      where: { userId: selfId, role: { code: 'OWNER' } },
+    });
+    expect(stillOwner).not.toBeNull();
+  });
+
+  it('un OWNER SÍ puede quitarle user:write a OTRO usuario', async () => {
+    const owner = await loginAs('OWNER');
+    const receptionistRoleId = await roleId('RECEPTIONIST');
+    const ownerRoleId = await roleId('OWNER');
+
+    const created = await owner.post('/api/v1/users', {
+      email: 'editado-por-otro@iam-users-gym.test',
+      firstName: 'Editado',
+      lastName: 'PorOtro',
+      roleIds: [ownerRoleId],
+      branchIds: [],
+    });
+    const targetId = (created.body as { user: { id: string } }).user.id;
+
+    const res = await owner.patch(`/api/v1/users/${targetId}`, { roleIds: [receptionistRoleId] });
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('desactivar invalida la sesión', () => {

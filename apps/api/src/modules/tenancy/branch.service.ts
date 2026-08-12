@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@pulso/db';
+import type { Prisma, PulsoTransactionClient } from '@pulso/db';
 import { scoped } from '@pulso/db';
 import type { CreateBranchRequest, UpdateBranchRequest } from '@pulso/contracts/tenancy';
 // Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
@@ -11,6 +11,7 @@ import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { serializeBranch } from './branch-serializer.js';
 
 /**
  * `Branch` (API_CONTRACTS §4 "GET/POST/PATCH/DELETE /branches").
@@ -33,16 +34,25 @@ export class BranchService {
       where: { deletedAt: null },
       orderBy: { name: 'asc' },
     });
-    return { data: branches };
+    return { data: branches.map(serializeBranch) };
   }
 
   async create(input: CreateBranchRequest) {
     const ctx = TenantContextStore.require();
-    await this.assertUnderPlanLimit(ctx.gymId);
 
     try {
-      return await this.prisma.client.$transaction(async (tx) => {
-        const created = await tx.branch.create({
+      const created = await this.prisma.client.$transaction(async (tx) => {
+        // El chequeo de plan tiene que correr DESPUÉS de tomar el lock, no
+        // antes de abrir la transacción: si no, dos POST concurrentes leen
+        // el mismo conteo "por debajo del límite" y ambos pasan, dejando al
+        // gimnasio con más sedes activas de las que su plan permite. El lock
+        // es sobre la fila de `Gym` (no hay una fila "conteo de sedes" que
+        // bloquear): sirve como mutex para cualquier escritura que dependa
+        // de `maxBranches` vs. sedes activas de este gimnasio.
+        await this.lockGym(tx, ctx.gymId);
+        await this.assertUnderPlanLimitTx(tx, ctx.gymId);
+
+        const row = await tx.branch.create({
           data: scoped({
             name: input.name.trim(),
             timezone: input.timezone,
@@ -54,13 +64,15 @@ export class BranchService {
         await this.audit.recordIn(tx, {
           action: 'BRANCH_CREATED',
           resourceType: 'Branch',
-          resourceId: created.id,
-          after: created,
-          branchId: created.id,
+          resourceId: row.id,
+          after: row,
+          branchId: row.id,
         });
 
-        return created;
+        return row;
       });
+
+      return serializeBranch(created);
     } catch (err) {
       throw this.translateWriteError(err);
     }
@@ -78,8 +90,8 @@ export class BranchService {
     if (input.isActive !== undefined) patch.isActive = input.isActive;
 
     try {
-      return await this.prisma.client.$transaction(async (tx) => {
-        const updated = await tx.branch.update({ where: { id }, data: patch });
+      const updated = await this.prisma.client.$transaction(async (tx) => {
+        const row = await tx.branch.update({ where: { id }, data: patch });
 
         const { before, after } = diff(existing, patch as Record<string, unknown>);
         await this.audit.recordIn(tx, {
@@ -91,8 +103,10 @@ export class BranchService {
           branchId: id,
         });
 
-        return updated;
+        return row;
       });
+
+      return serializeBranch(updated);
     } catch (err) {
       throw this.translateWriteError(err);
     }
@@ -115,8 +129,8 @@ export class BranchService {
       );
     }
 
-    return this.prisma.client.$transaction(async (tx) => {
-      const updated = await tx.branch.update({ where: { id }, data: { isActive: false } });
+    const updated = await this.prisma.client.$transaction(async (tx) => {
+      const row = await tx.branch.update({ where: { id }, data: { isActive: false } });
 
       await this.audit.recordIn(tx, {
         action: 'BRANCH_DELETED',
@@ -127,14 +141,29 @@ export class BranchService {
         branchId: id,
       });
 
-      return updated;
+      return row;
     });
+
+    return serializeBranch(updated);
   }
 
-  private async assertUnderPlanLimit(gymId: string): Promise<void> {
+  /**
+   * `SELECT ... FOR UPDATE` sobre la fila del gimnasio: no hay una fila que
+   * represente "conteo de sedes activas" para bloquear directamente, así que
+   * se usa `Gym` como mutex — cualquier operación que dependa de
+   * `maxBranches` vs. sedes activas toma este lock primero, serializando
+   * contra otra igual que corra en simultáneo para el mismo gimnasio. Raw
+   * SQL parametrizado (no `Unsafe`): `gymId` sale de `TenantContextStore`,
+   * nunca de input del cliente.
+   */
+  private async lockGym(tx: PulsoTransactionClient, gymId: string): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM gyms WHERE id = ${gymId}::uuid FOR UPDATE`;
+  }
+
+  private async assertUnderPlanLimitTx(tx: PulsoTransactionClient, gymId: string): Promise<void> {
     const [gym, activeCount] = await Promise.all([
-      this.prisma.client.gym.findUnique({ where: { id: gymId }, include: { saasPlan: true } }),
-      this.prisma.client.branch.count({ where: { deletedAt: null, isActive: true } }),
+      tx.gym.findUnique({ where: { id: gymId }, include: { saasPlan: true } }),
+      tx.branch.count({ where: { deletedAt: null, isActive: true } }),
     ]);
     // `Gym` no es tenant-scoped (ver GymService); `gymId` viene del contexto
     // de sesión, no del cliente, así que consultarlo acá es seguro.

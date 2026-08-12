@@ -122,6 +122,48 @@ describe('POST /branches', () => {
     // Se restaura para no interferir con otros tests de este archivo.
     await ctx.db.raw.saasPlan.update({ where: { id: gym.gym.saasPlanId }, data: { maxBranches: 10 } });
   });
+
+  it('concurrencia: N creates simultáneos sobre un límite ajustado — sólo entran los que caben', async () => {
+    const owner = await loginAs('OWNER');
+
+    const before = await owner.get('/api/v1/branches');
+    const activeCount = (before.body as { data: { isActive: boolean }[] }).data.filter(
+      (b) => b.isActive,
+    ).length;
+
+    // Deja lugar para exactamente 2 más y dispara 5 creates a la vez: sin el
+    // lock sobre la fila de `Gym` (SELECT ... FOR UPDATE dentro de la
+    // transacción, tomado ANTES de contar sedes activas), varias podrían leer
+    // el mismo conteo "por debajo del límite" a la vez y todas pasar,
+    // dejando al gimnasio con más sedes activas de las que el plan permite.
+    const room = 2;
+    await ctx.db.raw.saasPlan.update({
+      where: { id: gym.gym.saasPlanId },
+      data: { maxBranches: activeCount + room },
+    });
+
+    const attempts = 5;
+    const results = await Promise.all(
+      Array.from({ length: attempts }, (_, i) =>
+        owner.post('/api/v1/branches', {
+          name: `Sede Concurrencia ${i}-${Date.now()}`,
+          timezone: 'America/Argentina/Buenos_Aires',
+        }),
+      ),
+    );
+
+    const succeeded = results.filter((r) => r.status === 201).length;
+    const rejected = results.filter((r) => r.status === 403).length;
+    expect(succeeded).toBe(room);
+    expect(rejected).toBe(attempts - room);
+
+    const afterActive = await ctx.db.raw.branch.count({
+      where: { gymId: gym.gym.id, isActive: true, deletedAt: null },
+    });
+    expect(afterActive).toBe(activeCount + room);
+
+    await ctx.db.raw.saasPlan.update({ where: { id: gym.gym.saasPlanId }, data: { maxBranches: 10 } });
+  });
 });
 
 describe('PATCH /branches/:id', () => {

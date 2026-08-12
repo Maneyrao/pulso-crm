@@ -6,7 +6,7 @@ import {
   updateBranchRequestSchema,
 } from '@pulso/contracts/tenancy';
 import { uuidSchema } from '@pulso/contracts/common';
-import { RequiresPermission } from '../../common/auth/decorators.js';
+import { RequiresFeature, RequiresPermission } from '../../common/auth/decorators.js';
 import { ZodBody, ZodParam } from '../../common/validation/zod.pipe.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota en infra/redis/redis.service.ts
 import { BranchService } from './branch.service.js';
@@ -21,7 +21,17 @@ export class BranchController {
     return this.branches.list();
   }
 
+  /**
+   * `multi_branch` (ADR-022, FEATURE_KEYS en packages/contracts/src/features.ts:
+   * "Más de una sede activa. Complementa (no reemplaza) SaasPlan.maxBranches.")
+   * es la feature del plan SaaS que habilita crear más sedes; `maxBranches`
+   * sigue siendo el tope numérico dentro de esa habilitación
+   * (`BranchService.assertUnderPlanLimitTx`). `FeatureGuard` corre después de
+   * `AuthGuard` y antes de que el handler se ejecute — un gimnasio sin la
+   * feature nunca llega al service.
+   */
   @RequiresPermission('config:write')
+  @RequiresFeature('multi_branch')
   @Post()
   @HttpCode(HttpStatus.CREATED)
   create(@ZodBody(createBranchRequestSchema) body: CreateBranchRequest) {

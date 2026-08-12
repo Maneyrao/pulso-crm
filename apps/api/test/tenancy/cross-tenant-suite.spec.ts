@@ -84,6 +84,11 @@ function resourceKeyOf(route: DiscoveredRoute): string | undefined {
   return candidates.find((key) => withoutPrefix === key || withoutPrefix.startsWith(`${key}/`));
 }
 
+/** Clave exacta de la allowlist — `METODO /ruta`, no el controller (ver resource-fixtures.ts). */
+function routeKey(route: DiscoveredRoute): string {
+  return `${route.method} ${route.path}`;
+}
+
 /** `requestId` cambia por request: se excluye antes de comparar shapes. */
 function stripVolatile(body: unknown): unknown {
   if (!body || typeof body !== 'object') return body;
@@ -118,12 +123,15 @@ describe('auto-descubrimiento de rutas', () => {
 
   it('toda ruta protegida pertenece a un recurso con fixture o está en la allowlist explícita', () => {
     const uncovered = protectedRoutes.filter((r) => {
-      if (NON_TENANT_ALLOWLIST[r.controllerName]) return false;
+      if (NON_TENANT_ALLOWLIST[routeKey(r)]) return false;
       return resourceKeyOf(r) === undefined;
     });
     // Si esto falla: un endpoint nuevo no está cubierto. Se arregla
-    // agregando su fixture a resource-fixtures.ts, o su controller a
-    // NON_TENANT_ALLOWLIST con el motivo — nunca borrando este test.
+    // agregando su fixture a resource-fixtures.ts, o LA RUTA PUNTUAL (no el
+    // controller entero) a NON_TENANT_ALLOWLIST con el motivo — nunca
+    // borrando este test. La allowlist es por ruta a propósito: un endpoint
+    // nuevo en un controller ya listado (Auth, Gym) NO queda exento por
+    // asociación, tiene que cubrirse o listarse él mismo.
     expect(uncovered.map((r) => `${r.method} ${r.path} (${r.controllerName})`)).toEqual([]);
   });
 });
@@ -146,6 +154,8 @@ describe('cross-tenant: acceder o mutar un recurso de otro gimnasio', () => {
     it(`${label} — un id de otro gimnasio responde 404, idéntico a uno inexistente`, async () => {
       const foreignId = await fixture.createId(ctx.db.raw, gymA.gym.id, gymA.branch.id);
       const body = bodyFor(route);
+      const isWrite = route.method !== 'GET';
+      const before = isWrite ? await fixture.readRaw(ctx.db.raw, foreignId) : undefined;
 
       const urlForForeign = route.path.replace(/:[a-zA-Z]+/g, foreignId);
       const urlForMissing = route.path.replace(/:[a-zA-Z]+/g, randomUUID());
@@ -158,6 +168,16 @@ describe('cross-tenant: acceder o mutar un recurso de otro gimnasio', () => {
       expect(foreignRes.status).toBe(404);
       expect(missingRes.status).toBe(404);
       expect(stripVolatile(foreignRes.body)).toEqual(stripVolatile(missingRes.body));
+
+      // TEST_STRATEGY §4.1 cross-tenant-write: no alcanza con que la
+      // respuesta sea 404 — el recurso en sí no se tiene que haber tocado.
+      // Releído directo por Prisma (bypassea HTTP): si el intento de gym B
+      // hubiera escrito algo (aunque después respondiera 404), esto lo
+      // detecta.
+      if (isWrite) {
+        const after = await fixture.readRaw(ctx.db.raw, foreignId);
+        expect(after).toEqual(before);
+      }
 
       // Y el propio dueño sí puede: descarta que el 404 sea un bug (fixture
       // rota, ruta mal armada) en vez de aislamiento real.
@@ -188,10 +208,56 @@ describe('cross-tenant: los listados nunca incluyen filas de otro gimnasio', () 
       expect(res.status).toBe(200);
       expect(JSON.stringify(res.body)).not.toContain(foreignId);
     });
+
+    it(`${label} — con branchId de otro gimnasio en la query, tampoco filtra hacia adentro nada de esa sede`, async () => {
+      // TEST_STRATEGY §4.1 cross-tenant-list: "ningún listado devuelve filas
+      // de otro gymId, ni con filtros manipulados". No todo listado acepta
+      // `branchId` como filtro (Zod lo descarta si no está declarado en el
+      // query schema del endpoint, sin error); donde sí lo acepta
+      // (GET /users, GET /cash/registers), la sede ajena o no filtra nada
+      // (el `Member`/`User` propio del tenant simplemente no tiene ese
+      // branchId) o el propio servicio la rechaza con 404
+      // (`TenantContextStore.requireBranch`, ver cash-config.service.ts) —
+      // cualquiera de los dos es seguro, ninguno es 200-con-datos-ajenos.
+      const foreignId = await fixture.createId(ctx.db.raw, gymA.gym.id, gymA.branch.id);
+      const manipulated = await clientB.get(`${route.path}?branchId=${gymA.branch.id}`);
+      expect([200, 404]).toContain(manipulated.status);
+      if (manipulated.status === 200) {
+        expect(JSON.stringify(manipulated.body)).not.toContain(foreignId);
+      }
+    });
   }
 });
 
-// ── 4. branchId de otro gimnasio en el body → 404 (API_CONTRACTS §1.3) ──
+// ── 4. Rutas POST sin :id: el recurso creado no es forjable a otro gimnasio ─
+
+const createRoutes = protectedRoutes.filter(
+  (r) => r.method === 'POST' && !/:[a-zA-Z]+/.test(r.path),
+);
+
+describe('recursos creados por POST quedan scoped al gimnasio del caller', () => {
+  for (const route of createRoutes) {
+    const key = resourceKeyOf(route);
+    const fixture = key ? RESOURCE_FIXTURES[key] : undefined;
+    const label = `${route.method} ${route.path}`;
+
+    if (!fixture?.createBody) {
+      it.skip(`${label} — sin body de creación registrado`, () => undefined);
+      continue;
+    }
+
+    it(`${label} — el recurso creado por B nace con el gymId de B, no forjable`, async () => {
+      const body = await fixture.createBody!(ctx.db.raw, gymB.gym.id, gymB.branch.id);
+      const res = await send(clientB, 'POST', route.path, body);
+
+      expect([200, 201]).toContain(res.status);
+      const extract = fixture.extractGymId ?? ((b: unknown) => (b as { gymId?: string })?.gymId);
+      expect(extract(res.body)).toBe(gymB.gym.id);
+    });
+  }
+});
+
+// ── 5. branchId de otro gimnasio en el body → 404 (API_CONTRACTS §1.3) ──
 
 describe('cross-tenant: un branchId de otro gimnasio en el body responde 404', () => {
   it('PATCH /users/:id con branchIds de otro gimnasio', async () => {
@@ -204,7 +270,7 @@ describe('cross-tenant: un branchId de otro gimnasio en el body responde 404', (
   });
 });
 
-// ── 5. allowlist de prisma.unscoped() (packages/db/src/tenant-extension.ts) ─
+// ── 6. allowlist de prisma.unscoped() (packages/db/src/tenant-extension.ts) ─
 
 describe('allowlist de prisma.unscoped()', () => {
   /**

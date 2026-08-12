@@ -15,14 +15,31 @@ import type { PrismaClient } from '@pulso/db';
  * `branches`, `users`, `cash/payment-methods`.
  */
 export interface ResourceFixture {
-  /** Crea una fila de este recurso en el gimnasio dado y devuelve su id. */
+  /** Crea una fila de este recurso DIRECTO por Prisma (bypassea HTTP) y devuelve su id. */
   createId(raw: PrismaClient, gymId: string, branchId: string): Promise<string>;
+  /**
+   * Body válido para el `POST` de alta de este recurso — a diferencia de
+   * `createId`, éste SÍ pasa por HTTP. Sólo lo necesitan los recursos cuyo
+   * `POST` no tiene `:id` (no entran en el bucle de cross-tenant por id): la
+   * suite lo usa para el chequeo de "self-scoping" — el recurso creado por
+   * el gimnasio B nace con el `gymId` de B, nunca forjable a otro.
+   */
+  createBody?(raw: PrismaClient, gymId: string, branchId: string): Promise<Record<string, unknown>>;
+  /** Dónde vive `gymId` en la respuesta de creación. Por defecto, `body.gymId`. */
+  extractGymId?(body: unknown): string | undefined;
+  /**
+   * Relee la fila por id, directo por Prisma. Usado por el test de
+   * cross-tenant WRITE para verificar que un intento de mutación desde otro
+   * gimnasio no sólo devuelve 404 sino que además NO TOCÓ la fila (TEST_STRATEGY
+   * §4.1 `cross-tenant-write.spec.ts`: "el recurso no cambia").
+   */
+  readRaw(raw: PrismaClient, id: string): Promise<unknown>;
 }
 
 let counter = 0;
 function unique(): number {
   counter += 1;
-  return Date.now() % 1_000_000 + counter;
+  return (Date.now() % 1_000_000) + counter;
 }
 
 export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
@@ -33,6 +50,10 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       });
       return branch.id;
     },
+    async createBody() {
+      return { name: `Sede create-route ${unique()}`, timezone: 'America/Argentina/Buenos_Aires' };
+    },
+    readRaw: (raw, id) => raw.branch.findUnique({ where: { id } }),
   },
   users: {
     async createId(raw, gymId, branchId) {
@@ -52,6 +73,22 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       });
       return user.id;
     },
+    async createBody(raw, gymId) {
+      const role = await raw.role.findFirst({ where: { gymId, code: 'RECEPTIONIST' } });
+      return {
+        email: `create-route-${unique()}@fixture.test`,
+        firstName: 'CreateRoute',
+        lastName: 'User',
+        roleIds: role ? [role.id] : [],
+        branchIds: [],
+      };
+    },
+    // POST /users responde { user: {...}, temporaryPassword }, no un User
+    // plano — gymId vive un nivel más adentro.
+    extractGymId(body) {
+      return (body as { user?: { gymId?: string } } | undefined)?.user?.gymId;
+    },
+    readRaw: (raw, id) => raw.user.findUnique({ where: { id } }),
   },
   roles: {
     async createId(raw, gymId) {
@@ -66,6 +103,10 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       });
       return role.id;
     },
+    async createBody() {
+      return { code: `CREATE_ROUTE_${unique()}`, name: 'Rol create-route', permissions: ['member:read'] };
+    },
+    readRaw: (raw, id) => raw.role.findUnique({ where: { id } }),
   },
   members: {
     async createId(raw, gymId, branchId) {
@@ -82,6 +123,7 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       });
       return member.id;
     },
+    readRaw: (raw, id) => raw.member.findUnique({ where: { id } }),
   },
   'cash/payment-methods': {
     async createId(raw, gymId) {
@@ -90,6 +132,10 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       });
       return row.id;
     },
+    async createBody() {
+      return { code: `PM_CREATE_${unique()}`, name: 'Método create-route' };
+    },
+    readRaw: (raw, id) => raw.paymentMethod.findUnique({ where: { id } }),
   },
   'cash/concepts': {
     async createId(raw, gymId) {
@@ -98,6 +144,10 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       });
       return row.id;
     },
+    async createBody() {
+      return { code: `CC_CREATE_${unique()}`, name: 'Concepto create-route', type: 'INCOME' };
+    },
+    readRaw: (raw, id) => raw.cashConcept.findUnique({ where: { id } }),
   },
   'cash/registers': {
     async createId(raw, gymId, branchId) {
@@ -106,16 +156,30 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       });
       return row.id;
     },
+    async createBody(_raw, _gymId, branchId) {
+      return { branchId, name: `Caja create-route ${unique()}` };
+    },
+    readRaw: (raw, id) => raw.cashRegister.findUnique({ where: { id } }),
   },
 };
 
 /**
  * Rutas que NO son cross-tenant por diseño, con el motivo documentado —
  * es la "allowlist explícita y comentada" que pide T-2.8 para evitar falsos
- * positivos (endpoints públicos, de sesión, o singleton sin `:id`).
+ * positivos. Clave = `METODO /ruta` EXACTA (no el controller): así un
+ * endpoint nuevo agregado a un controller ya listado acá (Auth, Gym) NO
+ * queda exento por asociación — sólo la ruta puntual que de verdad no es
+ * cross-tenant-por-id.
+ *
+ * Nota: las rutas `@Public()` (login/refresh/logout, health) ni siquiera
+ * llegan a esta allowlist — se filtran antes, por `isPublic`. Sólo hace
+ * falta declarar acá lo que es "protegido" pero legítimamente no
+ * cross-tenant-por-recurso.
  */
 export const NON_TENANT_ALLOWLIST: Record<string, string> = {
-  AuthController: 'endpoints de sesión (login/refresh/logout/me/select-branch); select-branch ya tiene su propio test de cross-tenant en test/auth.spec.ts',
-  HealthController: 'público, sin concepto de tenant',
-  GymController: 'singleton: no tiene :id, opera siempre sobre el gimnasio de la sesión (ctx.gymId), nunca sobre un id que llegue del cliente',
+  'GET /api/v1/auth/me': 'sesión — datos del propio usuario autenticado, no un recurso con :id',
+  'POST /api/v1/auth/select-branch':
+    'ya tiene su propio test de cross-tenant en test/auth.spec.ts (seleccionar sede de otro gimnasio → 404)',
+  'GET /api/v1/gym': 'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
+  'PATCH /api/v1/gym': 'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
 };

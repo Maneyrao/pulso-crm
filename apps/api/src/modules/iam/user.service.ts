@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import type { Prisma } from '@pulso/db';
+import type { Prisma, PulsoTransactionClient } from '@pulso/db';
 import { scoped } from '@pulso/db';
 import type {
   CreateUserRequest,
@@ -15,6 +15,7 @@ import type {
 import { AuditService, diff } from '../../common/audit/audit.service.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { PasswordService } from '../../common/auth/password.service.js';
+import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { isUniqueViolation } from '../../common/db/db-errors.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
@@ -23,6 +24,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { serializeUser, type UserWithAssignments } from './user-serializer.js';
 
 const OWNER_ROLE_CODE = 'OWNER';
+const USER_WRITE_PERMISSION = 'user:write';
 
 /**
  * `User` (API_CONTRACTS §5 "IAM").
@@ -31,7 +33,13 @@ const OWNER_ROLE_CODE = 'OWNER';
  * `packages/contracts/src/iam.ts`, aplicadas acá):
  *  - No se puede desactivar al último `OWNER` activo (`409 LAST_OWNER`) — ni
  *    directamente (`deactivate`) ni indirectamente quitándole el rol por
- *    `update` (mismo invariante, mismo código).
+ *    `update` (mismo invariante, mismo código). Ambos chequeos corren DENTRO
+ *    de la transacción, después de tomar un lock sobre la fila de `Role`
+ *    OWNER, para que dos llamadas concurrentes (deactivate de dos OWNERs
+ *    distintos, o un deactivate y un update en simultáneo) no puedan las dos
+ *    pasar el chequeo y dejar el gimnasio sin ningún OWNER activo.
+ *  - Un usuario no puede quitarse `user:write` a sí mismo por `update`
+ *    (API_CONTRACTS §5, packages/contracts/src/iam.ts).
  *  - La creación NO acepta password del cliente: se genera una temporal
  *    (`PasswordService.generateTemporary()`) y se marca `mustChangePassword`.
  *  - Desactivar o resetear la contraseña revoca las sesiones vigentes del
@@ -124,11 +132,11 @@ export class UserService {
 
   async update(id: string, input: UpdateUserRequest): Promise<User> {
     const existing = await this.findActiveOrThrow(id);
+    const ctx = TenantContextStore.require();
 
     let resolvedRoleIds: string[] | undefined;
     if (input.roleIds !== undefined) {
       resolvedRoleIds = await this.resolveRoleIds(input.roleIds);
-      await this.assertNotRemovingLastOwner(id, resolvedRoleIds);
     }
     const resolvedBranchIds =
       input.branchIds !== undefined ? await this.resolveBranchIds(input.branchIds) : undefined;
@@ -140,6 +148,15 @@ export class UserService {
 
     try {
       const updated = await this.prisma.client.$transaction(async (tx) => {
+        if (resolvedRoleIds) {
+          // Lock + chequeos DESPUÉS de tomarlo, no antes de abrir la
+          // transacción: ver el comentario de clase sobre la condición de
+          // carrera del invariante del último OWNER.
+          await this.lockOwnerRole(tx, ctx.gymId);
+          await this.assertNotRemovingLastOwnerTx(tx, id, resolvedRoleIds);
+          await this.assertNotSelfRemovingUserWriteTx(tx, ctx.userId, id, resolvedRoleIds);
+        }
+
         if (Object.keys(patch).length > 0) {
           await tx.user.update({ where: { id }, data: patch });
         }
@@ -193,9 +210,16 @@ export class UserService {
   /** `POST /users/:id/deactivate` — `409 LAST_OWNER` si aplica. */
   async deactivate(id: string): Promise<User> {
     const existing = await this.findActiveOrThrow(id);
-    await this.assertNotLastOwner(id, 'No se puede desactivar al último Owner activo del gimnasio.');
+    const ctx = TenantContextStore.require();
 
     const updated = await this.prisma.client.$transaction(async (tx) => {
+      await this.lockOwnerRole(tx, ctx.gymId);
+      await this.assertNotLastOwnerTx(
+        tx,
+        id,
+        'No se puede desactivar al último Owner activo del gimnasio.',
+      );
+
       const row = await tx.user.update({ where: { id }, data: { status: 'INACTIVE' } });
 
       // Desactivar invalida la sesión (TEST_STRATEGY §4.2): revocar toda
@@ -308,13 +332,30 @@ export class UserService {
     return branches.map((b) => b.id);
   }
 
-  private async assertNotLastOwner(userId: string, message: string): Promise<void> {
-    const isOwner = await this.prisma.client.userRoleAssignment.findFirst({
+  /**
+   * `SELECT ... FOR UPDATE` sobre la fila del rol OWNER de este gimnasio: no
+   * hay una fila "cantidad de OWNERs activos" para bloquear directamente, así
+   * que se usa el `Role` OWNER como mutex. Toda operación que pueda dejar al
+   * gimnasio sin OWNERs activos (deactivate, update que quita el rol) toma
+   * este lock ANTES de contar cuántos OWNERs activos quedan — así dos
+   * llamadas concurrentes sobre dos OWNERs distintos se serializan en vez de
+   * leer el mismo conteo "todavía hay otro" las dos a la vez.
+   */
+  private async lockOwnerRole(tx: PulsoTransactionClient, gymId: string): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM roles WHERE "gymId" = ${gymId}::uuid AND code = ${OWNER_ROLE_CODE} FOR UPDATE`;
+  }
+
+  private async assertNotLastOwnerTx(
+    tx: PulsoTransactionClient,
+    userId: string,
+    message: string,
+  ): Promise<void> {
+    const isOwner = await tx.userRoleAssignment.findFirst({
       where: { userId, role: { code: OWNER_ROLE_CODE } },
     });
     if (!isOwner) return;
 
-    const otherActiveOwners = await this.prisma.client.user.count({
+    const otherActiveOwners = await tx.user.count({
       where: {
         id: { not: userId },
         status: 'ACTIVE',
@@ -328,13 +369,42 @@ export class UserService {
   }
 
   /** Mismo invariante que `deactivate`, disparado por `update` cuando el nuevo set de roles ya no incluye OWNER. */
-  private async assertNotRemovingLastOwner(userId: string, newRoleIds: string[]): Promise<void> {
-    const ownerRole = await this.prisma.client.role.findFirst({ where: { code: OWNER_ROLE_CODE } });
+  private async assertNotRemovingLastOwnerTx(
+    tx: PulsoTransactionClient,
+    userId: string,
+    newRoleIds: string[],
+  ): Promise<void> {
+    const ownerRole = await tx.role.findFirst({ where: { code: OWNER_ROLE_CODE } });
     if (!ownerRole || newRoleIds.includes(ownerRole.id)) return;
-    await this.assertNotLastOwner(
+    await this.assertNotLastOwnerTx(
+      tx,
       userId,
       'No se puede quitar el rol Owner al último dueño activo del gimnasio.',
     );
+  }
+
+  /**
+   * API_CONTRACTS §5 / packages/contracts/src/iam.ts: "un usuario no puede
+   * auto-quitarse `user:write`". Sólo aplica cuando el usuario autenticado
+   * edita su PROPIO registro — nada impide que un OWNER le quite
+   * `user:write` a otro usuario.
+   */
+  private async assertNotSelfRemovingUserWriteTx(
+    tx: PulsoTransactionClient,
+    actingUserId: string,
+    targetUserId: string,
+    newRoleIds: string[],
+  ): Promise<void> {
+    if (actingUserId !== targetUserId) return;
+
+    const roles = await tx.role.findMany({ where: { id: { in: newRoleIds } } });
+    const stillHasUserWrite = roles.some((role) => role.permissions.includes(USER_WRITE_PERMISSION));
+    if (!stillHasUserWrite) {
+      throw AppError.conflict(
+        ErrorCode.CONFLICT,
+        'No podés quitarte el permiso de administración de usuarios a vos mismo.',
+      );
+    }
   }
 
   private translateWriteError(err: unknown): unknown {

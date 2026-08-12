@@ -7,6 +7,7 @@ import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { AppError } from '../../common/errors/app-error.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { serializeGym } from './gym-serializer.js';
 
 /**
  * `Gym` (API_CONTRACTS §4 "GET/PATCH /gym").
@@ -29,7 +30,7 @@ export class GymService {
     const ctx = TenantContextStore.require();
     const gym = await this.prisma.client.gym.findUnique({ where: { id: ctx.gymId } });
     if (!gym) throw AppError.notFound('El gimnasio');
-    return gym;
+    return serializeGym(gym);
   }
 
   async update(input: UpdateGymRequest) {
@@ -52,6 +53,6 @@ export class GymService {
       return row;
     });
 
-    return updated;
+    return serializeGym(updated);
   }
 }

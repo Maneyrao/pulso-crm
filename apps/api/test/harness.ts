@@ -103,7 +103,13 @@ export async function seedGymWithUsers(
       maxBranches: 10,
       maxMembers: 10_000,
       maxUsers: 50,
-      features: ['members', 'catalog', 'cash', 'access', 'messaging', 'reports'],
+      // 'multi_branch' habilita crear más de una sede (FeatureGuard,
+      // ADR-022) — se incluye por defecto acá porque casi todos los tests
+      // de branches.spec.ts/cross-tenant-suite.spec.ts asumen que
+      // `POST /branches` funciona sin configurar nada extra. El resto de la
+      // lista no son FEATURE_KEYS reales (ver packages/contracts/src/features.ts);
+      // quedan así porque nada las valida todavía, fuera de alcance acá.
+      features: ['members', 'catalog', 'cash', 'access', 'messaging', 'reports', 'multi_branch'],
       monthlyPrice: '0',
     },
   });
