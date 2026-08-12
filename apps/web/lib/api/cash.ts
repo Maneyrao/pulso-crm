@@ -1,4 +1,5 @@
 import type {
+  CashRegister,
   CashSession,
   CloseCashSessionRequest,
   CloseCashSessionResponse,
@@ -6,65 +7,100 @@ import type {
   CreateCashMovementResponse,
   DaybookQuery,
   DaybookResponse,
+  ListCashMovementsQuery,
   ListCashMovementsResponse,
   ListCashOperationsResponse,
+  ListCashSessionsQuery,
+  ListCashSessionsResponse,
   ListPaymentMethodsResponse,
   ListCashConceptsResponse,
   OpenCashSessionRequest,
   OpenCashSessionResponse,
+  ReverseCashMovementRequest,
   ReverseCashMovementResponse,
 } from '@pulso/contracts/cash';
 import { apiFetch, toQueryString } from './client.js';
 
-export function getCurrentCashSession(branchId: string | null): Promise<CashSession | null> {
-  return apiFetch<CashSession | null>(`/cash/sessions/current${toQueryString({ branchId })}`);
+/**
+ * Cliente HTTP de Caja (API_CONTRACTS §8).
+ *
+ * Los endpoints operativos (`open`, `close`, `create movement`, `reverse`)
+ * viajan con `Idempotency-Key` obligatoria: `apiFetch` la coloca como header,
+ * el hook `useIdempotencyKey` la genera y la reusa entre reintentos del
+ * MISMO intento (ADR-016).
+ *
+ * Nota: la sesión y la sede activas viven en el `TenantContextStore` del
+ * backend (cookies + branchId de la sesión), por eso `getCurrentCashSession`
+ * no toma parámetros: el backend devuelve la sesión OPEN del usuario en la
+ * sede activa, o `null`.
+ */
+
+// ── Sesiones ────────────────────────────────────────────────────────────
+
+export function getCurrentCashSession(): Promise<CashSession | null> {
+  return apiFetch<CashSession | null>('/cash/sessions/current');
+}
+
+export function listCashSessions(
+  query: Partial<ListCashSessionsQuery> = {},
+): Promise<ListCashSessionsResponse> {
+  return apiFetch<ListCashSessionsResponse>(`/cash/sessions${toQueryString(query)}`);
 }
 
 export function openCashSession(
   payload: OpenCashSessionRequest,
   idempotencyKey: string,
 ): Promise<OpenCashSessionResponse> {
-  return apiFetch<OpenCashSessionResponse>('/cash/sessions', { method: 'POST', body: payload, idempotencyKey });
-}
-
-export function closeCashSession(
-  id: string,
-  payload: CloseCashSessionRequest,
-  idempotencyKey: string,
-): Promise<CloseCashSessionResponse> {
-  return apiFetch<CloseCashSessionResponse>(`/cash/sessions/${id}/close`, {
+  return apiFetch<OpenCashSessionResponse>('/cash/sessions/open', {
     method: 'POST',
     body: payload,
     idempotencyKey,
   });
 }
 
-export function listCashMovements(cashSessionId: string): Promise<ListCashMovementsResponse> {
-  return apiFetch<ListCashMovementsResponse>(`/cash/movements${toQueryString({ cashSessionId })}`);
+export function closeCashSession(
+  payload: CloseCashSessionRequest,
+  idempotencyKey: string,
+): Promise<CloseCashSessionResponse> {
+  return apiFetch<CloseCashSessionResponse>('/cash/sessions/close', {
+    method: 'POST',
+    body: payload,
+    idempotencyKey,
+  });
+}
+
+// ── Movements ───────────────────────────────────────────────────────────
+
+export function listCashMovements(
+  query: Partial<ListCashMovementsQuery>,
+): Promise<ListCashMovementsResponse> {
+  return apiFetch<ListCashMovementsResponse>(`/cash/movements${toQueryString(query)}`);
 }
 
 export function createCashMovement(
   payload: CreateCashMovementRequest,
   idempotencyKey: string,
 ): Promise<CreateCashMovementResponse> {
-  return apiFetch<CreateCashMovementResponse>('/cash/movements', { method: 'POST', body: payload, idempotencyKey });
-}
-
-export function reverseCashMovement(
-  id: string,
-  reason: string,
-  idempotencyKey: string,
-): Promise<ReverseCashMovementResponse> {
-  return apiFetch<ReverseCashMovementResponse>(`/cash/movements/${id}/reverse`, {
+  return apiFetch<CreateCashMovementResponse>('/cash/movements', {
     method: 'POST',
-    body: { reason },
+    body: payload,
     idempotencyKey,
   });
 }
 
-export function listCashOperations(branchId: string | null, status = 'PENDING'): Promise<ListCashOperationsResponse> {
-  return apiFetch<ListCashOperationsResponse>(`/cash/operations${toQueryString({ branchId, status })}`);
+export function reverseCashMovement(
+  id: string,
+  payload: ReverseCashMovementRequest,
+  idempotencyKey: string,
+): Promise<ReverseCashMovementResponse> {
+  return apiFetch<ReverseCashMovementResponse>(`/cash/movements/${id}/reverse`, {
+    method: 'POST',
+    body: payload,
+    idempotencyKey,
+  });
 }
+
+// ── Configuración (payment methods, concepts, registers) ────────────────
 
 export function listPaymentMethods(): Promise<ListPaymentMethodsResponse> {
   return apiFetch<ListPaymentMethodsResponse>('/cash/payment-methods');
@@ -73,6 +109,24 @@ export function listPaymentMethods(): Promise<ListPaymentMethodsResponse> {
 export function listCashConcepts(): Promise<ListCashConceptsResponse> {
   return apiFetch<ListCashConceptsResponse>('/cash/concepts');
 }
+
+/**
+ * `GET /cash/registers?branchId=...`. El contrato público no exporta un schema
+ * de listado (viven en `apps/api/src/modules/cash/schemas/cash-register.schemas.ts`)
+ * pero el shape del ítem sí es contrato: se tipa con `CashRegister`.
+ */
+export function listCashRegisters(branchId?: string): Promise<{ data: CashRegister[] }> {
+  return apiFetch<{ data: CashRegister[] }>(`/cash/registers${toQueryString({ branchId })}`);
+}
+
+export function listCashOperations(
+  branchId: string | null,
+  status = 'PENDING',
+): Promise<ListCashOperationsResponse> {
+  return apiFetch<ListCashOperationsResponse>(`/cash/operations${toQueryString({ branchId, status })}`);
+}
+
+// ── Daybook ─────────────────────────────────────────────────────────────
 
 export function getDaybook(query: DaybookQuery): Promise<DaybookResponse> {
   return apiFetch<DaybookResponse>(`/cash/daybook${toQueryString(query)}`);

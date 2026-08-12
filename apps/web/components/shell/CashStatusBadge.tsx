@@ -7,7 +7,13 @@ import { usePermission } from '@/lib/auth/permissions';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
 
-/** Barra de estado inferior: estado de la caja del usuario (FRONTEND_PLAN §4). */
+/**
+ * Barra de estado inferior: estado de la caja del usuario (FRONTEND_PLAN §4).
+ *
+ * El backend deriva la sesión OPEN de la sesión + sede activa (`TenantContextStore`);
+ * el cliente no manda `branchId` explícito. La query se rekey por `branchId`
+ * del store para invalidar cuando el usuario cambia de sede.
+ */
 export function CashStatusBadge() {
   const canReadCash = usePermission('cash:read');
   const gymId = useSessionStore((s) => s.gym?.id);
@@ -15,7 +21,7 @@ export function CashStatusBadge() {
 
   const query = useQuery({
     queryKey: qk.cashSession(gymId ?? '', activeBranchId),
-    queryFn: () => getCurrentCashSession(activeBranchId),
+    queryFn: getCurrentCashSession,
     enabled: canReadCash && Boolean(gymId),
     staleTime: 15_000,
   });

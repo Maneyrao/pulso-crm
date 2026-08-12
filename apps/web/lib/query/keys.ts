@@ -25,6 +25,13 @@ export const qk = {
   roles: (gymId: string) => ['roles', gymId] as const,
 
   cashSession: (gymId: string, branchId: string | null) => ['cash-session', gymId, branchId] as const,
+  cashSessions: (
+    gymId: string,
+    branchId: string | null,
+    filters: Readonly<Record<string, unknown>>,
+  ) => ['cash-sessions', gymId, branchId, filters] as const,
+  cashRegisters: (gymId: string, branchId: string | null) =>
+    ['cash-registers', gymId, branchId] as const,
   cashMovements: (gymId: string, cashSessionId: string) => ['cash-movements', gymId, cashSessionId] as const,
   cashOperations: (gymId: string, branchId: string | null) => ['cash-operations', gymId, branchId] as const,
   paymentMethods: (gymId: string) => ['payment-methods', gymId] as const,
