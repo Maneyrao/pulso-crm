@@ -11,6 +11,8 @@ export const qk = {
   member: (gymId: string, id: string) => ['member', gymId, id] as const,
   memberLedger: (gymId: string, id: string) => ['member-ledger', gymId, id] as const,
   memberAttendances: (gymId: string, id: string) => ['member-attendances', gymId, id] as const,
+  memberMemberships: (gymId: string, memberId: string) =>
+    ['member-memberships', gymId, memberId] as const,
   debtors: (gymId: string, branchId: string | null, filters: Readonly<Record<string, unknown>>) =>
     ['debtors', gymId, branchId, filters] as const,
 

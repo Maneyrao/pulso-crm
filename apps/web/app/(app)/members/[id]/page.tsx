@@ -11,6 +11,13 @@ import type {
   MemberDetail,
   UpdateMemberRequest,
 } from '@pulso/contracts/members';
+import type {
+  CancelMembershipRequest,
+  CreateMembershipRequest,
+  Membership,
+  MembershipStatus,
+} from '@pulso/contracts/memberships';
+import type { Plan } from '@pulso/contracts/catalog';
 import {
   Alert,
   Button,
@@ -21,6 +28,8 @@ import {
   Input,
   Modal,
   MoneyDisplay,
+  MoneyInput,
+  Select,
   Skeleton,
   StatusBadge,
   Tabs,
@@ -32,6 +41,14 @@ import {
   type DataTableColumn,
 } from '@pulso/ui';
 import { deactivateMember, getMember, getMemberLedger, updateMember } from '@/lib/api/members';
+import { listPlans } from '@/lib/api/catalog';
+import { listBranches } from '@/lib/api/tenancy';
+import {
+  cancelMembership,
+  createMembership,
+  listMemberMemberships,
+} from '@/lib/api/memberships';
+import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
 import { qk } from '@/lib/query/keys';
@@ -213,10 +230,7 @@ function MemberDetailScreen() {
         </TabsContent>
 
         <TabsContent value="memberships">
-          <EmptyState
-            title="Membresías"
-            description="Este módulo se completa en el próximo milestone."
-          />
+          <MembershipsSection memberId={id} gymId={gymId} />
         </TabsContent>
 
         <TabsContent value="ledger">
@@ -520,6 +534,441 @@ function MemberDetailSkeleton() {
         <Skeleton className="h-5 w-32" />
       </div>
       <Skeleton className="h-56 w-full" />
+    </div>
+  );
+}
+
+const MEMBERSHIP_STATUS_LABEL: Record<MembershipStatus, string> = {
+  ACTIVE: 'Activa',
+  EXPIRED: 'Vencida',
+  CANCELLED: 'Cancelada',
+  SUSPENDED: 'Suspendida',
+};
+
+function membershipStatusTone(status: MembershipStatus): 'success' | 'warning' | 'neutral' {
+  if (status === 'ACTIVE') return 'success';
+  if (status === 'SUSPENDED') return 'warning';
+  return 'neutral';
+}
+
+function todayYmd(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+interface AssignFormState {
+  planId: string;
+  branchId: string;
+  startDate: string;
+  priceOverride: string;
+}
+
+/**
+ * Tab "Membresías" de la ficha del socio: lista el historial y permite dar
+ * de alta una nueva. `mode: NOW` (cobro por caja) llega en M5; hasta
+ * entonces el alta corre siempre en `mode: DEBT` — se crea el `DEBIT` en
+ * la cuenta corriente sin tocar caja.
+ */
+function MembershipsSection({ memberId, gymId }: { memberId: string; gymId: string }) {
+  const branchId = useSessionStore((s) => s.activeBranchId);
+  const branches = useSessionStore((s) => s.branches);
+  const canWrite = usePermission('membership:write');
+  const canDelete = usePermission('membership:delete');
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const idempotency = useIdempotencyKey();
+
+  const [assignOpen, setAssignOpen] = React.useState(false);
+  const [assignError, setAssignError] = React.useState<string | undefined>();
+  const [assignForm, setAssignForm] = React.useState<AssignFormState>(() => ({
+    planId: '',
+    branchId: branchId ?? '',
+    startDate: todayYmd(),
+    priceOverride: '',
+  }));
+
+  const [toCancel, setToCancel] = React.useState<Membership | null>(null);
+  const [cancelReason, setCancelReason] = React.useState('');
+  const [cancelError, setCancelError] = React.useState<string | undefined>();
+
+  const membershipsQuery = useQuery({
+    queryKey: qk.memberMemberships(gymId, memberId),
+    queryFn: () => listMemberMemberships(memberId),
+    enabled: Boolean(gymId && memberId),
+  });
+
+  const plansQuery = useQuery({
+    queryKey: qk.plans(gymId),
+    queryFn: listPlans,
+    enabled: Boolean(gymId),
+  });
+
+  const branchesQuery = useQuery({
+    queryKey: qk.branches(gymId),
+    queryFn: listBranches,
+    enabled: Boolean(gymId),
+  });
+
+  const planById = React.useMemo(() => {
+    const map = new Map<string, Plan>();
+    for (const p of plansQuery.data?.data ?? []) map.set(p.id, p);
+    return map;
+  }, [plansQuery.data]);
+
+  const branchNameById = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const b of branchesQuery.data?.data ?? []) map.set(b.id, b.name);
+    return map;
+  }, [branchesQuery.data]);
+
+  const activePlans = React.useMemo(
+    () => (plansQuery.data?.data ?? []).filter((p) => p.isActive),
+    [plansQuery.data],
+  );
+
+  const planOptions = React.useMemo(
+    () => activePlans.map((p) => ({ value: p.id, label: p.name })),
+    [activePlans],
+  );
+
+  const branchOptions = React.useMemo(
+    () => branches.map((b) => ({ value: b.id, label: b.name })),
+    [branches],
+  );
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: qk.memberMemberships(gymId, memberId) });
+    queryClient.invalidateQueries({ queryKey: qk.memberLedger(gymId, memberId) });
+    queryClient.invalidateQueries({ queryKey: qk.member(gymId, memberId) });
+  };
+
+  const createMutation = useMutation({
+    mutationFn: (payload: CreateMembershipRequest) =>
+      createMembership(memberId, payload, idempotency.getKey()),
+    onSuccess: () => {
+      toast({ title: 'Membresía asignada', tone: 'success' });
+      idempotency.renew();
+      setAssignOpen(false);
+      invalidateAll();
+    },
+    onError: (err: unknown) => setAssignError(errorMessage(err)),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: CancelMembershipRequest }) =>
+      cancelMembership(id, payload),
+    onSuccess: () => {
+      toast({ title: 'Membresía cancelada', tone: 'success' });
+      setToCancel(null);
+      setCancelReason('');
+      queryClient.invalidateQueries({ queryKey: qk.memberMemberships(gymId, memberId) });
+    },
+    onError: (err: unknown) => setCancelError(errorMessage(err)),
+  });
+
+  const openAssign = () => {
+    setAssignForm({
+      planId: '',
+      branchId: branchId ?? branches[0]?.id ?? '',
+      startDate: todayYmd(),
+      priceOverride: '',
+    });
+    setAssignError(undefined);
+    setAssignOpen(true);
+  };
+
+  const onPlanChange = (planId: string) => {
+    const plan = planById.get(planId);
+    setAssignForm((f) => ({
+      ...f,
+      planId,
+      // Autocompleta con el precio del plan como default; el usuario puede
+      // sobrescribirlo (descuento/beca) sin volver a mirar el listado.
+      priceOverride: plan?.price ?? f.priceOverride,
+    }));
+  };
+
+  const handleAssignSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setAssignError(undefined);
+
+    if (!assignForm.planId) {
+      setAssignError('Elegí un plan.');
+      return;
+    }
+    if (!assignForm.branchId) {
+      setAssignError('Elegí una sede.');
+      return;
+    }
+    if (!assignForm.startDate) {
+      setAssignError('Elegí una fecha de inicio.');
+      return;
+    }
+
+    const plan = planById.get(assignForm.planId);
+    const price = assignForm.priceOverride.trim() || plan?.price || '';
+    if (!price) {
+      setAssignError('El plan elegido no tiene precio.');
+      return;
+    }
+
+    const useOverride = plan && price !== plan.price;
+    const payload: CreateMembershipRequest = {
+      planId: assignForm.planId,
+      branchId: assignForm.branchId,
+      startDate: assignForm.startDate,
+      ...(useOverride ? { priceOverride: price } : {}),
+      charge: { mode: 'DEBT' },
+    };
+    createMutation.mutate(payload);
+  };
+
+  const openCancel = (membership: Membership) => {
+    setToCancel(membership);
+    setCancelReason('');
+    setCancelError(undefined);
+  };
+
+  const handleCancelConfirm = () => {
+    if (!toCancel) return;
+    setCancelError(undefined);
+    const reason = cancelReason.trim();
+    if (reason.length < 5) {
+      setCancelError('El motivo debe tener al menos 5 caracteres.');
+      return;
+    }
+    cancelMutation.mutate({ id: toCancel.id, payload: { reason } });
+  };
+
+  const columns: DataTableColumn<Membership>[] = [
+    {
+      id: 'plan',
+      header: 'Plan',
+      cell: (m) => {
+        const plan = planById.get(m.planId);
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium text-(--color-text)">{plan?.name ?? '—'}</span>
+            {m.branchId ? (
+              <span className="text-(--text-xs) text-(--color-muted)">
+                {branchNameById.get(m.branchId) ?? '—'}
+              </span>
+            ) : null}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'status',
+      header: 'Estado',
+      cell: (m) => (
+        <StatusBadge
+          tone={membershipStatusTone(m.status)}
+          label={MEMBERSHIP_STATUS_LABEL[m.status]}
+        />
+      ),
+    },
+    {
+      id: 'range',
+      header: 'Vigencia',
+      cell: (m) => (
+        <span className="tabular-nums text-(--color-muted)">
+          {m.startDate} → {m.endDate ?? 'sin vencimiento'}
+        </span>
+      ),
+    },
+    {
+      id: 'price',
+      header: 'Precio',
+      cell: (m) => <MoneyDisplay value={m.pricePaid} />,
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+    },
+    {
+      id: 'actions',
+      header: '',
+      cell: (m) =>
+        canDelete && m.status === 'ACTIVE' ? (
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => openCancel(m)}>
+              Cancelar
+            </Button>
+          </div>
+        ) : null,
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-end">
+        <PermissionGate permission="membership:write">
+          <Button onClick={openAssign} disabled={!canWrite}>
+            Asignar membresía
+          </Button>
+        </PermissionGate>
+      </div>
+
+      <DataTable
+        caption="Historial de membresías"
+        columns={columns}
+        data={membershipsQuery.data?.data ?? []}
+        rowKey={(m) => m.id}
+        loading={membershipsQuery.isLoading}
+        error={membershipsQuery.isError ? errorMessage(membershipsQuery.error) : undefined}
+        onRetry={() => membershipsQuery.refetch()}
+        emptyTitle="Todavía no hay membresías"
+        emptyDescription="Asigná el primer plan para dejar constancia del vínculo con el socio."
+        emptyAction={
+          <PermissionGate permission="membership:write">
+            <Button onClick={openAssign}>Asignar membresía</Button>
+          </PermissionGate>
+        }
+      />
+
+      <Modal
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        title="Asignar membresía"
+        size="lg"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setAssignOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="assign-membership-form"
+              loading={createMutation.isPending}
+              disabled={createMutation.isPending}
+            >
+              Asignar
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="assign-membership-form"
+          onSubmit={handleAssignSubmit}
+          className="flex flex-col gap-4"
+        >
+          {assignError ? (
+            <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+              {assignError}
+            </p>
+          ) : null}
+
+          <Alert tone="info" title="Cobro por caja llega en el próximo milestone">
+            La membresía se registra como deuda en la cuenta corriente del socio (modo DEBT).
+            En M5 se agrega el cobro directo por caja.
+          </Alert>
+
+          <FormField label="Plan" required>
+            {(field) => (
+              <Select
+                {...field}
+                options={planOptions}
+                value={assignForm.planId || undefined}
+                onValueChange={onPlanChange}
+                placeholder={planOptions.length === 0 ? 'No hay planes activos' : 'Elegí un plan'}
+                disabled={planOptions.length === 0}
+              />
+            )}
+          </FormField>
+
+          <FormField label="Sede" required>
+            {(field) => (
+              <Select
+                {...field}
+                options={branchOptions}
+                value={assignForm.branchId || undefined}
+                onValueChange={(v) => setAssignForm((f) => ({ ...f, branchId: v }))}
+                placeholder="Elegí una sede"
+              />
+            )}
+          </FormField>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <FormField label="Fecha de inicio" required>
+              {(field) => (
+                <Input
+                  {...field}
+                  type="date"
+                  value={assignForm.startDate}
+                  onChange={(e) => setAssignForm((f) => ({ ...f, startDate: e.target.value }))}
+                  required
+                />
+              )}
+            </FormField>
+            <FormField label="Precio" hint="Sobrescribe el precio del plan (descuento, beca, etc.).">
+              {(field) => (
+                <MoneyInput
+                  {...field}
+                  value={assignForm.priceOverride}
+                  onChange={(v) => setAssignForm((f) => ({ ...f, priceOverride: v }))}
+                />
+              )}
+            </FormField>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={toCancel !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setToCancel(null);
+            setCancelReason('');
+            setCancelError(undefined);
+          }
+        }}
+        title="Cancelar membresía"
+        description="Se detiene la membresía activa. El motivo queda registrado en el audit log."
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setToCancel(null);
+                setCancelReason('');
+                setCancelError(undefined);
+              }}
+            >
+              Cerrar
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleCancelConfirm}
+              loading={cancelMutation.isPending}
+              disabled={cancelMutation.isPending || cancelReason.trim().length < 5}
+            >
+              Cancelar membresía
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {cancelError ? (
+            <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+              {cancelError}
+            </p>
+          ) : null}
+          <FormField label="Motivo" required hint="Mínimo 5 caracteres.">
+            {(field) => (
+              <Textarea
+                {...field}
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Ej.: mudanza, se pasa al plan trimestral, baja voluntaria."
+              />
+            )}
+          </FormField>
+        </div>
+      </Modal>
     </div>
   );
 }
