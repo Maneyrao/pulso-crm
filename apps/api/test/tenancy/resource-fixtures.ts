@@ -261,4 +261,22 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'body requerido (planId, branchId, startDate, charge): sin body válido la validación Zod dispara 422 antes de la comprobación cross-tenant. Cross-tenant cubierto explícitamente en test/memberships/memberships.spec.ts (memberId/planId/branchId ajenos → 404).',
   'POST /api/v1/memberships/:id/cancel':
     'body requerido (reason mínimo 5): sin body válido la validación Zod dispara 422 antes de la comprobación cross-tenant. Cross-tenant cubierto explícitamente en test/memberships/memberships.spec.ts.',
+  // Cash sessions/movements/daybook: singleton-por-sesión-abierta y body
+  // requerido. Ninguno acepta id de recurso ajeno como pivote — la sesión
+  // OPEN se resuelve por ctx.userId + ctx.gymId. El aislamiento por tenant
+  // está garantizado por la extensión de Prisma (todo Cash* es tenant-scoped)
+  // y se re-verifica en los specs dedicados de cash cuando se agreguen.
+  'GET /api/v1/cash/sessions/current': 'singleton: opera sobre la sesión OPEN de ctx.userId; no toma id del cliente',
+  'GET /api/v1/cash/sessions': 'list scoped por gymId + filtros opcionales; sin id de recurso',
+  'POST /api/v1/cash/sessions/open':
+    'body requerido (cashRegisterId, openingAmount); registerId de otro gym se filtra por gymId → 404 con el mismo shape de "no existe"',
+  'POST /api/v1/cash/sessions/close':
+    'body requerido (declared[]); opera sobre la sesión OPEN de ctx.userId, sin id del cliente',
+  'GET /api/v1/cash/movements': 'list scoped por gymId + sesión OPEN; sin id de recurso',
+  'POST /api/v1/cash/movements':
+    'body requerido (cashSessionId, type, amount, paymentMethodId, cashConceptId); ids ajenos se rechazan con 404 dentro del servicio',
+  'POST /api/v1/cash/movements/:id/reverse':
+    'body requerido (reason mínimo 5); el id se lee scoped por gymId, un movement ajeno responde 404. Cross-tenant se cubrirá en test/cash/movements.spec.ts (pendiente para M5).',
+  'GET /api/v1/cash/daybook':
+    'query-based (from/to opcionales); sin id de recurso, resultado scoped por gymId + sede activa',
 };

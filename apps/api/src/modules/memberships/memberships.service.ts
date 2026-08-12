@@ -13,6 +13,12 @@ import { ErrorCode } from '../../common/errors/error-codes.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { fromDateOnly } from '../members/date-only.js';
 import { postLedgerEntry } from '../members/ledger.js';
+import { requireOpenSessionForUser } from '../cash/lib/session-lookup.js';
+import { ensureSystemConcept } from '../cash/lib/system-concepts.js';
+import {
+  serializeCashMovement,
+  type CashMovementDto,
+} from '../cash/lib/cash-serializer.js';
 import {
   serializeLedgerEntry,
   serializeMembership,
@@ -24,12 +30,13 @@ import {
  * Respuesta de `POST /members/:id/memberships`. Espeja
  * `createMembershipResponseSchema` (packages/contracts/src/memberships.ts)
  * MENOS la conversión final de `Decimal → string` de los importes, que hace
- * el `DecimalSerializerInterceptor` en el borde HTTP. `cashMovement` va a
- * aparecer sólo cuando llegue `mode: NOW` en M5.
+ * el `DecimalSerializerInterceptor` en el borde HTTP. `cashMovement` aparece
+ * sólo con `mode: NOW` (M5).
  */
 export interface CreateMembershipResult {
   membership: MembershipDto;
   ledgerEntry: LedgerEntryDto;
+  cashMovement?: CashMovementDto;
 }
 
 /**
@@ -63,14 +70,11 @@ export class MembershipsService {
   async create(memberId: string, input: CreateMembershipRequest): Promise<CreateMembershipResult> {
     const ctx = TenantContextStore.require();
 
-    // `mode: NOW` va en M5 (necesita el módulo de caja abierto + sesión).
-    // Hasta entonces se responde 409 con detail explícito para que el
-    // frontend pueda mostrar el mensaje sin romper el contrato.
+    // `mode: NOW`: exige sesión OPEN del usuario en la sede. La superficie del
+    // check corre ANTES de la tx principal para responder 409 rápido sin
+    // levantar locks — la tx re-toma el estado.
     if (input.charge.mode === 'NOW') {
-      throw AppError.conflict(
-        ErrorCode.CONFLICT,
-        'El cobro por caja llega en el próximo milestone. Usá mode: DEBT.',
-      );
+      await requireOpenSessionForUser(this.prisma.client, ctx.userId);
     }
 
     // Cross-tenant: las tres lecturas salen scoped por gymId (extension), así
@@ -132,6 +136,61 @@ export class MembershipsService {
           description: `Alta de membresía: ${plan.name}`,
         });
 
+        // Modo NOW: cobra en el momento. En la MISMA tx:
+        //   1) Se relee la sesión OPEN (podría haber cambiado — el chequeo
+        //      previo era optimista, sin lock).
+        //   2) Se garantiza el concepto de sistema `MEMBERSHIP_CHARGE`.
+        //   3) Se crea un CashMovement INCOME asociado al member y a la
+        //      membresía, con el mismo importe que el DEBIT del alta.
+        //   4) Se crea el LedgerEntry CREDIT (razón PAYMENT) que cancela el
+        //      DEBIT — balance neto de esta operación = 0.
+        // Si algo falla, la tx entera rollback (no queda membresía con deuda
+        // fantasma ni movement suelto).
+        let cashMovement: CashMovementDto | undefined;
+        if (input.charge.mode === 'NOW') {
+          const openSession = await requireOpenSessionForUser(tx, ctx.userId);
+          const paymentMethodId = input.charge.paymentMethodId!;
+          const chargeAmount = input.charge.amount!;
+
+          const [paymentMethod, concept] = await Promise.all([
+            tx.paymentMethod.findFirst({ where: { id: paymentMethodId, isActive: true } }),
+            // `ensureSystemConcept` acepta un cliente estructuralmente
+            // compatible con la tx extendida; el genérico de Prisma no coincide
+            // exacto por argumentos fluent, se pasa como unknown y el helper
+            // usa sólo `cashConcept.findFirst`/`create`.
+            ensureSystemConcept(tx as unknown as Parameters<typeof ensureSystemConcept>[0], 'MEMBERSHIP_CHARGE'),
+          ]);
+          if (!paymentMethod) throw AppError.notFound('El método de pago');
+
+          const movement = await tx.cashMovement.create({
+            data: scoped({
+              cashSessionId: openSession.id,
+              type: 'INCOME',
+              amount: new Prisma.Decimal(chargeAmount),
+              paymentMethodId: paymentMethod.id,
+              cashConceptId: concept.id,
+              description: `Cobro de membresía: ${plan.name}`,
+              memberId,
+              membershipId: membership.id,
+              createdByUserId: ctx.userId,
+            }),
+          });
+
+          await postLedgerEntry(tx, ctx.gymId, {
+            memberId,
+            type: 'CREDIT',
+            reason: 'PAYMENT',
+            amount: new Prisma.Decimal(chargeAmount),
+            membershipId: membership.id,
+            cashMovementId: movement.id,
+            branchId: openSession.branchId,
+            createdByUserId: ctx.userId,
+            description: `Pago de membresía: ${plan.name}`,
+          });
+
+          cashMovement = serializeCashMovement(movement);
+        }
+
         await this.audit.recordIn(tx, {
           action: 'MEMBERSHIP_CREATED',
           resourceType: 'Membership',
@@ -146,12 +205,13 @@ export class MembershipsService {
           branchId,
         });
 
-        return { membership, entry };
+        return { membership, entry, cashMovement };
       });
 
       return {
         membership: serializeMembership(result.membership),
         ledgerEntry: serializeLedgerEntry(result.entry),
+        ...(result.cashMovement ? { cashMovement: result.cashMovement } : {}),
       };
     } catch (err) {
       throw this.translateWriteError(err);

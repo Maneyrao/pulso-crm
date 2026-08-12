@@ -217,12 +217,12 @@ describe('POST /members/:id/memberships (mode: DEBT)', () => {
     expect(body.membership.classesRemaining).toBe(10);
   });
 
-  it('mode: NOW responde 409 con detail explicando que llega en M5', async () => {
+  it('mode: NOW sin sesión de caja abierta → 409 NO_OPEN_CASH_SESSION', async () => {
     const receptionist = await loginAs(gymA, 'RECEPTIONIST');
     const memberId = await createMember(gymA);
     const planId = await createPlan(gymA);
     const payment = await ctx.db.raw.paymentMethod.create({
-      data: { gymId: gymA.gym.id, code: 'CASH', name: 'Efectivo' },
+      data: { gymId: gymA.gym.id, code: 'CASH_NOW_NO_SESSION', name: 'Efectivo' },
     });
 
     const res = await receptionist.post(
@@ -236,9 +236,7 @@ describe('POST /members/:id/memberships (mode: DEBT)', () => {
       idem(),
     );
     expect(res.status).toBe(409);
-    const body = res.body as { code: string; detail?: string; title?: string };
-    expect(body.code).toBe('CONFLICT');
-    expect(`${body.detail ?? ''} ${body.title ?? ''}`).toMatch(/DEBT|milestone|caja/i);
+    expect((res.body as { code: string }).code).toBe('NO_OPEN_CASH_SESSION');
   });
 
   it('solapamiento con otra membresía ACTIVE del mismo socio → 409 MEMBERSHIP_OVERLAP', async () => {

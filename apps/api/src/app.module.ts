@@ -13,7 +13,7 @@ import { RedisModule } from './infra/redis/redis.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { HealthModule } from './modules/health/health.module.js';
 import { MembersModule } from './modules/members/members.module.js';
-import { CashConfigModule } from './modules/cash/cash-config.module.js';
+import { CashModule } from './modules/cash/cash.module.js';
 import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { MembershipsModule } from './modules/memberships/memberships.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
@@ -28,7 +28,7 @@ import { IamModule } from './modules/iam/iam.module.js';
     HealthModule,
     AuthModule,
     MembersModule,
-    CashConfigModule,
+    CashModule,
     CatalogModule,
     MembershipsModule,
     TenancyModule,

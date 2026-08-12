@@ -25,4 +25,15 @@ export const SYSTEM_CASH_CONCEPTS = {
     name: 'Reintegro a socio',
     type: 'EXPENSE',
   },
+  /**
+   * Cobro de membresía en el momento (mode NOW en
+   * `POST /members/:id/memberships`). Se registra como CashMovement INCOME
+   * ligado al socio y a la membresía, con LedgerEntry CREDIT que cancela el
+   * DEBIT del alta (balance neto = 0 cuando el pago cubre el precio).
+   */
+  MEMBERSHIP_CHARGE: {
+    code: 'MEMBERSHIP_CHARGE',
+    name: 'Cobro de membresía',
+    type: 'INCOME',
+  },
 } as const;
