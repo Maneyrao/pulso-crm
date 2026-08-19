@@ -44,7 +44,9 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
         <div className="hidden sm:block">
           <CashStatusBadge />
         </div>
-        <ConnectionIndicator />
+        <div className="hidden sm:block">
+          <ConnectionIndicator />
+        </div>
         <ThemeToggle />
         <UserMenu />
       </div>

@@ -1,6 +1,11 @@
 @import 'tailwindcss';
 @import '@pulso/ui/tokens.css';
 
+/* Tailwind v4 sólo escanea apps/web por defecto: sin este @source las clases
+ * que únicamente usan los componentes de @pulso/ui (p. ej. `fixed`/`inset-y-0`
+ * del Drawer) no se generan y el componente se renderiza roto. */
+@source '../../../packages/ui/src';
+
 /* Superficie de base: cuerpo de la app usa el fondo/texto de los tokens. */
 body {
   background-color: var(--color-bg);

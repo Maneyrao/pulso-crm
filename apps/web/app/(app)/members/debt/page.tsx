@@ -26,14 +26,17 @@ const PAGE_SIZE = 25;
 type SortField = ListDebtorsQuery['sort'];
 type SortOrder = ListDebtorsQuery['order'];
 
+// Los saldos deudores son negativos (convención del ledger: negativo = debe),
+// por eso "mayor deuda" = balance ascendente (más negativo primero). Ídem
+// debtAge: la deuda más antigua tiene el debtSince más chico (asc).
 const SORT_OPTIONS: Array<{ value: `${SortField}:${SortOrder}`; label: string }> = [
-  { value: 'balance:desc', label: 'Mayor deuda primero' },
-  { value: 'balance:asc', label: 'Menor deuda primero' },
-  { value: 'debtAge:desc', label: 'Deuda más antigua primero' },
-  { value: 'debtAge:asc', label: 'Deuda más reciente primero' },
+  { value: 'balance:asc', label: 'Mayor deuda primero' },
+  { value: 'balance:desc', label: 'Menor deuda primero' },
+  { value: 'debtAge:asc', label: 'Deuda más antigua primero' },
+  { value: 'debtAge:desc', label: 'Deuda más reciente primero' },
 ];
 
-const DEFAULT_SORT: `${SortField}:${SortOrder}` = 'balance:desc';
+const DEFAULT_SORT: `${SortField}:${SortOrder}` = 'balance:asc';
 
 export default function DebtorsPage() {
   return (

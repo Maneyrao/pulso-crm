@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { DoorOpen } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import type { AccessCheckResponse, AccessMethod } from '@pulso/contracts/access';
 import { EmptyState, Skeleton } from '@pulso/ui';
@@ -10,6 +11,7 @@ import { PermissionGate } from '@/lib/auth/permissions';
 import { useDelayedFlag } from '@/lib/hooks/useDelayedFlag';
 import { useSessionStore } from '@/lib/stores/session';
 import { AccessResultCard } from '@/components/access/AccessResultCard';
+import { PageHeader } from '@/components/shared/PageHeader';
 
 /** Sólo dígitos -> documento; cualquier otra cosa -> tarjeta (FRONTEND_PLAN §6.3). */
 function detectMethod(identifier: string): AccessMethod {
@@ -86,7 +88,12 @@ function AccessScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-(--text-2xl) font-semibold text-(--color-text)">Control de acceso</h1>
+      <PageHeader
+        icon={DoorOpen}
+        title="Control de acceso"
+        description="Registrá ingresos por documento o tarjeta y validá la membresía al instante."
+        className="mb-0"
+      />
 
       <form onSubmit={handleSubmit}>
         <label htmlFor="access-input" className="mb-1.5 block text-(--text-sm) font-medium text-(--color-text)">

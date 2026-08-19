@@ -45,9 +45,10 @@ export default function DashboardPage() {
   });
 
   const debtors = useQuery({
-    queryKey: qk.debtors(gymId, branchId, { limit: 5, sort: 'balance', order: 'desc' }),
-    // balance:desc = "mayor deuda primero" (misma semántica que /members/debt).
-    queryFn: () => listDebtors({ limit: 5, sort: 'balance', order: 'desc', branchId: branchId ?? undefined }),
+    queryKey: qk.debtors(gymId, branchId, { limit: 5, sort: 'balance', order: 'asc' }),
+    // Saldos deudores son negativos: balance:asc = más negativo primero =
+    // "mayor deuda primero" (misma semántica que /members/debt).
+    queryFn: () => listDebtors({ limit: 5, sort: 'balance', order: 'asc', branchId: branchId ?? undefined }),
     enabled: canReadMembers,
   });
 

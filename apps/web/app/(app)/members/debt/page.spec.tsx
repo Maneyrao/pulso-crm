@@ -6,7 +6,8 @@ import type { DebtorListItem, ListDebtorsResponse } from '@pulso/contracts/membe
 
 /**
  * Listado de deudores (T-M3-4). El único ordenamiento por defecto que la UI
- * garantiza es "mayor deuda primero" (sort=balance, order=desc). El resto
+ * garantiza es "mayor deuda primero": los saldos deudores son negativos, así
+ * que se pide sort=balance, order=asc (más negativo primero). El resto
  * viene del backend.
  */
 
@@ -140,7 +141,7 @@ describe('DebtorsPage', () => {
     expect(screen.getByRole('button', { name: /Reintentar/i })).toBeInTheDocument();
   });
 
-  it('orden por defecto pide sort=balance, order=desc (mayor deuda primero)', async () => {
+  it('orden por defecto pide sort=balance, order=asc (mayor deuda primero: saldos negativos)', async () => {
     await primeSession();
     listDebtorsMock.mockResolvedValueOnce(makeResponse([makeDebtor()]));
     const { default: DebtorsPage } = await import('./page');
@@ -149,6 +150,6 @@ describe('DebtorsPage', () => {
     await waitFor(() => expect(listDebtorsMock).toHaveBeenCalledTimes(1));
     const firstArg = listDebtorsMock.mock.calls[0]?.[0] as Record<string, unknown>;
     expect(firstArg.sort).toBe('balance');
-    expect(firstArg.order).toBe('desc');
+    expect(firstArg.order).toBe('asc');
   });
 });
