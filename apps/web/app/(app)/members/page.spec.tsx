@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import type { ListMembersResponse, MemberListItem } from '@pulso/contracts/members';
+import { ToastProvider } from '@pulso/ui';
 
 /**
  * Listado de socios (T-M3-1). Cubre los 4 estados que la pantalla debe
@@ -34,7 +35,11 @@ vi.mock('@/lib/api/members', () => ({
 
 function withQuery(children: ReactNode): ReactNode {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={qc}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
+  );
 }
 
 async function primeSession(permissions: string[] = ['member:read', 'member:write']): Promise<void> {

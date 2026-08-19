@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   DeactivateMemberRequest,
@@ -51,6 +51,7 @@ import {
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
+import { BiometricsCard } from '@/components/biometrics/BiometricsCard';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
 
@@ -87,11 +88,24 @@ function toEditForm(m: MemberDetail): EditFormState {
   };
 }
 
+/**
+ * La tarjeta de resultado de acceso (`components/access/AccessResultCard.tsx`)
+ * linkea a `?tab=cuenta` (cuenta corriente) y `?tab=membresias`; acá se
+ * mapean a los `value` reales de `Tabs`. Cualquier otro valor (o ausencia)
+ * cae en el tab de resumen, igual que antes.
+ */
+const TAB_PARAM_TO_VALUE: Record<string, string> = {
+  cuenta: 'ledger',
+  membresias: 'memberships',
+};
+
 function MemberDetailScreen() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id;
   const gymId = useSessionStore((s) => s.gym?.id ?? '');
+  const initialTab = TAB_PARAM_TO_VALUE[searchParams.get('tab') ?? ''] ?? 'summary';
   const canWrite = usePermission('member:write');
   const canDelete = usePermission('member:delete');
   const queryClient = useQueryClient();
@@ -218,7 +232,7 @@ function MemberDetailScreen() {
         </div>
       </div>
 
-      <Tabs defaultValue="summary">
+      <Tabs defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="summary">Resumen</TabsTrigger>
           <TabsTrigger value="memberships">Membresías</TabsTrigger>
@@ -227,6 +241,9 @@ function MemberDetailScreen() {
 
         <TabsContent value="summary">
           <SummarySection member={member} />
+          <div className="mt-4">
+            <BiometricsCard memberName={`${member.firstName} ${member.lastName}`} />
+          </div>
         </TabsContent>
 
         <TabsContent value="memberships">

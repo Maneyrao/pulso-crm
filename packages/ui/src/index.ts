@@ -24,6 +24,7 @@ export * from './components/ErrorState.js';
 
 // Overlays
 export * from './components/ConfirmDialog.js';
+export * from './components/Drawer.js';
 export * from './components/Modal.js';
 export * from './components/Tabs.js';
 export * from './components/Tooltip.js';

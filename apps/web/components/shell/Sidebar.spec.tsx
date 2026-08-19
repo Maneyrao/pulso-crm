@@ -1,5 +1,7 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as ReactQueryModule from '@tanstack/react-query';
 import type * as NavItemsModule from './nav-items';
 
 /**
@@ -10,12 +12,16 @@ import type * as NavItemsModule from './nav-items';
  * "no revelar QUÉ existe" — el back sigue rechazando cualquier request sin
  * permiso aunque el UI se cuele.
  *
- * Tests: filtrado por permiso, filtrado por feature, no revelar deudores si
- * no hay `member:read`, y siempre-visible /dashboard (sin permiso requerido).
+ * Tests: filtrado por permiso (hoja y grupo entero), filtrado por feature,
+ * apertura del grupo activo, y estado activo por match más largo
+ * (/members/debt activa "Deudores", no "Listado de socios").
  */
 
+let mockPathname = '/dashboard';
+
 vi.mock('next/navigation', () => ({
-  usePathname: () => '/dashboard',
+  usePathname: () => mockPathname,
+  useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock('next/link', () => ({
@@ -25,6 +31,11 @@ vi.mock('next/link', () => ({
     </a>
   ),
 }));
+
+vi.mock('@tanstack/react-query', async (importActual) => {
+  const actual = await importActual<typeof ReactQueryModule>();
+  return { ...actual, useQueryClient: () => ({ clear: vi.fn() }) };
+});
 
 const setSession = async (
   permissions: string[],
@@ -42,6 +53,7 @@ const setSession = async (
 };
 
 beforeEach(async () => {
+  mockPathname = '/dashboard';
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: null,
@@ -54,65 +66,87 @@ beforeEach(async () => {
 });
 
 describe('Sidebar — filtrado por permiso y feature', () => {
-  it('sin permisos, sólo muestra los ítems sin `permission` (Inicio)', async () => {
+  it('sin permisos, sólo muestra las entradas sin `permission` (Inicio, Asistente)', async () => {
     await setSession([]);
     const { Sidebar } = await import('./Sidebar');
     render(<Sidebar />);
     expect(screen.getByRole('link', { name: /Inicio/i })).toBeInTheDocument();
-    // Sin `member:read` no aparecen Socios, Deudores; sin cash:read no Caja.
-    expect(screen.queryByRole('link', { name: /^Socios$/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Deudores/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /^Caja$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Asistente/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Socios/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Caja/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Acceso/i })).not.toBeInTheDocument();
   });
 
-  it('con member:read aparecen Socios y Deudores', async () => {
+  it('con member:read aparece el grupo Socios y, al abrirlo, sus hojas permitidas', async () => {
     await setSession(['member:read']);
     const { Sidebar } = await import('./Sidebar');
     render(<Sidebar />);
-    expect(screen.getByRole('link', { name: /^Socios$/i })).toBeInTheDocument();
+    const group = screen.getByRole('button', { name: /Socios/i });
+    expect(group).toBeInTheDocument();
+    await userEvent.click(group);
+    expect(screen.getByRole('link', { name: /Listado de socios/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Deudores/i })).toBeInTheDocument();
+    // Sin member:write no se revela "Nuevo socio"; sin routine:read no "Entrenamientos".
+    expect(screen.queryByRole('link', { name: /Nuevo socio/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Entrenamientos/i })).not.toBeInTheDocument();
   });
 
-  it('con TODOS los permisos aparecen todos los ítems declarados', async () => {
-    await setSession([
-      'access:operate',
-      'member:read',
-      'plan:read',
-      'cash:read',
-      'config:read',
-      'user:read',
-    ]);
+  it('un grupo cuyas hojas quedaron todas filtradas no se renderiza', async () => {
+    await setSession(['member:read']); // nada de instructor:*
     const { Sidebar } = await import('./Sidebar');
-    const { NAV_ITEMS } = await import('./nav-items');
     render(<Sidebar />);
-    for (const item of NAV_ITEMS) {
-      expect(screen.getByRole('link', { name: new RegExp(item.label) })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Instructores/i })).not.toBeInTheDocument();
+  });
+
+  it('con todos los permisos declarados aparecen todas las secciones', async () => {
+    const { NAV_SECTIONS } = await import('./nav-items');
+    const allPermissions = [
+      ...new Set(
+        NAV_SECTIONS.flatMap((s) => [s.permission, ...(s.children ?? []).map((c) => c.permission)]).filter(
+          (p): p is NonNullable<typeof p> => Boolean(p),
+        ),
+      ),
+    ];
+    await setSession(allPermissions);
+    const { Sidebar } = await import('./Sidebar');
+    render(<Sidebar />);
+    for (const section of NAV_SECTIONS) {
+      const role = section.children ? 'button' : 'link';
+      expect(screen.getByRole(role, { name: new RegExp(`^${section.label}$`, 'i') })).toBeInTheDocument();
     }
   });
 
+  it('el grupo de la ruta activa arranca abierto y marca la hoja del match más largo', async () => {
+    mockPathname = '/members/debt';
+    await setSession(['member:read']);
+    const { Sidebar } = await import('./Sidebar');
+    render(<Sidebar />);
+    const debtors = screen.getByRole('link', { name: /Deudores/i });
+    expect(debtors).toHaveAttribute('aria-current', 'page');
+    // El fix del bug de prefijo: "Listado de socios" (/members) NO queda activo.
+    expect(screen.getByRole('link', { name: /Listado de socios/i })).not.toHaveAttribute('aria-current');
+  });
+
   it('permiso presente pero feature deshabilitada oculta el ítem', async () => {
-    // NAV_ITEMS actual no declara `feature` en ninguno todavía; este test
-    // deja constancia del contrato del filtro por si más adelante alguien
-    // agrega uno (`whatsapp`, `pos`, etc). Simulo agregando manualmente un
-    // ítem con feature vía mock de nav-items.
     vi.doMock('./nav-items', async () => {
       const actual = await vi.importActual<typeof NavItemsModule>('./nav-items');
       return {
         ...actual,
-        NAV_ITEMS: [
-          ...actual.NAV_ITEMS,
+        NAV_SECTIONS: [
+          ...actual.NAV_SECTIONS,
           {
+            id: 'whatsapp',
             href: '/whatsapp',
             label: 'WhatsApp',
             icon: () => null,
-            permission: 'messaging:read',
+            permission: 'message:send',
             feature: 'whatsapp_real',
           },
         ],
       };
     });
     vi.resetModules();
-    await setSession(['messaging:read'], []); // sin la feature
+    await setSession(['message:send'], []); // sin la feature
     const { Sidebar } = await import('./Sidebar');
     render(<Sidebar />);
     expect(screen.queryByRole('link', { name: /WhatsApp/i })).not.toBeInTheDocument();

@@ -17,8 +17,11 @@ import {
   StatusBadge,
   type DataTableColumn,
 } from '@pulso/ui';
+import { Download } from 'lucide-react';
+import { useToast } from '@pulso/ui';
 import { listMembers } from '@/lib/api/members';
 import { ApiError } from '@/lib/api/errors';
+import { downloadCsv, toCsv } from '@/lib/csv';
 import { PermissionGate } from '@/lib/auth/permissions';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
@@ -26,6 +29,8 @@ import { useMemberFilters } from '@/lib/hooks/useMemberFilters';
 import { MemberFiltersBar } from '@/components/members/MemberFiltersBar';
 
 const PAGE_SIZE = 25;
+/** Tope del export CSV: 10 páginas de API (el límite del contrato es 100 por página). */
+const EXPORT_MAX_ROWS = 1000;
 
 export default function MembersPage() {
   return (
@@ -44,6 +49,63 @@ function MembersScreen() {
   const gymId = useSessionStore((s) => s.gym?.id ?? '');
   const branchId = useSessionStore((s) => s.activeBranchId);
   const { filters, isFiltered, update, setPage, clearFilters } = useMemberFilters();
+
+  const [exporting, setExporting] = React.useState(false);
+  const { toast } = useToast();
+
+  /**
+   * Exporta el listado con los filtros vigentes. Pagina contra la API hasta
+   * EXPORT_MAX_ROWS (el límite por página del contrato es 100) y avisa si el
+   * resultado quedó truncado.
+   */
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const rows: MemberListItem[] = [];
+      let page = 1;
+      let total = Infinity;
+      while (rows.length < EXPORT_MAX_ROWS && rows.length < total) {
+        const res = await listMembers({
+          q: filters.q || undefined,
+          status: (filters.status || undefined) as MemberStatus | undefined,
+          membershipStatus: (filters.membershipStatus || undefined) as MemberMembershipFilter | undefined,
+          hasDebt: filters.hasDebt || undefined,
+          page,
+          limit: 100,
+          branchId: branchId ?? undefined,
+        });
+        rows.push(...res.data);
+        total = res.pageInfo.total;
+        if (res.data.length === 0) break;
+        page += 1;
+      }
+      const csv = toCsv(
+        ['N°', 'Apellido', 'Nombre', 'Documento', 'Teléfono', 'Estado', 'Membresía', 'Saldo'],
+        rows.slice(0, EXPORT_MAX_ROWS).map((m) => [
+          String(m.memberNumber),
+          m.lastName,
+          m.firstName,
+          m.documentMasked,
+          m.phone ?? '',
+          m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
+          m.activeMembership?.planName ?? '',
+          m.balance,
+        ]),
+      );
+      downloadCsv(`socios-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+      if (total > EXPORT_MAX_ROWS) {
+        toast({
+          tone: 'warning',
+          title: 'Export truncado',
+          description: `Se exportaron ${EXPORT_MAX_ROWS} de ${total} socios. Afiná los filtros para exportar el resto.`,
+        });
+      }
+    } catch {
+      toast({ tone: 'danger', title: 'No pudimos exportar', description: 'Probá de nuevo en unos segundos.' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const queryFilters = React.useMemo(
     () => ({
@@ -162,11 +224,17 @@ function MembersScreen() {
             Personas que asisten al gimnasio con su ficha, membresías y cuenta corriente.
           </p>
         </div>
-        <PermissionGate permission="member:write">
-          <Button asChild>
-            <Link href="/members/new">Nuevo socio</Link>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" loading={exporting} onClick={() => void handleExport()}>
+            <Download className="h-4 w-4" aria-hidden={true} />
+            Exportar
           </Button>
-        </PermissionGate>
+          <PermissionGate permission="member:write">
+            <Button asChild>
+              <Link href="/members/new">Nuevo socio</Link>
+            </Button>
+          </PermissionGate>
+        </div>
       </div>
 
       <MemberFiltersBar filters={filters} onChange={(patch) => update(patch)} />

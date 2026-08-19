@@ -1,9 +1,12 @@
 'use client';
 
-import { Spinner } from '@pulso/ui';
+import * as React from 'react';
+import { usePathname } from 'next/navigation';
+import { Drawer, Spinner } from '@pulso/ui';
 import { useBootstrapSession } from '@/lib/hooks/useSession';
+import { AppFooter } from './AppFooter';
 import { Header } from './Header';
-import { Sidebar } from './Sidebar';
+import { BrandMark, Sidebar, SidebarAccount, SidebarNav } from './Sidebar';
 
 /**
  * Sidebar + header + guards del área autenticada. La verificación fuerte de
@@ -13,6 +16,13 @@ import { Sidebar } from './Sidebar';
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const session = useBootstrapSession();
+  const pathname = usePathname();
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+
+  // Cambio de ruta = navegación exitosa: el drawer no debe quedar abierto.
+  React.useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
 
   if (session.isLoading) {
     return (
@@ -34,9 +44,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-(--color-bg)">
       <Sidebar />
-      <div className="flex flex-1 flex-col">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} title="Menú" hideTitle side="left" className="lg:hidden">
+        <div className="flex h-14 shrink-0 items-center border-b border-(--color-border)">
+          <BrandMark />
+        </div>
+        <SidebarNav onNavigate={() => setDrawerOpen(false)} />
+        <SidebarAccount onNavigate={() => setDrawerOpen(false)} />
+      </Drawer>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <Header onOpenMenu={() => setDrawerOpen(true)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <AppFooter />
       </div>
     </div>
   );

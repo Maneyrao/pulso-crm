@@ -15,6 +15,24 @@
  */
 
 @theme {
+  /* ---- Motion operacional (ver CONTROLFIT_PARITY_AUDIT §4) ---- */
+  --animate-fade-in: pulso-fade-in 160ms ease-out;
+  --animate-page-in: pulso-page-in 160ms ease-out;
+  --animate-shimmer: pulso-shimmer 1.4s ease-in-out infinite;
+
+  @keyframes pulso-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pulso-page-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes pulso-shimmer {
+    0% { background-position: 150% 0; }
+    100% { background-position: -50% 0; }
+  }
+
   /* ---- Color: base neutra ---- */
   --color-bg: #fafafa;
   --color-surface: #ffffff;

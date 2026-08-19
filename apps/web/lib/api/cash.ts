@@ -37,8 +37,10 @@ import { apiFetch, toQueryString } from './client.js';
 
 // ── Sesiones ────────────────────────────────────────────────────────────
 
-export function getCurrentCashSession(): Promise<CashSession | null> {
-  return apiFetch<CashSession | null>('/cash/sessions/current');
+export async function getCurrentCashSession(): Promise<CashSession | null> {
+  // Sin caja abierta el backend responde 204 y el cliente devuelve undefined;
+  // TanStack Query prohíbe `undefined` como dato, así que se normaliza a null.
+  return (await apiFetch<CashSession | null>('/cash/sessions/current')) ?? null;
 }
 
 export function listCashSessions(
