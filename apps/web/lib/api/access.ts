@@ -1,4 +1,10 @@
-import type { AccessCheckRequest, AccessCheckResponse, ListAccessAttemptsResponse } from '@pulso/contracts/access';
+import type {
+  AccessCheckRequest,
+  AccessCheckResponse,
+  ListAccessAttemptsResponse,
+  ListAttendancesQuery,
+  ListAttendancesResponse,
+} from '@pulso/contracts/access';
 import { apiFetch, toQueryString } from './client.js';
 
 export function checkAccess(payload: AccessCheckRequest): Promise<AccessCheckResponse> {
@@ -7,4 +13,8 @@ export function checkAccess(payload: AccessCheckRequest): Promise<AccessCheckRes
 
 export function listAccessAttempts(branchId: string | null, limit = 10): Promise<ListAccessAttemptsResponse> {
   return apiFetch<ListAccessAttemptsResponse>(`/access/attempts${toQueryString({ branchId, limit })}`);
+}
+
+export function listAttendances(query: Partial<ListAttendancesQuery>): Promise<ListAttendancesResponse> {
+  return apiFetch<ListAttendancesResponse>(`/attendances${toQueryString(query)}`);
 }

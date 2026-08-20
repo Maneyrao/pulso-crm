@@ -3,6 +3,8 @@ import { scoped } from '@pulso/db';
 import type {
   AccessCheckRequest,
   AccessCheckResponse,
+  ListAttendancesQuery,
+  ListAttendancesResponse,
   ListAccessAttemptsQuery,
   ListAccessAttemptsResponse,
 } from '@pulso/contracts/access';
@@ -13,8 +15,11 @@ import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
 import { getBranchTimezone, toBusinessDate } from '../cash/lib/business-date.helper.js';
+import { maskedDocument } from '../members/member-serializer.js';
 import { evaluateAccess } from './access-decision.js';
 import { businessDateToDbDate, dbDateToBusinessDate, mondayOfWeek } from './access-date.util.js';
+
+const READ_DOCUMENT_PERMISSION = 'member:read_document';
 
 /**
  * Superficie HTTP de la Regla de acceso #2 (docs/BUSINESS_RULES.md).
@@ -285,6 +290,73 @@ export class AccessService {
         matchScore: r.matchScore,
         attendanceId: r.attendanceId,
         occurredAt: r.occurredAt.toISOString(),
+      })),
+      pageInfo: {
+        limit,
+        page,
+        hasMore: page * limit < total,
+        total,
+      },
+    };
+  }
+
+  async listAttendances(query: ListAttendancesQuery): Promise<ListAttendancesResponse> {
+    const branchFilter = query.branchId
+      ? { branchId: TenantContextStore.requireBranch(query.branchId) }
+      : {};
+    const where = {
+      ...branchFilter,
+      ...(query.memberId ? { memberId: query.memberId } : {}),
+      ...(query.from || query.to
+        ? {
+            occurredOn: {
+              ...(query.from ? { gte: businessDateToDbDate(query.from) } : {}),
+              ...(query.to ? { lte: businessDateToDbDate(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const page = query.page;
+    const limit = query.limit;
+    const [total, rows] = await Promise.all([
+      this.prisma.client.attendance.count({ where }),
+      this.prisma.client.attendance.findMany({
+        where,
+        orderBy: [{ occurredAt: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          branch: { select: { id: true, name: true } },
+          member: { select: { id: true, firstName: true, lastName: true, documentNumber: true } },
+          membership: { select: { id: true, plan: { select: { name: true } } } },
+        },
+      }),
+    ]);
+
+    const canReadDocument = TenantContextStore.require().permissions.has(READ_DOCUMENT_PERMISSION);
+    return {
+      data: rows.map((r) => ({
+        id: r.id,
+        branchId: r.branchId,
+        memberId: r.memberId,
+        membershipId: r.membershipId,
+        method: r.method,
+        occurredOn: dbDateToBusinessDate(r.occurredOn),
+        occurredAt: r.occurredAt.toISOString(),
+        branch: { id: r.branch.id, name: r.branch.name },
+        member: {
+          id: r.member.id,
+          firstName: r.member.firstName,
+          lastName: r.member.lastName,
+          documentMasked: maskedDocument(r.member.documentNumber, canReadDocument),
+        },
+        membership: r.membership
+          ? {
+              id: r.membership.id,
+              planName: r.membership.plan.name,
+            }
+          : null,
       })),
       pageInfo: {
         limit,

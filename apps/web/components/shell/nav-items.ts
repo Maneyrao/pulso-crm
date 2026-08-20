@@ -55,9 +55,9 @@ export const NAV_SECTIONS: readonly NavSection[] = [
     children: [
       { href: '/members', label: 'Listado de socios', permission: 'member:read' },
       { href: '/members/new', label: 'Nuevo socio', permission: 'member:write' },
-      { href: '/members/attendance', label: 'Asistencias', permission: 'member:read', mock: true },
+      { href: '/members/attendance', label: 'Asistencias', permission: 'attendance:read' },
       { href: '/members/debt', label: 'Deudores', permission: 'member:read' },
-      { href: '/members/inactive', label: 'Baja de socios', permission: 'member:read', mock: true },
+      { href: '/members/inactive', label: 'Baja de socios', permission: 'member:read' },
       { href: '/workouts', label: 'Entrenamientos', permission: 'routine:read', mock: true },
     ],
   },

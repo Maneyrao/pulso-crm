@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { AccessController } from './access.controller.js';
+import { AccessController, AttendancesController } from './access.controller.js';
 import { AccessService } from './access.service.js';
 
 /**
@@ -7,7 +7,7 @@ import { AccessService } from './access.service.js';
  * `Attendance`). Biometría fuera del MVP (Etapa 8, agente local .NET).
  */
 @Module({
-  controllers: [AccessController],
+  controllers: [AccessController, AttendancesController],
   providers: [AccessService],
   exports: [AccessService],
 })

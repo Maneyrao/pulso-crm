@@ -236,6 +236,33 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
     },
     readRaw: (raw, id) => raw.membership.findUnique({ where: { id } }),
   },
+  attendances: {
+    async createId(raw, gymId, branchId) {
+      const memberNumber = unique();
+      const member = await raw.member.create({
+        data: {
+          gymId,
+          branchId,
+          memberNumber,
+          firstName: 'Fixture',
+          lastName: 'Attendance',
+          documentType: 'DNI',
+          documentNumber: String(60_000_000 + memberNumber),
+        },
+      });
+      const row = await raw.attendance.create({
+        data: {
+          gymId,
+          branchId,
+          memberId: member.id,
+          method: 'DOCUMENT',
+          occurredOn: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      });
+      return row.id;
+    },
+    readRaw: (raw, id) => raw.attendance.findUnique({ where: { id } }),
+  },
 };
 
 /**

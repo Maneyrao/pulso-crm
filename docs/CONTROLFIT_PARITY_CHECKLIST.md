@@ -21,9 +21,9 @@ verificado de cada módulo al cierre.
 | Socios (listado) | `/members` | ✅ Real | Búsqueda, filtros, paginación, export CSV (`;` + BOM para Excel es-AR). |
 | Nuevo socio | `/members/new` | ✅ Real | Wizard 3 pasos. Pasos Actividad+Cobro del alta: pendiente (backend existe). |
 | Ficha de socio | `/members/[id]` | ✅ Real | Tabs resumen/cuenta/membresías; deep-link `?tab=`. Card de huella (demo). |
-| Asistencias de socios | `/members/attendance` | 🟡 Demo | La API de accesos existe; falta endpoint de listado histórico. |
+| Asistencias de socios | `/members/attendance` | ✅ Real | Listado histórico conectado a `GET /attendances`, con filtros por fecha/sede y KPIs del día. |
 | Deudores | `/members/debt` | ✅ Real | Orden por saldo y antigüedad de deuda. |
-| Baja de socios / inactivos | `/members/inactive` | 🟡 Demo | |
+| Baja de socios / inactivos | `/members/inactive` | ✅ Real | Usa deudores reales + socios inactivos reales; permite baja manual con auditoría vía endpoint existente. |
 | Entrenamientos | `/workouts` | 🟡 Demo | |
 | Actividades / planes | `/plans`, `/activities` | ✅ Real | CRUD de planes contra API. |
 | Rutinas | `/activities/routines` | 🟡 Demo | |
@@ -91,8 +91,8 @@ verificado de cada módulo al cierre.
 ## Deuda pendiente para el MVP vendible (Etapas 3-6)
 
 1. Reemplazar cada página 🟡 por su endpoint real (los hooks demo tienen el
-   mismo shape que `useQuery`: swap mecánico, empezar por asistencias y
-   reservas que son las de mayor uso diario).
+   mismo shape que `useQuery`: swap mecánico, seguir por reservas/agenda que
+   son de uso diario).
 2. Pasos Actividad + Cobro en el wizard de alta (backend ya existe).
 3. ABM real de conceptos y métodos de pago (falta backend de escritura).
 4. Cambio de contraseña self-service en `/account` (falta endpoint).

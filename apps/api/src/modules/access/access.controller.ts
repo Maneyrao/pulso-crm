@@ -2,6 +2,8 @@ import { Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import {
   type AccessCheckRequest,
   accessCheckRequestSchema,
+  type ListAttendancesQuery,
+  listAttendancesQuerySchema,
   type ListAccessAttemptsQuery,
   listAccessAttemptsQuerySchema,
 } from '@pulso/contracts/access';
@@ -32,5 +34,16 @@ export class AccessController {
   @Get('attempts')
   attempts(@ZodQuery(listAccessAttemptsQuerySchema) query: ListAccessAttemptsQuery) {
     return this.access.listAttempts(query);
+  }
+}
+
+@Controller('attendances')
+export class AttendancesController {
+  constructor(private readonly access: AccessService) {}
+
+  @RequiresPermission('attendance:read')
+  @Get()
+  list(@ZodQuery(listAttendancesQuerySchema) query: ListAttendancesQuery) {
+    return this.access.listAttendances(query);
   }
 }

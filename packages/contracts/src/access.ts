@@ -126,6 +126,19 @@ export const attendanceSchema = z.object({
   /** Día de negocio en la zona de la sede. Es la clave del unique anti-doble-registro. */
   occurredOn: businessDateSchema,
   occurredAt: isoInstantSchema,
+  branch: z.object({ id: uuidSchema, name: z.string() }),
+  member: z.object({
+    id: uuidSchema,
+    firstName: z.string(),
+    lastName: z.string(),
+    documentMasked: z.string(),
+  }),
+  membership: z
+    .object({
+      id: uuidSchema,
+      planName: z.string(),
+    })
+    .nullable(),
 });
 export type Attendance = z.infer<typeof attendanceSchema>;
 

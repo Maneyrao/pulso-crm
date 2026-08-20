@@ -41,6 +41,8 @@ export const qk = {
 
   accessAttempts: (gymId: string, branchId: string | null, filters: Readonly<Record<string, unknown>>) =>
     ['access-attempts', gymId, branchId, filters] as const,
+  attendances: (gymId: string, branchId: string | null, filters: Readonly<Record<string, unknown>>) =>
+    ['attendances', gymId, branchId, filters] as const,
 
   dashboard: (gymId: string, branchId: string | null) => ['dashboard', gymId, branchId] as const,
 } as const;

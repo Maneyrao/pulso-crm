@@ -1,15 +1,33 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { format } from 'date-fns';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import type { Attendance, ListAttendancesResponse } from '@pulso/contracts/access';
 
 /**
- * Asistencias de socios (demo). Sin backend: los datos salen de
- * `lib/mock/data/members-demo.ts` vía `useMockData` (latencia simulada, sin
- * react-query). Cubre: render feliz, KPIs, columnas clave, búsqueda y el
- * caso "otra fecha" (el dataset sólo modela "hoy").
+ * Asistencias de socios: pantalla real contra `GET /attendances`.
  */
 
-async function primeSession(permissions: string[] = ['member:read']): Promise<void> {
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+const listAttendancesMock = vi.fn();
+vi.mock('@/lib/api/access', () => ({
+  listAttendances: (...args: unknown[]) => listAttendancesMock(...args),
+}));
+
+function withQuery(children: ReactNode): ReactNode {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+}
+
+async function primeSession(permissions: string[] = ['attendance:read']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
@@ -21,12 +39,36 @@ async function primeSession(permissions: string[] = ['member:read']): Promise<vo
   } as never);
 }
 
-function kpiValue(label: string): string {
-  const labelEl = screen.getByText(label);
-  return labelEl.nextElementSibling?.textContent ?? '';
+function makeAttendance(overrides: Partial<Attendance> = {}): Attendance {
+  return {
+    id: 'att-1',
+    branchId: 'b1',
+    memberId: 'm1',
+    membershipId: 'ms1',
+    method: 'DOCUMENT',
+    occurredOn: '2026-08-20',
+    occurredAt: '2026-08-20T21:30:00.000Z',
+    branch: { id: 'b1', name: 'Centro' },
+    member: {
+      id: 'm1',
+      firstName: 'Lucía',
+      lastName: 'Pérez',
+      documentMasked: '•••••456',
+    },
+    membership: { id: 'ms1', planName: 'Musculación' },
+    ...overrides,
+  };
+}
+
+function makeResponse(rows: Attendance[], total = rows.length): ListAttendancesResponse {
+  return {
+    data: rows,
+    pageInfo: { total, page: 1, limit: 100, hasMore: false },
+  };
 }
 
 beforeEach(async () => {
+  listAttendancesMock.mockReset();
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: null,
@@ -39,63 +81,84 @@ beforeEach(async () => {
 });
 
 describe('AttendancePage', () => {
-  it('render feliz: muestra hora, socio, actividad, sede y método de acceso', async () => {
+  it('render feliz: muestra socio, plan, sede y método de acceso desde la API', async () => {
     await primeSession();
+    listAttendancesMock.mockResolvedValueOnce(makeResponse([makeAttendance()]));
     const { default: AttendancePage } = await import('./page');
-    render(<AttendancePage />);
+    render(withQuery(<AttendancePage />));
 
-    await screen.findByText('Bruno García');
-    expect(screen.getByText('06:15')).toBeInTheDocument();
-    expect(screen.getByText('34567890')).toBeInTheDocument();
-    expect(screen.getAllByText('Musculación').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Sede Centro').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Documento').length).toBeGreaterThan(0);
+    await screen.findByText('Pérez, Lucía');
+    expect(screen.getByText('•••••456')).toBeInTheDocument();
+    expect(screen.getByText('Musculación')).toBeInTheDocument();
+    expect(screen.getByText('Centro')).toBeInTheDocument();
+    expect(screen.getByText('Documento')).toBeInTheDocument();
+    expect(screen.getByText('Pérez, Lucía').closest('a')).toHaveAttribute('href', '/members/m1');
   });
 
-  it('calcula los KPIs (asistencias hoy, pico horario, promedio diario 7 días)', async () => {
+  it('calcula KPIs con los registros del día', async () => {
     await primeSession();
+    listAttendancesMock.mockResolvedValueOnce(
+      makeResponse([
+        makeAttendance({ id: 'att-1', occurredAt: '2026-08-20T21:10:00.000Z' }),
+        makeAttendance({ id: 'att-2', method: 'DOCUMENT', occurredAt: '2026-08-20T21:35:00.000Z' }),
+      ], 2),
+    );
     const { default: AttendancePage } = await import('./page');
-    render(<AttendancePage />);
+    render(withQuery(<AttendancePage />));
 
-    await screen.findByText('Bruno García');
-    expect(kpiValue('Asistencias hoy')).toBe('18');
-    expect(kpiValue('Pico horario')).toBe('18:00–19:00');
-    expect(kpiValue('Promedio diario (7 días)')).toBe('18');
+    await waitFor(() => expect(screen.getByText('Documento (2)')).toBeInTheDocument());
+    expect(screen.getByText('Registros del día').nextElementSibling?.textContent).toBe('2');
+    expect(screen.getByText('18:00-19:00')).toBeInTheDocument();
   });
 
-  it('la fecha por defecto es hoy y filtrar por otro día deja la tabla vacía por filtro', async () => {
+  it('la fecha por defecto es hoy y cambiarla consulta la API con ese día', async () => {
     await primeSession();
+    listAttendancesMock.mockResolvedValue(makeResponse([]));
     const { default: AttendancePage } = await import('./page');
-    render(<AttendancePage />);
+    render(withQuery(<AttendancePage />));
 
-    await screen.findByText('Bruno García');
     const today = format(new Date(), 'yyyy-MM-dd');
     const dateInput = screen.getByLabelText('Fecha') as HTMLInputElement;
     expect(dateInput.value).toBe(today);
 
-    fireEvent.change(dateInput, { target: { value: '2020-01-01' } });
-    await waitFor(() => expect(screen.getByText(/Sin resultados/i)).toBeInTheDocument());
+    fireEvent.change(dateInput, { target: { value: '2026-08-01' } });
+    await waitFor(() =>
+      expect(listAttendancesMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ from: '2026-08-01', to: '2026-08-01' }),
+      ),
+    );
   });
 
-  it('la búsqueda filtra por nombre o DNI', async () => {
+  it('la búsqueda filtra por nombre o DNI en la página actual', async () => {
     await primeSession();
+    listAttendancesMock.mockResolvedValueOnce(
+      makeResponse([
+        makeAttendance(),
+        makeAttendance({
+          id: 'att-2',
+          memberId: 'm2',
+          member: { id: 'm2', firstName: 'Bruno', lastName: 'García', documentMasked: '•••••789' },
+        }),
+      ]),
+    );
     const { default: AttendancePage } = await import('./page');
-    render(<AttendancePage />);
+    render(withQuery(<AttendancePage />));
 
-    await screen.findByText('Bruno García');
-    const search = screen.getByLabelText('Buscar por nombre o DNI');
-    fireEvent.change(search, { target: { value: '34567890' } });
+    await screen.findByText('Pérez, Lucía');
+    fireEvent.change(screen.getByLabelText('Buscar por nombre, DNI, plan o sede'), {
+      target: { value: '789' },
+    });
 
     await waitFor(() => {
-      expect(screen.getByText('Bruno García')).toBeInTheDocument();
-      expect(screen.queryByText('Lucía Fernández')).not.toBeInTheDocument();
+      expect(screen.getByText('García, Bruno')).toBeInTheDocument();
+      expect(screen.queryByText('Pérez, Lucía')).not.toBeInTheDocument();
     });
   });
 
-  it('sin el permiso member:read no se ve el contenido de la pantalla', async () => {
+  it('sin el permiso attendance:read no se ve el contenido de la pantalla', async () => {
     await primeSession([]);
     const { default: AttendancePage } = await import('./page');
-    render(<AttendancePage />);
+    render(withQuery(<AttendancePage />));
 
     expect(await screen.findByText('Sin acceso')).toBeInTheDocument();
     expect(screen.queryByText('Asistencias')).not.toBeInTheDocument();
