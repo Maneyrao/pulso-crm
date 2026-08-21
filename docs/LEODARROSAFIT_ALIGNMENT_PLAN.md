@@ -126,7 +126,7 @@ Arquitectura (docs/biometrics/*): DigitalPersona U.are.U USB → `apps/local-age
 | Matriz (este doc) | ✅ | — |
 | Fase 1 shell/tokens | ✅ tokens dark-first LeoDarrosa, Archivo, radius 0, bordes 2px, sidebar agrupada, componentes @pulso/ui restylados | (ver git log) |
 | Fase 2 rutas reales | 🔶 en curso: dashboard, access, members ×2, cash ×4, config, account, stats, settings/users rediseñados; specs realineados (Radix Select/Tabs, labels con asterisco de required) | |
-| Fase 3 purga demo | ⬜ pendiente (loyalty/ai/workouts/instructors/schedule/products siguen en el build) | |
+| Fase 3 purga demo | ✅ eliminados del build: workouts, activities/routines(+exercises), instructors(+attendance), schedule(+exceptions+reservations), cash/invoices, products, loyalty ×3, ai, `lib/mock/` completo y el flag `mock` del sidebar. `/settings/devices` se mantiene (decisión previa: integración con llegada concreta en Fase 4) con sus datos demo co-locados en la página | (ver git log) |
 | Fase 4 fingerprint | 🔶 `apps/local-agent` .NET 8 completo (Protocol/Core/Sensors/Backend/Host + FakeSensor, 126 tests). Pendiente: contracts Zod, módulos Nest `agents`/`biometrics`, cliente WS web, `/settings/devices` | |
 
 Notas de la pata .NET (2026-08-21):

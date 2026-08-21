@@ -7,7 +7,7 @@ import type { DataTableColumn } from '@pulso/ui';
 import { PermissionGate } from '@/lib/auth/permissions';
 import { getAgentClient } from '@/lib/agent/fake-agent';
 import { AGENT_STATUS_LABEL, useAgentStore } from '@/lib/agent/store';
-import { DEMO_AGENT_DEVICES, type DemoAgentDevice } from '@/lib/mock/data/devices-demo';
+import { DEMO_AGENT_DEVICES, type DemoAgentDevice } from './devices-demo';
 import { EnrollmentDialog } from '@/components/biometrics/EnrollmentDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 

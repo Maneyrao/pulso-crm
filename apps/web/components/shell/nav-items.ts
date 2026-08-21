@@ -7,8 +7,6 @@ export interface NavItem {
   /** Si falta el permiso, el ítem no se renderiza (no se muestra deshabilitado). */
   permission?: Permission;
   feature?: FeatureKey;
-  /** Página con datos de demostración (sin backend todavía). */
-  mock?: boolean;
 }
 
 export interface NavGroup {
@@ -25,9 +23,9 @@ export interface NavGroup {
  *
  * Sólo rutas con backend real (o alias de una ruta real). Los módulos
  * puramente demo (rutinas, ejercicios, instructores, reservas, facturación
- * ARCA, productos, puntos, WhatsApp real, AI, entrenamientos) NO están acá:
- * sus páginas siguen existiendo para no dejar trabajo a medio hacer, pero se
- * purgan del sidebar y del build recién en la Fase 3 del plan.
+ * ARCA, productos, puntos, WhatsApp real, AI, entrenamientos) se eliminaron
+ * del build en la Fase 3 del plan (LEODARROSAFIT_ALIGNMENT_PLAN.md §3): si
+ * un módulo de esos vuelve, entra con backend real desde el día uno.
  *
  * "Nuevo plan" (`#/activities/new` en la referencia) no tiene ruta propia en
  * Next todavía (no existe `/plans/new`) — se omite a propósito en vez de
@@ -84,7 +82,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   {
     id: 'analisis',
     label: 'Análisis',
-    items: [{ href: '/stats', label: 'Estadísticas', permission: 'stats:read', mock: true }],
+    items: [{ href: '/stats', label: 'Estadísticas', permission: 'stats:read' }],
   },
   {
     id: 'sistema',

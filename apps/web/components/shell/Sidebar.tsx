@@ -92,13 +92,6 @@ function SidebarLink({
         {computeAbbr(item.label)}
       </span>
       {!collapsed && <span className="truncate">{item.label}</span>}
-      {!collapsed && item.mock ? (
-        <span
-          aria-hidden={true}
-          title="Datos de demostración"
-          className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-(--color-warning)"
-        />
-      ) : null}
     </Link>
   );
 }
