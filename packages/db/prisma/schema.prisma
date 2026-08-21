@@ -39,7 +39,7 @@ model SaasPlan {
   maxUsers    Int
 
   /// Catálogo de features habilitadas por este plan (ADR-022).
-  features    String[]
+  features String[]
 
   monthlyPrice Decimal @db.Decimal(14, 2)
   isActive     Boolean @default(true)
@@ -58,13 +58,13 @@ model Gym {
   slug String @unique @db.Citext
   name String
 
-  legalName    String?
-  taxId        String?
-  country      String    @default("AR")
-  currency     String    @default("ARS")
-  locale       String    @default("es-AR")
-  status       GymStatus @default(ACTIVE)
-  suspendedAt  DateTime? @db.Timestamptz(3)
+  legalName       String?
+  taxId           String?
+  country         String    @default("AR")
+  currency        String    @default("ARS")
+  locale          String    @default("es-AR")
+  status          GymStatus @default(ACTIVE)
+  suspendedAt     DateTime? @db.Timestamptz(3)
   suspendedReason String?
 
   saasPlanId String   @db.Uuid
@@ -77,31 +77,38 @@ model Gym {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  branches         Branch[]
-  users            User[]
-  roles            Role[]
-  members          Member[]
-  activities       Activity[]
-  plans            Plan[]
-  memberships      Membership[]
-  ledgerEntries    LedgerEntry[]
-  paymentMethods   PaymentMethod[]
-  cashConcepts     CashConcept[]
-  cashRegisters    CashRegister[]
-  cashSessions     CashSession[]
-  cashMovements    CashMovement[]
+  branches              Branch[]
+  users                 User[]
+  roles                 Role[]
+  members               Member[]
+  activities            Activity[]
+  plans                 Plan[]
+  memberships           Membership[]
+  ledgerEntries         LedgerEntry[]
+  paymentMethods        PaymentMethod[]
+  cashConcepts          CashConcept[]
+  cashRegisters         CashRegister[]
+  cashSessions          CashSession[]
+  cashMovements         CashMovement[]
   cashOperationRequests CashOperationRequest[]
-  accessAttempts   AccessAttempt[]
-  attendances      Attendance[]
-  auditEvents      AuditEvent[]
-  idempotencyKeys  IdempotencyKey[]
-  outboxEvents     OutboxEvent[]
-  featureOverrides GymFeatureOverride[]
-  memberDocuments  MemberDocument[]
-  refreshTokens    RefreshToken[]
-  memberCounters   MemberCounter[]
-  messageTemplates MessageTemplate[]
-  messageJobs      MessageJob[]
+  accessAttempts        AccessAttempt[]
+  attendances           Attendance[]
+  auditEvents           AuditEvent[]
+  idempotencyKeys       IdempotencyKey[]
+  outboxEvents          OutboxEvent[]
+  featureOverrides      GymFeatureOverride[]
+  memberDocuments       MemberDocument[]
+  refreshTokens         RefreshToken[]
+  memberCounters        MemberCounter[]
+  messageTemplates      MessageTemplate[]
+  messageJobs           MessageJob[]
+  localAgents           LocalAgent[]
+  accessDevices         AccessDevice[]
+  biometricConsents     BiometricConsent[]
+  biometricEnrollments  BiometricEnrollment[]
+  biometricCredentials  BiometricCredential[]
+  agentAuditEvents      AgentAuditEvent[]
+  deviceTokens          DeviceToken[]
 
   @@index([status])
   @@map("gyms")
@@ -123,15 +130,20 @@ model Branch {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  members         Member[]
-  memberships     Membership[]
-  planBranches    PlanBranch[]
-  cashRegisters   CashRegister[]
-  cashSessions    CashSession[]
-  accessAttempts  AccessAttempt[]
-  attendances     Attendance[]
-  userAccess      UserBranchAccess[]
-  ledgerEntries   LedgerEntry[]
+  members              Member[]
+  memberships          Membership[]
+  planBranches         PlanBranch[]
+  cashRegisters        CashRegister[]
+  cashSessions         CashSession[]
+  accessAttempts       AccessAttempt[]
+  attendances          Attendance[]
+  userAccess           UserBranchAccess[]
+  ledgerEntries        LedgerEntry[]
+  localAgents          LocalAgent[]
+  accessDevices        AccessDevice[]
+  biometricEnrollments BiometricEnrollment[]
+  biometricCredentials BiometricCredential[]
+  agentAuditEvents     AgentAuditEvent[]
 
   /// unique (gymId, name) parcial en SQL.
   @@index([gymId, name])
@@ -189,8 +201,8 @@ model User {
   branchAccess    UserBranchAccess[]
   refreshTokens   RefreshToken[]
   auditEvents     AuditEvent[]
-  openedSessions  CashSession[]        @relation("SessionOpenedBy")
-  closedSessions  CashSession[]        @relation("SessionClosedBy")
+  openedSessions  CashSession[]          @relation("SessionOpenedBy")
+  closedSessions  CashSession[]          @relation("SessionClosedBy")
   cashMovements   CashMovement[]
   requestedOps    CashOperationRequest[] @relation("OpRequestedBy")
   resolvedOps     CashOperationRequest[] @relation("OpResolvedBy")
@@ -268,11 +280,11 @@ model RefreshToken {
   /// Detectar el reuso de uno revoca la familia entera.
   familyId  String @db.Uuid
 
-  expiresAt DateTime  @db.Timestamptz(3)
-  revokedAt DateTime? @db.Timestamptz(3)
+  expiresAt     DateTime  @db.Timestamptz(3)
+  revokedAt     DateTime? @db.Timestamptz(3)
   revokedReason String?
   /// Apunta al token que reemplazó a éste en la rotación.
-  replacedById String? @db.Uuid
+  replacedById  String?   @db.Uuid
 
   userAgent String?
   ipAddress String?
@@ -335,10 +347,10 @@ model IdempotencyKey {
   responseStatus Int?
   responseBody   Json?
 
-  lockedAt  DateTime  @default(now()) @db.Timestamptz(3)
-  expiresAt DateTime  @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
+  lockedAt  DateTime @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([gymId, key])
   @@index([expiresAt])
@@ -427,21 +439,21 @@ model Member {
   /// Normalizado (sin puntos ni espacios) antes de guardar y de comparar.
   documentNumber String
 
-  email       String?   @db.Citext
-  phone       String?
-  birthDate   DateTime? @db.Date
-  gender      Gender?
-  address     String?
+  email     String?   @db.Citext
+  phone     String?
+  birthDate DateTime? @db.Date
+  gender    Gender?
+  address   String?
 
   /// Credencial física opcional.
-  cardCode    String?
+  cardCode String?
 
-  photoKey    String?
+  photoKey String?
 
-  status      MemberStatus @default(ACTIVE)
+  status   MemberStatus @default(ACTIVE)
   /// Sede principal. El socio puede acceder a otras según su plan.
-  branchId    String?      @db.Uuid
-  branch      Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  branchId String?      @db.Uuid
+  branch   Branch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   /// CACHÉ del saldo. La verdad es la suma de LedgerEntry.
   /// Negativo = debe. Se recalcula dentro de la misma transacción que el asiento.
@@ -452,19 +464,22 @@ model Member {
   emergencyContactPhone String?
   notes                 String?
 
-  createdAt DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime  @updatedAt @db.Timestamptz(3)
-  deletedAt DateTime? @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt         DateTime? @db.Timestamptz(3)
   deactivatedAt     DateTime? @db.Timestamptz(3)
   deactivatedReason String?
 
-  documents      MemberDocument[]
-  memberships    Membership[]
-  ledgerEntries  LedgerEntry[]
-  cashMovements  CashMovement[]
-  accessAttempts AccessAttempt[]
-  attendances    Attendance[]
-  messageJobs    MessageJob[]
+  documents            MemberDocument[]
+  memberships          Membership[]
+  ledgerEntries        LedgerEntry[]
+  cashMovements        CashMovement[]
+  accessAttempts       AccessAttempt[]
+  attendances          Attendance[]
+  messageJobs          MessageJob[]
+  biometricConsents    BiometricConsent[]
+  biometricEnrollments BiometricEnrollment[]
+  biometricCredentials BiometricCredential[]
 
   @@unique([gymId, memberNumber])
   @@index([gymId, status])
@@ -487,15 +502,15 @@ model MemberDocument {
   memberId String @db.Uuid
   member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  kind        MemberDocumentKind
-  storageKey  String
-  fileName    String
-  mimeType    String
-  sizeBytes   Int
-  validUntil  DateTime? @db.Date
+  kind       MemberDocumentKind
+  storageKey String
+  fileName   String
+  mimeType   String
+  sizeBytes  Int
+  validUntil DateTime?          @db.Date
 
-  uploadedByUserId String?  @db.Uuid
-  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  uploadedByUserId String?   @db.Uuid
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
   deletedAt        DateTime? @db.Timestamptz(3)
 
   @@index([gymId, memberId, kind])
@@ -520,27 +535,27 @@ enum LedgerReason {
 /// Cuenta corriente. APPEND-ONLY: un error se corrige con un asiento opuesto,
 /// nunca editando el original (ADR-010).
 model LedgerEntry {
-  id       String @id @default(uuid(7)) @db.Uuid
-  gymId    String @db.Uuid
-  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  memberId String @db.Uuid
-  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id       String  @id @default(uuid(7)) @db.Uuid
+  gymId    String  @db.Uuid
+  gym      Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  memberId String  @db.Uuid
+  member   Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
   branchId String? @db.Uuid
   branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   type   LedgerEntryType
   reason LedgerReason
   /// Siempre positivo. El signo lo da `type`.
-  amount Decimal @db.Decimal(14, 2)
+  amount Decimal         @db.Decimal(14, 2)
 
   /// Saldo resultante tras aplicar este asiento. Facilita auditar sin recalcular todo.
   balanceAfter Decimal @db.Decimal(14, 2)
 
   description String?
 
-  membershipId   String? @db.Uuid
-  membership     Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
-  cashMovementId String? @db.Uuid
+  membershipId   String?       @db.Uuid
+  membership     Membership?   @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+  cashMovementId String?       @db.Uuid
   cashMovement   CashMovement? @relation(fields: [cashMovementId], references: [id], onDelete: SetNull)
 
   /// Para reversas: apunta al asiento que corrige.
@@ -594,14 +609,14 @@ model Plan {
   gymId String @db.Uuid
   gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
-  name        String
-  description String?
-  price       Decimal      @db.Decimal(14, 2)
-  billingCycle BillingCycle
+  name              String
+  description       String?
+  price             Decimal      @db.Decimal(14, 2)
+  billingCycle      BillingCycle
   /// Override de la duración por defecto del ciclo.
-  durationDays Int?
+  durationDays      Int?
   /// Null = acceso libre. Un número = pack de clases.
-  classesIncluded Int?
+  classesIncluded   Int?
   /// Accesos por semana permitidos. Null = sin límite.
   weeklyAccessLimit Int?
 
@@ -656,13 +671,13 @@ enum MembershipStatus {
 }
 
 model Membership {
-  id       String @id @default(uuid(7)) @db.Uuid
-  gymId    String @db.Uuid
-  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  memberId String @db.Uuid
-  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  planId   String @db.Uuid
-  plan     Plan   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  id       String  @id @default(uuid(7)) @db.Uuid
+  gymId    String  @db.Uuid
+  gym      Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  memberId String  @db.Uuid
+  member   Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  planId   String  @db.Uuid
+  plan     Plan    @relation(fields: [planId], references: [id], onDelete: Restrict)
   branchId String? @db.Uuid
   branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
@@ -702,8 +717,8 @@ model PaymentMethod {
   gymId String @db.Uuid
   gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
-  code String
-  name String
+  code         String
+  name         String
   /// Si cuenta para el arqueo de efectivo al cerrar la caja.
   countsAsCash Boolean @default(false)
   isActive     Boolean @default(true)
@@ -729,12 +744,12 @@ model CashConcept {
   gymId String @db.Uuid
   gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
-  code String
-  name String
-  type CashMovementType
+  code     String
+  name     String
+  type     CashMovementType
   /// Los conceptos de sistema (cobro de cuota, pago de deuda) no se borran.
-  isSystem Boolean @default(false)
-  isActive Boolean @default(true)
+  isSystem Boolean          @default(false)
+  isActive Boolean          @default(true)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -792,8 +807,8 @@ model CashSession {
   closingNotes   String?
 
   /// Calculados por el backend al cerrar. El cliente no los manda.
-  expectedCash  Decimal? @db.Decimal(14, 2)
-  declaredCash  Decimal? @db.Decimal(14, 2)
+  expectedCash   Decimal? @db.Decimal(14, 2)
+  declaredCash   Decimal? @db.Decimal(14, 2)
   cashDifference Decimal? @db.Decimal(14, 2)
 
   /// Día de negocio en la zona de la sede (ADR-021).
@@ -802,8 +817,8 @@ model CashSession {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
-  movements      CashMovement[]
-  closingDetails CashSessionClosingDetail[]
+  movements         CashMovement[]
+  closingDetails    CashSessionClosingDetail[]
   operationRequests CashOperationRequest[]
 
   @@index([gymId, branchId, businessDate])
@@ -855,10 +870,10 @@ model CashMovement {
   membership   Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
 
   /// Reversa: este movimiento corrige a otro. Unique = no se revierte dos veces.
-  reversalOfId String?       @unique @db.Uuid
-  reversalOf   CashMovement? @relation("CashReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
-  reversedBy   CashMovement? @relation("CashReversal")
-  isReversed   Boolean       @default(false)
+  reversalOfId   String?       @unique @db.Uuid
+  reversalOf     CashMovement? @relation("CashReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversedBy     CashMovement? @relation("CashReversal")
+  isReversed     Boolean       @default(false)
   reversalReason String?
 
   createdByUserId String   @db.Uuid
@@ -888,10 +903,10 @@ enum CashOperationStatus {
 /// Operaciones sensibles que requieren aprobación de un supervisor.
 /// Una sesión no puede cerrarse con solicitudes PENDING.
 model CashOperationRequest {
-  id            String      @id @default(uuid(7)) @db.Uuid
-  gymId         String      @db.Uuid
-  gym           Gym         @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  cashSessionId String?     @db.Uuid
+  id            String       @id @default(uuid(7)) @db.Uuid
+  gymId         String       @db.Uuid
+  gym           Gym          @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  cashSessionId String?      @db.Uuid
   cashSession   CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
 
   kind    CashOperationKind
@@ -1027,11 +1042,11 @@ model MessageTemplate {
   gymId String @db.Uuid
   gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
 
-  kind    MessageTemplateKind
-  channel MessageChannel      @default(WHATSAPP)
-  name    String
-  body    String
-  isActive Boolean            @default(true)
+  kind     MessageTemplateKind
+  channel  MessageChannel      @default(WHATSAPP)
+  name     String
+  body     String
+  isActive Boolean             @default(true)
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -1066,9 +1081,9 @@ model MessageJob {
   destination String
   body        String
 
-  status   MessageJobStatus @default(QUEUED)
-  attempts Int              @default(0)
-  lastError String?
+  status          MessageJobStatus @default(QUEUED)
+  attempts        Int              @default(0)
+  lastError       String?
   cancelledReason String?
 
   /// Idempotencia de negocio: p.ej. "receipt:{cashMovementId}".
@@ -1084,4 +1099,325 @@ model MessageJob {
   @@index([gymId, status, createdAt])
   @@index([gymId, memberId, createdAt(sort: Desc)])
   @@map("message_jobs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. BIOMETRÍA (DATA_MODEL.md §7 — Etapas 7-8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum LocalAgentStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  DISABLED
+  REVOKED
+}
+
+enum AccessDeviceKind {
+  FINGERPRINT_READER
+  CARD_READER
+  BARRIER
+}
+
+enum AccessDeviceVendor {
+  HID_DIGITALPERSONA
+  OTHER
+}
+
+enum AccessDeviceStatus {
+  ONLINE
+  OFFLINE
+  ERROR
+  DISABLED
+}
+
+enum FingerPosition {
+  RIGHT_THUMB
+  RIGHT_INDEX
+  RIGHT_MIDDLE
+  RIGHT_RING
+  RIGHT_LITTLE
+  LEFT_THUMB
+  LEFT_INDEX
+  LEFT_MIDDLE
+  LEFT_RING
+  LEFT_LITTLE
+}
+
+enum BiometricConsentMethod {
+  IN_PERSON_SIGNED
+  DIGITAL
+}
+
+enum BiometricEnrollmentStatus {
+  STARTED
+  CAPTURING
+  COMPLETED
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum BiometricTemplateFormat {
+  ANSI_378_2004
+  ISO_19794_2_2005
+  VENDOR_DIGITALPERSONA
+}
+
+enum BiometricCredentialStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum AgentAuditEventType {
+  AGENT_STARTED
+  AGENT_STOPPED
+  DEVICE_CONNECTED
+  DEVICE_DISCONNECTED
+  CAPTURE_STARTED
+  CAPTURE_TIMEOUT
+  CAPTURE_CANCELLED
+  QUALITY_REJECTED
+  IDENTIFY_SENT
+  ENROLL_SENT
+  AUTH_FAILED
+  PROTOCOL_ERROR
+  UPDATE_APPLIED
+}
+
+enum AgentAuditSeverity {
+  INFO
+  WARN
+  ERROR
+}
+
+enum DeviceTokenScope {
+  ENROLL
+  IDENTIFY
+}
+
+/// Una instalación del agente .NET en una PC de recepción.
+model LocalAgent {
+  id       String @id @default(uuid(7)) @db.Uuid
+  gymId    String @db.Uuid
+  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  branchId String @db.Uuid
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  name               String
+  installationId     String           @db.Uuid
+  /// Hash de identificadores de máquina; no reversible. Se fija en el pareo.
+  machineFingerprint String?
+  agentVersion       String?
+  osVersion          String?
+  status             LocalAgentStatus @default(PENDING_APPROVAL)
+
+  /// Secreto de pareo de un solo uso, hasheado. Se muestra UNA vez al crear.
+  enrollmentSecretHash String
+  /// Credencial de larga vida emitida en el pareo, hasheada.
+  agentCredentialHash  String?
+
+  lastSeenAt DateTime? @db.Timestamptz(3)
+
+  approvedByUserId String?   @db.Uuid
+  approvedAt       DateTime? @db.Timestamptz(3)
+  revokedByUserId  String?   @db.Uuid
+  revokedAt        DateTime? @db.Timestamptz(3)
+  revokeReason     String?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  devices      AccessDevice[]
+  enrollments  BiometricEnrollment[]
+  auditEvents  AgentAuditEvent[]
+  deviceTokens DeviceToken[]
+
+  @@unique([gymId, installationId])
+  @@index([gymId, branchId, status])
+  @@map("local_agents")
+}
+
+/// El lector físico visto por el agente.
+model AccessDevice {
+  id       String @id @default(uuid(7)) @db.Uuid
+  gymId    String @db.Uuid
+  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  branchId String @db.Uuid
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  localAgentId String     @db.Uuid
+  localAgent   LocalAgent @relation(fields: [localAgentId], references: [id], onDelete: Cascade)
+
+  kind         AccessDeviceKind
+  vendor       AccessDeviceVendor
+  model        String
+  serialNumber String?
+  status       AccessDeviceStatus @default(OFFLINE)
+  lastSeenAt   DateTime?          @db.Timestamptz(3)
+  settings     Json               @default("{}")
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  enrollments BiometricEnrollment[]
+
+  /// unique (gymId, localAgentId, serialNumber) parcial en SQL (serialNumber not null).
+  @@index([gymId, branchId, status])
+  @@map("access_devices")
+}
+
+/// Sin consentimiento no hay enrolamiento. Lo verifica el BACKEND, no la UI.
+model BiometricConsent {
+  id       String @id @default(uuid(7)) @db.Uuid
+  gymId    String @db.Uuid
+  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  memberId String @db.Uuid
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  /// Versión del texto de consentimiento firmado.
+  version          String
+  grantedAt        DateTime               @default(now()) @db.Timestamptz(3)
+  grantedMethod    BiometricConsentMethod
+  capturedByUserId String                 @db.Uuid
+  /// Consentimiento firmado escaneado, si existe.
+  documentKey      String?
+
+  revokedAt       DateTime? @db.Timestamptz(3)
+  revokedByUserId String?   @db.Uuid
+  revokeReason    String?
+
+  /// Un socio puede tener consentimientos sucesivos; vale el último no revocado.
+  @@index([gymId, memberId, grantedAt(sort: Desc)])
+  @@map("biometric_consents")
+}
+
+/// Sesión de enrolamiento. Las muestras crudas NUNCA se persisten.
+model BiometricEnrollment {
+  id       String @id @default(uuid(7)) @db.Uuid
+  gymId    String @db.Uuid
+  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  branchId String @db.Uuid
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  memberId String @db.Uuid
+  member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  localAgentId String       @db.Uuid
+  localAgent   LocalAgent   @relation(fields: [localAgentId], references: [id], onDelete: Restrict)
+  deviceId     String       @db.Uuid
+  device       AccessDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  fingerPosition  FingerPosition
+  status          BiometricEnrollmentStatus @default(STARTED)
+  samplesRequired Int
+  samplesCaptured Int                       @default(0)
+  qualityScores   Int[]                     @default([])
+  failureReason   String?
+
+  startedByUserId String    @db.Uuid
+  startedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  completedAt     DateTime? @db.Timestamptz(3)
+  expiresAt       DateTime  @db.Timestamptz(3)
+
+  credentials BiometricCredential[]
+
+  @@index([gymId, memberId, startedAt(sort: Desc)])
+  /// Para expirar sesiones colgadas.
+  @@index([status, expiresAt])
+  @@map("biometric_enrollments")
+}
+
+/// El template. CIFRADO con sobre (AES-256-GCM, AAD=gymId||credentialId||keyVersion).
+model BiometricCredential {
+  id       String  @id @default(uuid(7)) @db.Uuid
+  gymId    String  @db.Uuid
+  gym      Gym     @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  memberId String  @db.Uuid
+  member   Member  @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  /// null = válida en todas las sedes del gimnasio.
+  branchId String? @db.Uuid
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  fingerPosition FingerPosition
+  templateFormat BiometricTemplateFormat
+
+  templateCiphertext Bytes
+  /// 12 bytes.
+  templateNonce      Bytes
+  /// 16 bytes.
+  templateAuthTag    Bytes
+  /// DEK envuelta por la KEK del tenant.
+  dekWrapped         Bytes
+  /// Para rotación de claves.
+  keyVersion         Int   @default(1)
+  /// SHA-256 del template en claro — SÓLO deduplicación, nunca matching.
+  templateHash       Bytes
+
+  quality Int
+
+  enrollmentId String              @db.Uuid
+  enrollment   BiometricEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+
+  status BiometricCredentialStatus @default(ACTIVE)
+
+  createdByUserId String   @db.Uuid
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  revokedAt       DateTime? @db.Timestamptz(3)
+  revokedByUserId String?   @db.Uuid
+  revokeReason    String?
+
+  /// unique (gymId, memberId, fingerPosition) y unique (gymId, templateHash),
+  /// ambos parciales sobre status='ACTIVE', en SQL.
+  /// Índice del conjunto de candidatos 1:N. NO hay índice sobre el ciphertext.
+  @@index([gymId, branchId, status])
+  @@index([gymId, memberId, status])
+  @@map("biometric_credentials")
+}
+
+/// Bitácora del agente. PROHIBIDO en metadata: imágenes, templates, documento.
+model AgentAuditEvent {
+  id       String @id @default(uuid(7)) @db.Uuid
+  gymId    String @db.Uuid
+  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  branchId String @db.Uuid
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  localAgentId String     @db.Uuid
+  localAgent   LocalAgent @relation(fields: [localAgentId], references: [id], onDelete: Cascade)
+  deviceId     String?    @db.Uuid
+
+  type     AgentAuditEventType
+  severity AgentAuditSeverity
+  message  String
+  metadata Json                @default("{}")
+
+  occurredAt DateTime @db.Timestamptz(3)
+  receivedAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([gymId, localAgentId, occurredAt(sort: Desc)])
+  @@index([gymId, severity, occurredAt(sort: Desc)])
+  @@map("agent_audit_events")
+}
+
+/// Token de corta vida (TTL 120 s) para UNA operación del agente. Un solo uso.
+model DeviceToken {
+  id    String @id @default(uuid(7)) @db.Uuid
+  gymId String @db.Uuid
+  gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  localAgentId String     @db.Uuid
+  localAgent   LocalAgent @relation(fields: [localAgentId], references: [id], onDelete: Cascade)
+
+  tokenHash       String           @unique
+  scope           DeviceTokenScope
+  /// Sólo para scope ENROLL: el socio al que pertenece la operación.
+  subjectMemberId String?          @db.Uuid
+  /// Sólo para scope ENROLL: la sesión de enrolamiento asociada.
+  enrollmentId    String?          @db.Uuid
+
+  expiresAt DateTime  @db.Timestamptz(3)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([localAgentId, scope, expiresAt])
+  @@map("device_tokens")
 }

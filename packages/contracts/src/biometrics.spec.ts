@@ -1,5 +1,33 @@
 import { describe, expect, it } from 'vitest';
+import {
+  AccessDeviceKind as PrismaAccessDeviceKind,
+  AccessDeviceStatus as PrismaAccessDeviceStatus,
+  AccessDeviceVendor as PrismaAccessDeviceVendor,
+  AgentAuditEventType as PrismaAgentAuditEventType,
+  AgentAuditSeverity as PrismaAgentAuditSeverity,
+  BiometricConsentMethod as PrismaBiometricConsentMethod,
+  BiometricCredentialStatus as PrismaBiometricCredentialStatus,
+  BiometricEnrollmentStatus as PrismaBiometricEnrollmentStatus,
+  BiometricTemplateFormat as PrismaBiometricTemplateFormat,
+  DeviceTokenScope as PrismaDeviceTokenScope,
+  FingerPosition as PrismaFingerPosition,
+  LocalAgentStatus as PrismaLocalAgentStatus,
+} from '@prisma/client';
 
+import {
+  accessDeviceKindSchema,
+  accessDeviceStatusSchema,
+  accessDeviceVendorSchema,
+  agentAuditEventTypeSchema,
+  agentAuditSeveritySchema,
+  biometricConsentMethodSchema,
+  biometricCredentialStatusSchema,
+  biometricEnrollmentStatusSchema,
+  biometricTemplateFormatSchema,
+  deviceTokenScopeSchema,
+  fingerPositionSchema,
+  localAgentStatusSchema,
+} from './biometrics.js';
 import {
   agentEnrollCompleteRequestSchema,
   agentHeartbeatRequestSchema,
@@ -20,6 +48,27 @@ const UUID = '018f1e2a-0000-7000-8000-000000000000';
 const INSTANT = '2026-08-21T10:00:00.000-03:00';
 // SHA-256 en base64 — largo típico de un template del FakeSensor.
 const TEMPLATE_B64 = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq82rzQ==';
+
+function expectMatchesPrismaEnum(zodEnum: { options: readonly string[] }, prismaEnum: Record<string, string>) {
+  expect([...zodEnum.options].sort()).toEqual(Object.values(prismaEnum).sort());
+}
+
+describe('biometrics — enums 1:1 con Prisma (DATA_MODEL.md §7)', () => {
+  it('todos los enums del contrato coinciden con los de la base', () => {
+    expectMatchesPrismaEnum(localAgentStatusSchema, PrismaLocalAgentStatus);
+    expectMatchesPrismaEnum(accessDeviceKindSchema, PrismaAccessDeviceKind);
+    expectMatchesPrismaEnum(accessDeviceVendorSchema, PrismaAccessDeviceVendor);
+    expectMatchesPrismaEnum(accessDeviceStatusSchema, PrismaAccessDeviceStatus);
+    expectMatchesPrismaEnum(fingerPositionSchema, PrismaFingerPosition);
+    expectMatchesPrismaEnum(biometricConsentMethodSchema, PrismaBiometricConsentMethod);
+    expectMatchesPrismaEnum(biometricEnrollmentStatusSchema, PrismaBiometricEnrollmentStatus);
+    expectMatchesPrismaEnum(biometricTemplateFormatSchema, PrismaBiometricTemplateFormat);
+    expectMatchesPrismaEnum(biometricCredentialStatusSchema, PrismaBiometricCredentialStatus);
+    expectMatchesPrismaEnum(agentAuditEventTypeSchema, PrismaAgentAuditEventType);
+    expectMatchesPrismaEnum(agentAuditSeveritySchema, PrismaAgentAuditSeverity);
+    expectMatchesPrismaEnum(deviceTokenScopeSchema, PrismaDeviceTokenScope);
+  });
+});
 
 describe('biometrics — superficie CRM', () => {
   it('createAgentRequest exige branchId uuid y nombre razonable', () => {

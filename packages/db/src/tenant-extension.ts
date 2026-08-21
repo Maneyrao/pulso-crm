@@ -43,6 +43,13 @@ export const TENANT_SCOPED_MODELS = [
   'Attendance',
   'MessageTemplate',
   'MessageJob',
+  'LocalAgent',
+  'AccessDevice',
+  'BiometricConsent',
+  'BiometricEnrollment',
+  'BiometricCredential',
+  'AgentAuditEvent',
+  'DeviceToken',
 ] as const;
 
 /** Modelos deliberadamente globales: no tienen gymId y no deben filtrarse. */
