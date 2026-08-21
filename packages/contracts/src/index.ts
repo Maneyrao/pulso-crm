@@ -11,3 +11,4 @@ export * from './cash.js';
 export * from './access.js';
 export * from './reporting.js';
 export * from './messaging.js';
+export * from './agent-protocol.js';

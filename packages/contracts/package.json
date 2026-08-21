@@ -19,7 +19,8 @@
     "./cash": "./src/cash.ts",
     "./access": "./src/access.ts",
     "./reporting": "./src/reporting.ts",
-    "./messaging": "./src/messaging.ts"
+    "./messaging": "./src/messaging.ts",
+    "./agent-protocol": "./src/agent-protocol.ts"
   },
   "scripts": {
     "lint": "eslint src",
