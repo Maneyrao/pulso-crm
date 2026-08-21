@@ -1,0 +1,32 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000010",
+      "type": "status.get",
+      "ts": "2026-08-09T14:30:01.000-03:00"
+    },
+    {
+      "_reason": "payload vacío también es válido (status.get no requiere payload)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000011",
+      "type": "status.get",
+      "ts": "2026-08-09T14:30:01.000-03:00",
+      "payload": {}
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta 'v' (obligatorio en el sobre)",
+      "id": "01J9X0000000000000000012",
+      "type": "status.get",
+      "ts": "2026-08-09T14:30:01.000-03:00"
+    },
+    {
+      "_reason": "falta 'ts' (obligatorio en el sobre)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000013",
+      "type": "status.get"
+    }
+  ]
+}

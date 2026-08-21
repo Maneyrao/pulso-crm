@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pulso.Agent.Core\Pulso.Agent.Core.csproj" />
+    <ProjectReference Include="..\Pulso.Agent.Protocol\Pulso.Agent.Protocol.csproj" />
+    <ProjectReference Include="..\Pulso.Agent.Sensors\Pulso.Agent.Sensors.csproj" />
+    <ProjectReference Include="..\Pulso.Agent.Backend\Pulso.Agent.Backend.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X00000000000000000I0",
+      "type": "session.replaced",
+      "ts": "2026-08-09T14:41:00.000-03:00",
+      "payload": { "reason": "NEW_CONNECTION" }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta reason (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000I1",
+      "type": "session.replaced",
+      "ts": "2026-08-09T14:41:00.000-03:00",
+      "payload": {}
+    },
+    {
+      "_reason": "reason con tipo incorrecto (number en vez de string)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000I2",
+      "type": "session.replaced",
+      "ts": "2026-08-09T14:41:00.000-03:00",
+      "payload": { "reason": 1 }
+    }
+  ]
+}

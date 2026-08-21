@@ -1,0 +1,36 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000090",
+      "type": "device.connected",
+      "ts": "2026-08-09T14:37:00.000-03:00",
+      "payload": {
+        "deviceId": "8f14e45f-ceea-4f9c-8f7b-000000000012",
+        "kind": "FINGERPRINT_READER",
+        "vendor": "HID_DIGITALPERSONA",
+        "model": "UAREU_4500",
+        "serialNumber": "SN-0001",
+        "status": "ONLINE"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta deviceId (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000091",
+      "type": "device.connected",
+      "ts": "2026-08-09T14:37:00.000-03:00",
+      "payload": { "status": "ONLINE" }
+    },
+    {
+      "_reason": "falta status (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000092",
+      "type": "device.connected",
+      "ts": "2026-08-09T14:37:00.000-03:00",
+      "payload": { "deviceId": "8f14e45f-ceea-4f9c-8f7b-000000000012" }
+    }
+  ]
+}

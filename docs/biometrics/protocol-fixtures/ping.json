@@ -1,0 +1,25 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000060",
+      "type": "ping",
+      "ts": "2026-08-09T14:35:00.000-03:00"
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta 'type' (obligatorio en el sobre)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000061",
+      "ts": "2026-08-09T14:35:00.000-03:00"
+    },
+    {
+      "_reason": "'v' no es la versión mayor soportada (2.x) -> PROTOCOL_VERSION_UNSUPPORTED",
+      "v": "2.0",
+      "id": "01J9X0000000000000000062",
+      "type": "ping",
+      "ts": "2026-08-09T14:35:00.000-03:00"
+    }
+  ]
+}

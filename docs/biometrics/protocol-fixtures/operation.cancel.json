@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000050",
+      "type": "operation.cancel",
+      "ts": "2026-08-09T14:34:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020", "reason": "USER_CANCELLED" }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta opId (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000051",
+      "type": "operation.cancel",
+      "ts": "2026-08-09T14:34:00.000-03:00",
+      "payload": { "reason": "USER_CANCELLED" }
+    },
+    {
+      "_reason": "reason con tipo incorrecto (number en vez de string)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000052",
+      "type": "operation.cancel",
+      "ts": "2026-08-09T14:34:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020", "reason": 1 }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X00000000000000000B0",
+      "type": "enroll.progress",
+      "ts": "2026-08-09T14:31:05.000-03:00",
+      "payload": {
+        "opId": "8f14e45f-ceea-4f9c-8f7b-000000000010",
+        "captured": 2,
+        "required": 4,
+        "lastQuality": 78,
+        "prompt": "PLACE_FINGER",
+        "warning": null
+      }
+    },
+    {
+      "_reason": "captured no avanza y hay warning de baja calidad",
+      "v": "1.0",
+      "id": "01J9X00000000000000000B1",
+      "type": "enroll.progress",
+      "ts": "2026-08-09T14:31:06.000-03:00",
+      "payload": {
+        "opId": "8f14e45f-ceea-4f9c-8f7b-000000000010",
+        "captured": 1,
+        "required": 4,
+        "lastQuality": 38,
+        "warning": "LOW_QUALITY"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta required (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000B2",
+      "type": "enroll.progress",
+      "ts": "2026-08-09T14:31:05.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000010", "captured": 2 }
+    },
+    {
+      "_reason": "captured con tipo incorrecto (string en vez de number)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000B3",
+      "type": "enroll.progress",
+      "ts": "2026-08-09T14:31:05.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000010", "captured": "2", "required": 4 }
+    }
+  ]
+}

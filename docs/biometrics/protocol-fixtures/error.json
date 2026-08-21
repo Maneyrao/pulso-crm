@@ -1,0 +1,37 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X00000000000000000J0",
+      "type": "error",
+      "ts": "2026-08-09T14:42:00.000-03:00",
+      "payload": { "code": "AGENT_BUSY", "detail": "Otra operación en curso", "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020" }
+    },
+    {
+      "_reason": "opId puede ser null cuando el error no está atado a una operación",
+      "v": "1.0",
+      "id": "01J9X00000000000000000J1",
+      "type": "error",
+      "ts": "2026-08-09T14:42:01.000-03:00",
+      "payload": { "code": "UNKNOWN_MESSAGE_TYPE", "opId": null }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta code (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000J2",
+      "type": "error",
+      "ts": "2026-08-09T14:42:00.000-03:00",
+      "payload": { "detail": "algo pasó" }
+    },
+    {
+      "_reason": "code con tipo incorrecto (number en vez de string)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000J3",
+      "type": "error",
+      "ts": "2026-08-09T14:42:00.000-03:00",
+      "payload": { "code": 500 }
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X00000000000000000D0",
+      "type": "enroll.failed",
+      "ts": "2026-08-09T14:33:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000010", "code": "TIMEOUT", "detail": "Se agotó el tiempo de la sesión" }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta code (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000D1",
+      "type": "enroll.failed",
+      "ts": "2026-08-09T14:33:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000010" }
+    },
+    {
+      "_reason": "falta opId (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000D2",
+      "type": "enroll.failed",
+      "ts": "2026-08-09T14:33:00.000-03:00",
+      "payload": { "code": "QUALITY_TOO_LOW" }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X00000000000000000K0",
+      "type": "pong",
+      "ts": "2026-08-09T14:35:00.010-03:00",
+      "correlationId": "01J9X0000000000000000060"
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta 'id' (obligatorio en el sobre)",
+      "v": "1.0",
+      "type": "pong",
+      "ts": "2026-08-09T14:35:00.010-03:00"
+    },
+    {
+      "_reason": "'type' vacío no es un tipo conocido -> UNKNOWN_MESSAGE_TYPE / MALFORMED_ENVELOPE",
+      "v": "1.0",
+      "id": "01J9X00000000000000000K2",
+      "type": "",
+      "ts": "2026-08-09T14:35:00.010-03:00"
+    }
+  ]
+}

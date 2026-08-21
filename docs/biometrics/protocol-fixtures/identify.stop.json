@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000040",
+      "type": "identify.stop",
+      "ts": "2026-08-09T14:33:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020" }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta opId (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000041",
+      "type": "identify.stop",
+      "ts": "2026-08-09T14:33:00.000-03:00",
+      "payload": {}
+    },
+    {
+      "_reason": "opId con tipo incorrecto (number en vez de string)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000042",
+      "type": "identify.stop",
+      "ts": "2026-08-09T14:33:00.000-03:00",
+      "payload": { "opId": 12345 }
+    }
+  ]
+}

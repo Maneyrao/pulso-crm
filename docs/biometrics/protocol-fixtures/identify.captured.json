@@ -1,0 +1,29 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X00000000000000000E0",
+      "type": "identify.captured",
+      "ts": "2026-08-09T14:39:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020", "quality": 71 }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta quality (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000E1",
+      "type": "identify.captured",
+      "ts": "2026-08-09T14:39:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020" }
+    },
+    {
+      "_reason": "quality con tipo incorrecto (string en vez de number)",
+      "v": "1.0",
+      "id": "01J9X00000000000000000E2",
+      "type": "identify.captured",
+      "ts": "2026-08-09T14:39:00.000-03:00",
+      "payload": { "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020", "quality": "71" }
+    }
+  ]
+}

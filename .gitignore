@@ -24,3 +24,7 @@ test-results/
 # Artefactos locales de asistentes/herramientas
 .claude/
 .jez/
+
+# .NET (apps/local-agent)
+apps/local-agent/**/bin/
+apps/local-agent/**/obj/

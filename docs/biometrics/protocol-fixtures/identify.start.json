@@ -1,0 +1,59 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000030",
+      "type": "identify.start",
+      "ts": "2026-08-09T14:32:00.000-03:00",
+      "payload": {
+        "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020",
+        "deviceToken": "opaque-token-def456",
+        "deviceId": "8f14e45f-ceea-4f9c-8f7b-000000000012",
+        "branchId": "8f14e45f-ceea-4f9c-8f7b-000000000002",
+        "minQuality": 50,
+        "continuous": true,
+        "idleTimeoutMs": 300000
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta branchId (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000031",
+      "type": "identify.start",
+      "ts": "2026-08-09T14:32:00.000-03:00",
+      "payload": {
+        "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020",
+        "deviceToken": "opaque-token-def456",
+        "deviceId": "8f14e45f-ceea-4f9c-8f7b-000000000012"
+      }
+    },
+    {
+      "_reason": "continuous con tipo incorrecto (string en vez de bool)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000032",
+      "type": "identify.start",
+      "ts": "2026-08-09T14:32:00.000-03:00",
+      "payload": {
+        "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020",
+        "deviceToken": "opaque-token-def456",
+        "deviceId": "8f14e45f-ceea-4f9c-8f7b-000000000012",
+        "branchId": "8f14e45f-ceea-4f9c-8f7b-000000000002",
+        "continuous": "true"
+      }
+    },
+    {
+      "_reason": "falta deviceToken (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000033",
+      "type": "identify.start",
+      "ts": "2026-08-09T14:32:00.000-03:00",
+      "payload": {
+        "opId": "8f14e45f-ceea-4f9c-8f7b-000000000020",
+        "deviceId": "8f14e45f-ceea-4f9c-8f7b-000000000012",
+        "branchId": "8f14e45f-ceea-4f9c-8f7b-000000000002"
+      }
+    }
+  ]
+}

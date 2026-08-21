@@ -1,0 +1,85 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000070",
+      "type": "hello.ack",
+      "ts": "2026-08-09T14:30:00.200-03:00",
+      "correlationId": "01J9X0000000000000000001",
+      "payload": {
+        "protocolVersion": "1.0",
+        "agentVersion": "1.0.3",
+        "agentState": "READY",
+        "tls": true,
+        "devices": [
+          {
+            "deviceId": "8f14e45f-ceea-4f9c-8f7b-000000000012",
+            "kind": "FINGERPRINT_READER",
+            "vendor": "HID_DIGITALPERSONA",
+            "model": "UAREU_4500",
+            "serialNumber": "SN-0001",
+            "status": "ONLINE"
+          }
+        ]
+      }
+    },
+    {
+      "_reason": "estado no READY: incluye 'reason' y lista de dispositivos vacía",
+      "v": "1.0",
+      "id": "01J9X0000000000000000071",
+      "type": "hello.ack",
+      "ts": "2026-08-09T14:30:00.200-03:00",
+      "correlationId": "01J9X0000000000000000001",
+      "payload": {
+        "protocolVersion": "1.0",
+        "agentVersion": "1.0.3",
+        "agentState": "PENDING_APPROVAL",
+        "tls": true,
+        "devices": [],
+        "reason": "Esperando aprobación de un administrador"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta agentState (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000072",
+      "type": "hello.ack",
+      "ts": "2026-08-09T14:30:00.200-03:00",
+      "payload": {
+        "protocolVersion": "1.0",
+        "agentVersion": "1.0.3",
+        "tls": true,
+        "devices": []
+      }
+    },
+    {
+      "_reason": "tls con tipo incorrecto (string en vez de bool)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000073",
+      "type": "hello.ack",
+      "ts": "2026-08-09T14:30:00.200-03:00",
+      "payload": {
+        "protocolVersion": "1.0",
+        "agentVersion": "1.0.3",
+        "agentState": "READY",
+        "tls": "true",
+        "devices": []
+      }
+    },
+    {
+      "_reason": "falta devices (obligatorio, aunque sea lista vacía)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000074",
+      "type": "hello.ack",
+      "ts": "2026-08-09T14:30:00.200-03:00",
+      "payload": {
+        "protocolVersion": "1.0",
+        "agentVersion": "1.0.3",
+        "agentState": "READY",
+        "tls": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "valid": [
+    {
+      "v": "1.0",
+      "id": "01J9X0000000000000000001",
+      "type": "hello",
+      "ts": "2026-08-09T14:30:00.123-03:00",
+      "payload": {
+        "clientVersion": "1.4.2",
+        "gymId": "8f14e45f-ceea-4f9c-8f7b-000000000001",
+        "branchId": "8f14e45f-ceea-4f9c-8f7b-000000000002",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "_reason": "falta clientVersion (obligatorio)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000002",
+      "type": "hello",
+      "ts": "2026-08-09T14:30:00.123-03:00",
+      "payload": {
+        "gymId": "8f14e45f-ceea-4f9c-8f7b-000000000001"
+      }
+    },
+    {
+      "_reason": "clientVersion con tipo incorrecto (number en vez de string)",
+      "v": "1.0",
+      "id": "01J9X0000000000000000003",
+      "type": "hello",
+      "ts": "2026-08-09T14:30:00.123-03:00",
+      "payload": {
+        "clientVersion": 142
+      }
+    },
+    {
+      "_reason": "falta el campo obligatorio del sobre 'id'",
+      "v": "1.0",
+      "type": "hello",
+      "ts": "2026-08-09T14:30:00.123-03:00",
+      "payload": {
+        "clientVersion": "1.4.2"
+      }
+    }
+  ]
+}
