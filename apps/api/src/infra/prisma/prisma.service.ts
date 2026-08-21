@@ -36,10 +36,13 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
    *  - refresh de token: idem
    *  - health checks
    *  - jobs de plataforma que operan sobre todos los gimnasios
+   *  - agent-pair / agent-auth: la superficie del agente local se autentica
+   *    por credencial de dispositivo ANTES de tener contexto; el gymId sale
+   *    de la fila resuelta, nunca del request (modules/agents/agent-auth.service.ts)
    *
    * Cualquier uso nuevo requiere justificarlo acá.
    */
-  unscoped(reason: 'login' | 'refresh' | 'session' | 'health' | 'platform-job' | 'seed') {
+  unscoped(reason: 'login' | 'refresh' | 'session' | 'health' | 'platform-job' | 'seed' | 'agent-pair' | 'agent-auth') {
     getLogger().debug({ reason }, 'Acceso sin filtro de tenant');
     return this.client.unscoped;
   }

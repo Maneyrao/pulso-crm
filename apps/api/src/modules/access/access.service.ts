@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { scoped } from '@pulso/db';
+import type { Member as DbMember } from '@pulso/db';
 import type {
   AccessCheckRequest,
   AccessCheckResponse,
+  AccessMethod,
   ListAttendancesQuery,
   ListAttendancesResponse,
   ListAccessAttemptsQuery,
@@ -74,6 +76,84 @@ export class AccessService {
       };
     }
 
+    return this.decideAndRecord({
+      member,
+      branchId,
+      today,
+      method: input.method,
+      rawInput: input.identifier.slice(0, 64),
+      matchScore: null,
+      registerAttendance: input.registerAttendance !== false,
+    });
+  }
+
+  /**
+   * Resuelve el acceso de un socio YA identificado — lo comparte
+   * `POST /access/check` con la identificación biométrica 1:N
+   * (`POST /agent/biometrics/identify`), que aplica la MISMA cadena de
+   * autorización (API_CONTRACTS.md §10, regla 4 de identify).
+   */
+  async checkForMember(params: {
+    memberId: string;
+    branchId: string;
+    method: AccessMethod;
+    matchScore: number | null;
+    registerAttendance?: boolean;
+  }): Promise<AccessCheckResponse> {
+    TenantContextStore.require();
+    const branchId = TenantContextStore.requireBranch(params.branchId);
+    const timezone = await getBranchTimezone(this.prisma.client, branchId);
+    const today = toBusinessDate(new Date(), timezone);
+
+    const member = await this.prisma.client.member.findFirst({
+      where: { id: params.memberId, deletedAt: null },
+    });
+    if (!member) {
+      const attempt = await this.prisma.client.accessAttempt.create({
+        data: scoped({
+          branchId,
+          memberId: null,
+          method: params.method,
+          rawInput: null,
+          decision: 'DENIED',
+          reasonCode: 'MEMBER_NOT_FOUND',
+          detail: 'No se encontró un socio con ese identificador.',
+          matchScore: params.matchScore,
+        }),
+      });
+      return {
+        decision: 'DENIED',
+        reasonCode: 'MEMBER_NOT_FOUND',
+        member: null,
+        membership: null,
+        attendanceRegistered: false,
+        accessAttemptId: attempt.id,
+      };
+    }
+
+    return this.decideAndRecord({
+      member,
+      branchId,
+      today,
+      method: params.method,
+      rawInput: null,
+      matchScore: params.matchScore,
+      registerAttendance: params.registerAttendance !== false,
+    });
+  }
+
+  /** Núcleo compartido: snapshot → evaluateAccess → AccessAttempt/Attendance. */
+  private async decideAndRecord(params: {
+    member: DbMember;
+    branchId: string;
+    today: string;
+    method: AccessMethod;
+    rawInput: string | null;
+    matchScore: number | null;
+    registerAttendance: boolean;
+  }): Promise<AccessCheckResponse> {
+    const { member, branchId, today } = params;
+
     // Membresía activa vigente (la que se usa para decidir): la más reciente
     // no cancelada. `evaluateAccess` chequea después si está vencida — acá se
     // trae la mejor candidata para reflejar el estado real, no filtrar a la
@@ -126,7 +206,7 @@ export class AccessService {
     // false` con el DUPLICATE_WINDOW reason del snapshot.
     const shouldRecordAttendance =
       decision.decision === 'ALLOWED' &&
-      input.registerAttendance !== false &&
+      params.registerAttendance &&
       decision.reasonCode === 'OK'; // DUPLICATE_WINDOW no crea otra fila
 
     try {
@@ -138,7 +218,7 @@ export class AccessService {
               memberId: member.id,
               membershipId: membership?.id ?? null,
               branchId,
-              method: input.method,
+              method: params.method,
               occurredOn: businessDateToDbDate(today),
             }),
           });
@@ -163,11 +243,12 @@ export class AccessService {
           data: scoped({
             branchId,
             memberId: member.id,
-            method: input.method,
-            rawInput: input.identifier.slice(0, 64),
+            method: params.method,
+            rawInput: params.rawInput,
             decision: decision.decision,
             reasonCode: decision.reasonCode,
             detail: decision.detail,
+            matchScore: params.matchScore,
             attendanceId,
           }),
         });
@@ -210,11 +291,12 @@ export class AccessService {
           data: scoped({
             branchId,
             memberId: member.id,
-            method: input.method,
-            rawInput: input.identifier.slice(0, 64),
+            method: params.method,
+            rawInput: params.rawInput,
             decision: 'ALLOWED',
             reasonCode: 'DUPLICATE_WINDOW',
             detail: 'El socio ya registró un ingreso hoy en esta sede.',
+            matchScore: params.matchScore,
           }),
         });
         return {

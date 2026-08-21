@@ -20,6 +20,8 @@ import { CatalogModule } from './modules/catalog/catalog.module.js';
 import { MembershipsModule } from './modules/memberships/memberships.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { IamModule } from './modules/iam/iam.module.js';
+import { AgentsModule } from './modules/agents/agents.module.js';
+import { BiometricsModule } from './modules/biometrics/biometrics.module.js';
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { IamModule } from './modules/iam/iam.module.js';
     IamModule,
     AccessModule,
     ReportingModule,
+    AgentsModule,
+    BiometricsModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

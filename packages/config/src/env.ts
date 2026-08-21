@@ -65,6 +65,18 @@ export const apiEnvSchema = z.object({
 
   MASTER_KEK: z.string().min(1).optional(),
 
+  // Biometría (Etapas 7-8, BIOMETRIC_SECURITY.md §5/§8).
+  /** Umbral 1:N. Se calibra con datos de la POC, no por intuición. */
+  BIOMETRIC_MATCH_THRESHOLD: z.coerce.number().int().min(0).max(100).default(80),
+  /** Dos candidatos sobre el umbral a menos de este margen → no-match. */
+  BIOMETRIC_MATCH_AMBIGUITY_MARGIN: z.coerce.number().int().min(0).max(100).default(5),
+  /** TTL en segundos de los deviceTokens de un solo uso. */
+  BIOMETRIC_DEVICE_TOKEN_TTL: z.coerce.number().int().positive().default(120),
+  BIOMETRIC_ENROLL_SAMPLES: z.coerce.number().int().min(1).max(10).default(4),
+  BIOMETRIC_MIN_QUALITY: z.coerce.number().int().min(0).max(100).default(60),
+  /** Ventana en segundos para considerar online a un agente por su heartbeat. */
+  BIOMETRIC_AGENT_ONLINE_WINDOW: z.coerce.number().int().positive().default(90),
+
   RATE_LIMIT_ENABLED: z
     .enum(['true', 'false'])
     .default('true')

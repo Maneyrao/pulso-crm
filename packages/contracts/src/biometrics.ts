@@ -117,6 +117,7 @@ const templateBase64Schema = z.string().min(1).max(512 * 1024).base64();
 
 export const localAgentSchema = z.object({
   id: uuidSchema,
+  gymId: uuidSchema,
   branchId: uuidSchema,
   name: z.string(),
   installationId: uuidSchema,
@@ -246,11 +247,6 @@ export type GrantConsentRequest = z.infer<typeof grantConsentRequestSchema>;
 export const grantConsentResponseSchema = z.object({ consent: biometricConsentSchema });
 export type GrantConsentResponse = z.infer<typeof grantConsentResponseSchema>;
 
-export const revokeConsentRequestSchema = z.object({
-  reason: z.string().min(5).max(500),
-});
-export type RevokeConsentRequest = z.infer<typeof revokeConsentRequestSchema>;
-
 /**
  * La revocación de consentimiento revoca TODAS las credenciales activas del
  * socio en la misma transacción (API_CONTRACTS.md §10).
@@ -335,11 +331,6 @@ export const listMemberCredentialsResponseSchema = z.object({
   data: z.array(biometricCredentialSchema),
 });
 export type ListMemberCredentialsResponse = z.infer<typeof listMemberCredentialsResponseSchema>;
-
-export const revokeCredentialRequestSchema = z.object({
-  reason: z.string().min(5).max(500),
-});
-export type RevokeCredentialRequest = z.infer<typeof revokeCredentialRequestSchema>;
 
 export const revokeCredentialResponseSchema = z.object({ credential: biometricCredentialSchema });
 export type RevokeCredentialResponse = z.infer<typeof revokeCredentialResponseSchema>;

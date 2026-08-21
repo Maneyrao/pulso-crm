@@ -290,7 +290,14 @@ describe('allowlist de prisma.unscoped()', () => {
    * fallar este test — es la contraparte, del lado del código fuente, de la
    * cobertura de rutas de arriba.
    */
-  const ALLOWED_CALL_SITES = ['common/auth/auth.guard.ts', 'modules/auth/auth.service.ts'];
+  const ALLOWED_CALL_SITES = [
+    'common/auth/auth.guard.ts',
+    'modules/auth/auth.service.ts',
+    // Superficie del agente local: pareo y resolución del Bearer ocurren
+    // ANTES de tener contexto de tenant; el gymId sale de la fila resuelta
+    // (ver el comentario del archivo).
+    'modules/agents/agent-auth.service.ts',
+  ];
 
   it('sólo los archivos declarados llaman a prisma.unscoped()', () => {
     const here = path.dirname(fileURLToPath(import.meta.url));

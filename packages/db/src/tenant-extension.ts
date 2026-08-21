@@ -50,6 +50,7 @@ export const TENANT_SCOPED_MODELS = [
   'BiometricCredential',
   'AgentAuditEvent',
   'DeviceToken',
+  'TenantBiometricKey',
 ] as const;
 
 /** Modelos deliberadamente globales: no tienen gymId y no deben filtrarse. */

@@ -23,6 +23,8 @@ import {
 import { TenantContextStore, type TenantContext } from './tenant-context.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { ACCESS_COOKIE, CSRF_COOKIE, TokenService } from './token.service.js';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
+import { AgentAuthService, type RequestWithAgentAuth } from '../../modules/agents/agent-auth.service.js';
 
 const WRITE_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const CSRF_HEADER = 'x-csrf-token';
@@ -51,6 +53,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly tokens: TokenService,
     private readonly prisma: PrismaService,
+    private readonly agentAuth: AgentAuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -65,9 +68,28 @@ export class AuthGuard implements CanActivate {
       controller,
     ]);
     if (isAgentOnly) {
-      // La superficie del agente se autentica con deviceToken, no con cookie.
-      // Se implementa en la Etapa 8; hasta entonces no hay rutas con este flag.
-      throw AppError.unauthorized(ErrorCode.SESSION_EXPIRED, 'Credencial de dispositivo inválida.');
+      // Superficie del agente local: `Authorization: Bearer` con credencial de
+      // agente o deviceToken (API_CONTRACTS.md §10). El contexto de tenant se
+      // arma con el gymId del AGENTE resuelto — jamás del request (ADR-008).
+      const agentReq = context.switchToHttp().getRequest<Request & RequestWithAgentAuth>();
+      const header = agentReq.headers.authorization;
+      if (!header?.startsWith('Bearer ')) {
+        throw AppError.unauthorized(ErrorCode.INVALID_DEVICE_TOKEN, 'Credencial de dispositivo inválida.');
+      }
+      const auth = await this.agentAuth.authenticate(header.slice(7));
+      agentReq.agentAuth = auth;
+      TenantContextStore.set({
+        gymId: auth.agent.gymId,
+        // No hay usuario: se registra el agente como principal para el logging.
+        userId: `agent:${auth.agent.id}`,
+        branchIds: [auth.agent.branchId],
+        activeBranchId: auth.agent.branchId,
+        permissions: new Set(),
+        features: new Set(),
+        requestId: RequestContextStore.get()?.requestId ?? 'unknown',
+      });
+      RequestContextStore.set({ gymId: auth.agent.gymId, branchId: auth.agent.branchId });
+      return true;
     }
 
     const req = context.switchToHttp().getRequest<Request>();

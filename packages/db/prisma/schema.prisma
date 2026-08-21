@@ -109,6 +109,7 @@ model Gym {
   biometricCredentials  BiometricCredential[]
   agentAuditEvents      AgentAuditEvent[]
   deviceTokens          DeviceToken[]
+  tenantBiometricKeys   TenantBiometricKey[]
 
   @@index([status])
   @@map("gyms")
@@ -1420,4 +1421,21 @@ model DeviceToken {
 
   @@index([localAgentId, scope, expiresAt])
   @@map("device_tokens")
+}
+
+/// KEK del tenant para biometría, envuelta por la MASTER_KEK
+/// (BIOMETRIC_SECURITY.md §4.1). Nunca se guarda en claro.
+model TenantBiometricKey {
+  id    String @id @default(uuid(7)) @db.Uuid
+  gymId String @db.Uuid
+  gym   Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+
+  keyVersion Int
+  /// nonce(12) || authTag(16) || kekCifrada(32), AAD = gymId || keyVersion.
+  kekWrapped Bytes
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@unique([gymId, keyVersion])
+  @@map("tenant_biometric_keys")
 }

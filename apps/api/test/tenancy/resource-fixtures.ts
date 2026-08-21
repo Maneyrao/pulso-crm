@@ -1,3 +1,4 @@
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@pulso/db';
 
 /**
@@ -40,6 +41,61 @@ let counter = 0;
 function unique(): number {
   counter += 1;
   return (Date.now() % 1_000_000) + counter;
+}
+
+/**
+ * Cadena mínima para los recursos de biometría: socio + usuario iniciador +
+ * agente + lector + sesión de enrolamiento. Cada llamada crea la suya para
+ * no chocar con los uniques parciales.
+ */
+async function createBiometricChain(raw: PrismaClient, gymId: string, branchId: string) {
+  const seq = unique();
+  const member = await raw.member.create({
+    data: {
+      gymId,
+      branchId,
+      memberNumber: seq,
+      firstName: 'Fixture',
+      lastName: 'Biometrics',
+      documentType: 'DNI',
+      documentNumber: String(50_000_000 + seq),
+    },
+  });
+  const starter = await raw.user.findFirst({ where: { gymId } });
+  const agent = await raw.localAgent.create({
+    data: {
+      gymId,
+      branchId,
+      name: `Agente biometría ${seq}`,
+      installationId: randomUUID(),
+      enrollmentSecretHash: 'hash-de-prueba',
+      status: 'ACTIVE',
+    },
+  });
+  const device = await raw.accessDevice.create({
+    data: {
+      gymId,
+      branchId,
+      localAgentId: agent.id,
+      kind: 'FINGERPRINT_READER',
+      vendor: 'HID_DIGITALPERSONA',
+      model: 'UAREU_4500',
+    },
+  });
+  const enrollment = await raw.biometricEnrollment.create({
+    data: {
+      gymId,
+      branchId,
+      memberId: member.id,
+      localAgentId: agent.id,
+      deviceId: device.id,
+      fingerPosition: 'RIGHT_INDEX',
+      samplesRequired: 4,
+      startedByUserId: starter!.id,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    },
+  });
+  return { member, agent, device, enrollment };
 }
 
 export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
@@ -236,6 +292,84 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
     },
     readRaw: (raw, id) => raw.membership.findUnique({ where: { id } }),
   },
+  agents: {
+    async createId(raw, gymId, branchId) {
+      const agent = await raw.localAgent.create({
+        data: {
+          gymId,
+          branchId,
+          name: `Agente cross-tenant ${unique()}`,
+          installationId: randomUUID(),
+          enrollmentSecretHash: 'hash-de-prueba',
+        },
+      });
+      return agent.id;
+    },
+    async createBody(_raw, _gymId, branchId) {
+      return { branchId, name: `Agente create-route ${unique()}` };
+    },
+    // POST /agents responde { agent: {...}, pairingSecret } — gymId anidado.
+    extractGymId(body) {
+      return (body as { agent?: { gymId?: string } } | undefined)?.agent?.gymId;
+    },
+    readRaw: (raw, id) => raw.localAgent.findUnique({ where: { id } }),
+  },
+  devices: {
+    async createId(raw, gymId, branchId) {
+      const agent = await raw.localAgent.create({
+        data: {
+          gymId,
+          branchId,
+          name: `Agente device ${unique()}`,
+          installationId: randomUUID(),
+          enrollmentSecretHash: 'hash-de-prueba',
+        },
+      });
+      const device = await raw.accessDevice.create({
+        data: {
+          gymId,
+          branchId,
+          localAgentId: agent.id,
+          kind: 'FINGERPRINT_READER',
+          vendor: 'HID_DIGITALPERSONA',
+          model: 'UAREU_4500',
+        },
+      });
+      return device.id;
+    },
+    readRaw: (raw, id) => raw.accessDevice.findUnique({ where: { id } }),
+  },
+  'biometrics/enrollments': {
+    async createId(raw, gymId, branchId) {
+      const seed = await createBiometricChain(raw, gymId, branchId);
+      return seed.enrollment.id;
+    },
+    readRaw: (raw, id) => raw.biometricEnrollment.findUnique({ where: { id } }),
+  },
+  'biometrics/credentials': {
+    async createId(raw, gymId, branchId) {
+      const seed = await createBiometricChain(raw, gymId, branchId);
+      const credential = await raw.biometricCredential.create({
+        data: {
+          gymId,
+          memberId: seed.member.id,
+          branchId,
+          fingerPosition: 'RIGHT_INDEX',
+          templateFormat: 'VENDOR_DIGITALPERSONA',
+          templateCiphertext: randomBytes(64),
+          templateNonce: randomBytes(12),
+          templateAuthTag: randomBytes(16),
+          dekWrapped: randomBytes(60),
+          templateHash: randomBytes(32),
+          quality: 80,
+          enrollmentId: seed.enrollment.id,
+          createdByUserId: seed.enrollment.startedByUserId,
+        },
+      });
+      return credential.id;
+    },
+    readRaw: (raw, id) => raw.biometricCredential.findUnique({ where: { id } }),
+  },
   attendances: {
     async createId(raw, gymId, branchId) {
       const memberNumber = unique();
@@ -312,4 +446,12 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'list con paginación offset, scoped por gymId + branchId activo; sin id de recurso',
   'GET /api/v1/reports/dashboard':
     'singleton scoped por gymId + sede activa (agrega socios/deuda/ingresos/asistencias); sin id de recurso',
+  'POST /api/v1/agents/:id/revoke':
+    'body requerido (reason mínimo 5): sin body válido la validación Zod dispara 422 antes de la comprobación cross-tenant. Cross-tenant cubierto por POST /agents/:id/approve (misma resolución findOwn por ctx.branchIds) y en test/biometrics/biometrics.spec.ts.',
+  'POST /api/v1/members/:id/biometrics/consent':
+    'body requerido (version, grantedMethod): sin body válido la validación Zod dispara 422 antes de la comprobación cross-tenant. Cross-tenant del pivote member cubierto por las rutas GET del recurso members y en test/biometrics/biometrics.spec.ts.',
+  'DELETE /api/v1/members/:id/biometrics/consent':
+    'el "own no responde 404" de la suite no aplica: un socio propio SIN consentimiento vigente responde 404 legítimamente. Cross-tenant y cascada cubiertos en test/biometrics/biometrics.spec.ts (consent-revoke-cascade).',
+  'POST /api/v1/members/:id/biometrics/enrollments':
+    'body requerido (localAgentId, deviceId, fingerPosition) + Idempotency-Key: sin ambos la validación dispara 422/400 antes de la comprobación cross-tenant. Cross-tenant cubierto en test/biometrics/biometrics.spec.ts (agente de otra sede → 404).',
 };
