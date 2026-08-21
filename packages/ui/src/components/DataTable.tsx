@@ -81,16 +81,19 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn('overflow-x-auto rounded-(--radius-lg) border border-(--color-border)', className)}>
-      <table aria-busy={loading || undefined} className="w-full border-collapse text-(--text-sm)">
+    <div className={cn('overflow-x-auto rounded-(--radius-lg) border-2 border-(--color-border)', className)}>
+      <table aria-busy={loading || undefined} className="w-full border-collapse text-[12.5px]">
         <caption className="sr-only">{caption}</caption>
-        <thead className="border-b border-(--color-border) bg-(--color-muted-subtle)">
+        <thead>
           <tr>
             {columns.map((column) => (
               <th
                 key={column.id}
                 scope="col"
-                className={cn('px-3 py-2 text-left font-medium text-(--color-muted-subtle-foreground)', column.headerClassName)}
+                className={cn(
+                  'whitespace-nowrap border-b-2 border-(--color-border) px-3.5 py-2.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)',
+                  column.headerClassName,
+                )}
               >
                 {column.header}
               </th>
@@ -103,16 +106,19 @@ export function DataTable<T>({
                 // Placeholders sin identidad propia: el índice es una key estable válida acá.
                 <tr key={rowIndex} className="border-b border-(--color-border) last:border-0">
                   {columns.map((column) => (
-                    <td key={column.id} className="px-3 py-2.5">
+                    <td key={column.id} className="px-3.5 py-2.5">
                       <Skeleton className="h-4 w-full max-w-40" />
                     </td>
                   ))}
                 </tr>
               ))
             : data.map((row) => (
-                <tr key={rowKey(row)} className="border-b border-(--color-border) last:border-0 hover:bg-(--color-muted-subtle)">
+                <tr
+                  key={rowKey(row)}
+                  className="border-b border-(--color-border) last:border-0 hover:bg-(--color-muted-subtle)"
+                >
                   {columns.map((column) => (
-                    <td key={column.id} className={cn('px-3 py-2.5 text-(--color-text)', column.cellClassName)}>
+                    <td key={column.id} className={cn('px-3.5 py-2.5 text-(--color-text)', column.cellClassName)}>
                       {column.cell(row)}
                     </td>
                   ))}

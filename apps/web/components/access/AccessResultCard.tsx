@@ -49,7 +49,7 @@ export function AccessResultCard({ result }: AccessResultCardProps) {
       <div className="flex items-start gap-4">
         <Icon aria-hidden={true} className="h-10 w-10 shrink-0" />
         <div className="flex flex-1 flex-col gap-1">
-          <p className="text-(--text-xl) font-semibold">{config.title}</p>
+          <p className="text-[22px] font-extrabold">{config.title}</p>
           <p className="text-(--text-base)">{config.description}</p>
         </div>
       </div>

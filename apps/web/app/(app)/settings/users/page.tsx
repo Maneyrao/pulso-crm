@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Users as UsersIcon } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CreateUserRequest, UpdateUserRequest, User } from '@pulso/contracts/iam';
 import {
@@ -16,6 +17,7 @@ import {
   useToast,
   type DataTableColumn,
 } from '@pulso/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { listBranches } from '@/lib/api/tenancy';
 import {
   createUser,
@@ -105,6 +107,10 @@ function UsersScreen() {
   const roleName = React.useCallback(
     (roleId: string) => rolesQuery.data?.data.find((r) => r.id === roleId)?.name ?? roleId,
     [rolesQuery.data],
+  );
+  const branchName = React.useCallback(
+    (branchId: string) => branchesQuery.data?.data.find((b) => b.id === branchId)?.name ?? branchId,
+    [branchesQuery.data],
   );
 
   const invalidateUsers = () => queryClient.invalidateQueries({ queryKey: ['users', gymId ?? ''] });
@@ -229,26 +235,44 @@ function UsersScreen() {
   const columns: DataTableColumn<User>[] = [
     {
       id: 'name',
-      header: 'Nombre',
+      header: 'Usuario',
       cell: (u) => (
-        <div className="flex flex-col">
-          <span className="font-medium">
-            {u.firstName} {u.lastName}
-          </span>
-          <span className="text-(--text-xs) text-(--color-muted)">{u.email}</span>
+        <span className="font-medium">
+          {u.firstName} {u.lastName}
+        </span>
+      ),
+    },
+    {
+      id: 'email',
+      header: 'Email',
+      cell: (u) => <span className="text-(--text-sm) text-(--color-muted)">{u.email}</span>,
+    },
+    {
+      id: 'roles',
+      header: 'Rol',
+      cell: (u) => (
+        <div className="flex flex-wrap gap-1">
+          {u.roleIds.length === 0 ? (
+            <span className="text-(--color-muted)">—</span>
+          ) : (
+            u.roleIds.map((roleId) => <StatusBadge key={roleId} tone="info" label={roleName(roleId)} />)
+          )}
         </div>
       ),
     },
     {
-      id: 'roles',
-      header: 'Roles',
-      cell: (u) => (
-        <div className="flex flex-wrap gap-1">
-          {u.roleIds.map((roleId) => (
-            <StatusBadge key={roleId} tone="info" label={roleName(roleId)} />
-          ))}
-        </div>
-      ),
+      id: 'branches',
+      header: 'Sede',
+      cell: (u) =>
+        u.branchIds.length === 0 ? (
+          <StatusBadge tone="neutral" label="Todas" />
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {u.branchIds.map((branchId) => (
+              <StatusBadge key={branchId} tone="neutral" label={branchName(branchId)} />
+            ))}
+          </div>
+        ),
     },
     {
       id: 'status',
@@ -288,15 +312,16 @@ function UsersScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-(--text-2xl) font-semibold text-(--color-text)">Usuarios</h1>
-          <p className="text-(--text-sm) text-(--color-muted)">Personas con acceso al sistema y sus roles.</p>
-        </div>
-        <PermissionGate permission="user:write">
-          <Button onClick={openCreate}>Nuevo usuario</Button>
-        </PermissionGate>
-      </div>
+      <PageHeader
+        icon={UsersIcon}
+        title="Usuarios"
+        description="Personas con acceso al sistema, su rol y su sede."
+        actions={
+          <PermissionGate permission="user:write">
+            <Button onClick={openCreate}>Nuevo usuario</Button>
+          </PermissionGate>
+        }
+      />
 
       <DataTable
         caption="Usuarios del gimnasio"

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Wallet } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CashConcept,
@@ -13,7 +14,7 @@ import type {
   PaymentMethod,
   ReverseCashMovementRequest,
 } from '@pulso/contracts/cash';
-import { ZERO_MONEY, formatMoney, isMoneyString } from '@pulso/config/money';
+import { ZERO_MONEY, addMoney, formatMoney, isMoneyString, subMoney, sumMoney } from '@pulso/config/money';
 import {
   Button,
   DataTable,
@@ -29,6 +30,7 @@ import {
   useToast,
   type DataTableColumn,
 } from '@pulso/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
 import {
   closeCashSession,
   createCashMovement,
@@ -40,6 +42,7 @@ import {
   openCashSession,
   reverseCashMovement,
 } from '@/lib/api/cash';
+import { listUsers } from '@/lib/api/iam';
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
@@ -197,54 +200,78 @@ function SessionHeader({
   const [openModal, setOpenModal] = React.useState(false);
   const [closeModal, setCloseModal] = React.useState(false);
 
+  const gymId = useSessionStore((s) => s.gym?.id ?? '');
+  const currentUser = useSessionStore((s) => s.user);
+  const canReadUsers = usePermission('user:read');
+
+  // Nombre de quien abrió la caja: `CashSession.openedByUserId` es sólo un
+  // UUID (API_CONTRACTS §8), sin nombre embebido. Si es el usuario actual se
+  // resuelve sin pedir nada nuevo; si no, se busca en `GET /users` (sólo con
+  // permiso `user:read` — un cajero puede no tenerlo). Sin ninguna de las dos
+  // formas, el subtítulo omite el "por X" en vez de inventar un nombre.
+  const usersQuery = useQuery({
+    queryKey: qk.users(gymId, {}),
+    queryFn: () => listUsers(),
+    enabled: Boolean(gymId) && canReadUsers && Boolean(session) && session?.openedByUserId !== currentUser?.id,
+  });
+
+  const openedByName = React.useMemo(() => {
+    if (!session) return undefined;
+    if (currentUser && session.openedByUserId === currentUser.id) {
+      return `${currentUser.firstName} ${currentUser.lastName}`;
+    }
+    const match = usersQuery.data?.data.find((u) => u.id === session.openedByUserId);
+    return match ? `${match.firstName} ${match.lastName}` : undefined;
+  }, [session, currentUser, usersQuery.data]);
+
+  const income = React.useMemo(
+    () => sumMoney(movements.filter((m) => m.type === 'INCOME').map((m) => m.amount)),
+    [movements],
+  );
+  const expense = React.useMemo(
+    () => sumMoney(movements.filter((m) => m.type === 'EXPENSE').map((m) => m.amount)),
+    [movements],
+  );
+  const balance = session ? addMoney(session.openingAmount, subMoney(income, expense)) : ZERO_MONEY;
+
+  const description = loading
+    ? 'Buscando la sesión actual...'
+    : session
+      ? `Abierta ${formatTime(session.openedAt)}${openedByName ? ` por ${openedByName}` : ''} · inicial ${formatMoney(session.openingAmount)}`
+      : 'No hay una caja abierta en esta sede.';
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-(--text-2xl) font-semibold text-(--color-text)">Caja</h1>
-          <p className="text-(--text-sm) text-(--color-muted)">
-            Sesión operativa: apertura, ingresos, egresos y arqueo de cierre.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {loading ? null : session ? (
-            <StatusBadge tone="success" label="Caja abierta" />
-          ) : (
-            <StatusBadge tone="neutral" label="Sin caja abierta" />
-          )}
-          {canOperate ? (
-            session ? (
-              <Button variant="danger" onClick={() => setCloseModal(true)}>
-                Cerrar caja
-              </Button>
+      <PageHeader
+        icon={Wallet}
+        title="Caja · Sesión actual"
+        description={description}
+        actions={
+          <div className="flex items-center gap-2">
+            {loading ? null : session ? (
+              <StatusBadge tone="success" label="Caja abierta" />
             ) : (
-              <Button onClick={() => setOpenModal(true)}>Abrir caja</Button>
-            )
-          ) : null}
-        </div>
-      </div>
+              <StatusBadge tone="neutral" label="Sin caja abierta" />
+            )}
+            {canOperate ? (
+              session ? (
+                <Button variant="danger" onClick={() => setCloseModal(true)}>
+                  Cerrar caja
+                </Button>
+              ) : (
+                <Button onClick={() => setOpenModal(true)}>Abrir caja</Button>
+              )
+            ) : null}
+          </div>
+        }
+      />
 
       {session ? (
-        <dl className="grid grid-cols-1 gap-3 rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-4 md:grid-cols-3">
-          <div>
-            <dt className="text-(--text-xs) text-(--color-muted)">Fondo de apertura</dt>
-            <dd className="text-(--text-base) font-medium text-(--color-text)">
-              <MoneyDisplay value={session.openingAmount} />
-            </dd>
-          </div>
-          <div>
-            <dt className="text-(--text-xs) text-(--color-muted)">Abrió a las</dt>
-            <dd className="text-(--text-base) font-medium text-(--color-text) tabular-nums">
-              {formatTime(session.openedAt)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-(--text-xs) text-(--color-muted)">Día de negocio</dt>
-            <dd className="text-(--text-base) font-medium text-(--color-text) tabular-nums">
-              {session.businessDate}
-            </dd>
-          </div>
-        </dl>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <KpiCard label="Ingresos" value={income} />
+          <KpiCard label="Egresos" value={`-${expense}`} emphasizeNegative />
+          <KpiCard label="Saldo" value={balance} emphasizeNegative />
+        </div>
       ) : null}
 
       <OpenCashModal open={openModal} onOpenChange={setOpenModal} onOpened={onOpened} />
@@ -258,6 +285,23 @@ function SessionHeader({
           onClosed={onClosed}
         />
       ) : null}
+    </div>
+  );
+}
+
+interface KpiCardProps {
+  label: string;
+  value: string;
+  emphasizeNegative?: boolean;
+}
+
+function KpiCard({ label, value, emphasizeNegative }: KpiCardProps) {
+  return (
+    <div className="rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-surface) p-4">
+      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)">{label}</p>
+      <p className="mt-1 text-(--text-xl) font-semibold text-(--color-text)">
+        <MoneyDisplay value={value} emphasizeNegative={emphasizeNegative} />
+      </p>
     </div>
   );
 }
@@ -308,23 +352,18 @@ function MovementsSection({
       cell: (m) => conceptById.get(m.cashConceptId)?.name ?? '—',
     },
     {
+      id: 'detail',
+      header: 'Detalle',
+      cell: (m) => m.description ?? <span className="text-(--color-muted)">—</span>,
+    },
+    {
       id: 'method',
       header: 'Método',
       cell: (m) => paymentMethodById.get(m.paymentMethodId)?.name ?? '—',
     },
     {
-      id: 'type',
-      header: 'Tipo',
-      cell: (m) =>
-        m.type === 'INCOME' ? (
-          <StatusBadge tone="success" label="Ingreso" />
-        ) : (
-          <StatusBadge tone="danger" label="Egreso" />
-        ),
-    },
-    {
       id: 'amount',
-      header: 'Importe',
+      header: 'Monto',
       cell: (m) => (
         <MoneyDisplay
           value={m.type === 'EXPENSE' ? `-${m.amount}` : m.amount}
@@ -333,16 +372,6 @@ function MovementsSection({
       ),
       headerClassName: 'text-right',
       cellClassName: 'text-right',
-    },
-    {
-      id: 'member',
-      header: 'Socio',
-      cell: (m) =>
-        m.memberId ? (
-          <span className="font-mono text-(--text-xs) text-(--color-muted)">{m.memberId.slice(0, 8)}</span>
-        ) : (
-          <span className="text-(--color-muted)">—</span>
-        ),
     },
     {
       id: 'actions',

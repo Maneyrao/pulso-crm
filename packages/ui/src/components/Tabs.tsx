@@ -10,12 +10,16 @@ export const TabsList = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
-    className={cn('inline-flex items-center gap-1 rounded-(--radius-md) bg-(--color-muted-subtle) p-1', className)}
+    className={cn(
+      'inline-flex w-fit max-w-full items-center overflow-x-auto rounded-(--radius-md) border-2 border-(--color-border) bg-(--color-surface)',
+      className,
+    )}
     {...props}
   />
 ));
 TabsList.displayName = 'TabsList';
 
+/** Pestaña tipo segmento de la referencia: activa = relleno de acento sólido. */
 export const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
@@ -23,8 +27,8 @@ export const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'rounded-(--radius-sm) px-3 py-1.5 text-(--text-sm) font-medium text-(--color-muted)',
-      'data-[state=active]:bg-(--color-surface) data-[state=active]:text-(--color-text) data-[state=active]:shadow-(--shadow-sm)',
+      'whitespace-nowrap px-4 py-2 text-(--text-sm) font-semibold text-(--color-muted) transition-colors',
+      'data-[state=active]:bg-(--color-primary) data-[state=active]:text-(--color-primary-foreground)',
       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring)',
       className,
     )}

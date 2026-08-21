@@ -255,10 +255,19 @@ describe('CashPage', () => {
     expect(screen.getByText(/Efectivo/)).toBeInTheDocument();
     expect(screen.getByText(/Tarjeta/)).toBeInTheDocument();
     // Formato es-AR: "$ 2.500,00" con espacio duro entre símbolo y monto.
-    const row = screen.getByText(/2\.500,00/);
-    expect(row).toBeInTheDocument();
+    // Se busca dentro de la tabla porque el mismo importe también puede
+    // aparecer en el KPI "Ingresos" calculado sobre los mismos movements.
+    const table = screen.getByRole('table', { name: /Movimientos de la sesión de caja/i });
+    expect(within(table).getByText(/2\.500,00/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Nuevo movimiento/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Cerrar caja/i })).toBeInTheDocument();
+
+    // KPIs de la sesión calculados a partir de los movements reales:
+    // ingresos 2.500, egresos 500, saldo = inicial (1.000) + 2.500 - 500 = 3.000.
+    expect(screen.getByText('Ingresos')).toBeInTheDocument();
+    expect(screen.getByText('Egresos')).toBeInTheDocument();
+    expect(screen.getByText('Saldo')).toBeInTheDocument();
+    expect(screen.getByText(/3\.000,00/)).toBeInTheDocument();
   });
 
   it('abrir caja: envía openCashSession con el fondo y el cashRegisterId elegido', async () => {

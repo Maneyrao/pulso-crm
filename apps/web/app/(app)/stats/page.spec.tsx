@@ -1,25 +1,35 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { formatMoney } from '@pulso/config/money';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 
 /**
- * `Intl.NumberFormat` para `es-AR` intercala el símbolo de moneda con un
- * espacio no separable (NBSP/espacio fino). El normalizador por defecto de
- * Testing Library colapsa esos espacios del lado del DOM, pero no del lado
- * del texto buscado: sin este `flat`, la comparación exacta falla aunque el
- * texto sea "igual" a simple vista.
+ * Estadísticas (LEODARROSAFIT_ALIGNMENT_PLAN.md Fase 2A): reescrita para usar
+ * sólo datos reales — `GET /reports/dashboard` + afluencia por hora de hoy
+ * calculada de `GET /attendances`. Ya no depende de `lib/mock/data/insights-demo.ts`.
  */
-function flat(text: string): string {
-  return text.replace(/\s+/g, ' ');
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/stats',
+  useRouter: () => ({ push: vi.fn() }),
+}));
+
+const getDashboardMock = vi.fn();
+vi.mock('@/lib/api/reporting', () => ({
+  getDashboard: (...args: unknown[]) => getDashboardMock(...args),
+}));
+
+const listAttendancesMock = vi.fn();
+vi.mock('@/lib/api/access', () => ({
+  listAttendances: (...args: unknown[]) => listAttendancesMock(...args),
+}));
+
+function withQuery(children: ReactNode): ReactNode {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
-/**
- * Estadísticas (demo, sin backend). Cubre gate de permiso, KPIs derivados del
- * dataset determinista y presencia de los gráficos con su descripción
- * accesible.
- */
-
-async function primeSession(permissions: string[] = ['stats:read']): Promise<void> {
+async function primeSession(permissions: string[]): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
@@ -31,60 +41,65 @@ async function primeSession(permissions: string[] = ['stats:read']): Promise<voi
   } as never);
 }
 
-beforeEach(async () => {
-  const { useSessionStore } = await import('@/lib/stores/session');
-  useSessionStore.setState({
-    user: null,
-    gym: null,
-    branches: [],
-    activeBranchId: null,
-    permissions: [],
-    status: 'idle',
-  } as never);
+const pageInfo = (total: number) => ({ total, limit: 100, offset: 0 });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+
+  getDashboardMock.mockResolvedValue({
+    activeMembers: 120,
+    newMembersThisMonth: 5,
+    todayIncome: '85000.00',
+    todayAttendances: 22,
+    totalDebt: '-30000.00',
+    expiringMembershipsNext7Days: 3,
+    timezoneUsed: 'America/Argentina/Buenos_Aires',
+  });
+
+  listAttendancesMock.mockResolvedValue({
+    data: [{ occurredAt: new Date().toISOString() }],
+    pageInfo: pageInfo(1),
+  });
 });
 
 describe('StatsPage', () => {
-  it('sin permiso stats:read muestra el mensaje de sin acceso', async () => {
+  it('sin permiso stats:read muestra el mensaje de sin acceso y no llama a la API', async () => {
     await primeSession([]);
     const { default: StatsPage } = await import('./page');
-    render(<StatsPage />);
+    render(withQuery(<StatsPage />));
+
     expect(screen.getByText('Sin acceso')).toBeInTheDocument();
+    expect(getDashboardMock).not.toHaveBeenCalled();
   });
 
-  it('con permiso muestra el estado de carga primero', async () => {
-    await primeSession();
+  it('con stats:read muestra los KPIs reales de GET /reports/dashboard', async () => {
+    await primeSession(['stats:read']);
     const { default: StatsPage } = await import('./page');
-    render(<StatsPage />);
-    expect(screen.getByText(/Cargando estadísticas/i)).toBeInTheDocument();
+    render(withQuery(<StatsPage />));
+
+    expect(await screen.findByText('22')).toBeInTheDocument();
+    expect(screen.getByText('Ingresos hoy')).toBeInTheDocument();
+    expect(screen.getByText('Asistencias hoy')).toBeInTheDocument();
+    expect(screen.getByText('Deuda total')).toBeInTheDocument();
+    expect(screen.getByText('Membresías por vencer (7 días)')).toBeInTheDocument();
   });
 
-  it('con permiso muestra los KPIs calculados del dataset determinista', async () => {
-    await primeSession();
+  it('con attendance:read muestra la afluencia por hora de hoy', async () => {
+    await primeSession(['stats:read', 'attendance:read']);
     const { default: StatsPage } = await import('./page');
-    const { getInsightsDemoDataset } = await import('@/lib/mock/data/insights-demo');
-    const dataset = getInsightsDemoDataset();
-    render(<StatsPage />);
+    render(withQuery(<StatsPage />));
 
-    expect(await screen.findByText('Socios activos')).toBeInTheDocument();
-    expect(screen.getByText(String(dataset.kpis.activeMembers))).toBeInTheDocument();
-    expect(screen.getByText(`+${dataset.kpis.growth12mPercent}%`)).toBeInTheDocument();
-    expect(screen.getByText(`${dataset.kpis.averageRetentionPercent}%`)).toBeInTheDocument();
-    expect(screen.getByText(flat(formatMoney(dataset.kpis.averageMonthlyIncome)))).toBeInTheDocument();
+    expect(await screen.findByText('Afluencia por hora · hoy')).toBeInTheDocument();
+    expect(listAttendancesMock).toHaveBeenCalled();
   });
 
-  it('renderiza los cuatro gráficos con su descripción accesible', async () => {
-    await primeSession();
+  it('sin attendance:read no muestra la tarjeta de afluencia', async () => {
+    await primeSession(['stats:read']);
     const { default: StatsPage } = await import('./page');
-    render(<StatsPage />);
+    render(withQuery(<StatsPage />));
 
-    expect(await screen.findByText('Socios activos por mes')).toBeInTheDocument();
-    expect(screen.getByText('Ingresos vs. egresos por mes')).toBeInTheDocument();
-    expect(screen.getByText('Asistencias por día de la semana')).toBeInTheDocument();
-    expect(screen.getByText('Distribución de socios por plan')).toBeInTheDocument();
-
-    expect(screen.getByText(/Evolución de socios activos por mes/i)).toBeInTheDocument();
-    expect(screen.getByText(/Ingresos y egresos mensuales/i)).toBeInTheDocument();
-    expect(screen.getByText(/Asistencias por día de la semana\. El día con más asistencias/i)).toBeInTheDocument();
-    expect(screen.getByText(/Distribución de socios por plan:/i)).toBeInTheDocument();
+    await screen.findByText('Ingresos hoy');
+    expect(screen.queryByText('Afluencia por hora · hoy')).not.toBeInTheDocument();
+    expect(listAttendancesMock).not.toHaveBeenCalled();
   });
 });

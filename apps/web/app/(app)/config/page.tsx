@@ -1,14 +1,17 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { ChevronDown, Settings } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { Gym, UpdateGymRequest } from '@pulso/contracts/tenancy';
 import {
-  Alert,
   Button,
-  Checkbox,
   EmptyState,
+  ErrorState,
+  FormField,
   Input,
-  Select,
+  StatusBadge,
   Tabs,
   TabsContent,
   TabsList,
@@ -16,21 +19,22 @@ import {
   useToast,
 } from '@pulso/ui';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { PermissionGate } from '@/lib/auth/permissions';
+import { getGym, listBranches, updateGym } from '@/lib/api/tenancy';
+import { ApiError } from '@/lib/api/errors';
+import { PermissionGate, usePermission } from '@/lib/auth/permissions';
+import { qk } from '@/lib/query/keys';
+import { useSessionStore } from '@/lib/stores/session';
 
-const TIMEZONE_OPTIONS = [
-  { value: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires (GMT-3)' },
-  { value: 'America/Argentina/Cordoba', label: 'Córdoba (GMT-3)' },
-  { value: 'America/Argentina/Mendoza', label: 'Mendoza (GMT-3)' },
-  { value: 'America/Argentina/Salta', label: 'Salta (GMT-3)' },
-];
-
-interface AccessSettings {
-  blockOnDebt: boolean;
-  duplicateWindow: boolean;
-  sounds: boolean;
-}
-
+/**
+ * Configuración general (API_CONTRACTS §4 `GET/PATCH /gym`, `GET /branches`).
+ *
+ * Sólo dos tabs: "Gimnasio" (datos reales editables vía `PATCH /gym`, campos
+ * limitados a los que acepta `updateGymRequestSchema`) y "Sedes" (listado
+ * real con link a `/settings/branches`, que ya tiene el CRUD completo — no
+ * se duplica acá). Se eliminaron los tabs de control de acceso, facturación
+ * ARCA y app móvil: no persisten en ningún backend real (LEODARROSAFIT
+ * ALIGNMENT PLAN §3, fila `#/config`).
+ */
 export default function ConfigPage() {
   return (
     <PermissionGate
@@ -47,203 +51,322 @@ export default function ConfigPage() {
 function ConfigScreen() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        title="Configuración general"
-        description="Ajustes de caja, control de acceso, sede y app móvil."
-        icon={Settings}
-        mock
-      />
+      <PageHeader icon={Settings} title="Configuración" description="Datos del gimnasio y sus sedes." />
 
       <Tabs defaultValue="gimnasio">
         <TabsList>
           <TabsTrigger value="gimnasio">Gimnasio</TabsTrigger>
-          <TabsTrigger value="facturacion">Facturación electrónica</TabsTrigger>
-          <TabsTrigger value="app-movil">App móvil</TabsTrigger>
+          <TabsTrigger value="sedes">Sedes</TabsTrigger>
         </TabsList>
 
         <TabsContent value="gimnasio">
           <GymTab />
         </TabsContent>
 
-        <TabsContent value="facturacion">
-          <BillingTab />
-        </TabsContent>
-
-        <TabsContent value="app-movil">
-          <MobileAppTab />
+        <TabsContent value="sedes">
+          <BranchesTab />
         </TabsContent>
       </Tabs>
     </div>
   );
 }
 
-function GymTab() {
-  const [allowNonCashiers, setAllowNonCashiers] = React.useState(false);
-  const [access, setAccess] = React.useState<AccessSettings>({
-    blockOnDebt: true,
-    duplicateWindow: true,
-    sounds: true,
-  });
-  const [branchName, setBranchName] = React.useState('Sede Centro');
-  const [timezone, setTimezone] = React.useState(TIMEZONE_OPTIONS[0]!.value);
-  const [maxCapacity, setMaxCapacity] = React.useState('150');
-  const [graceDays, setGraceDays] = React.useState('3');
+interface GymFormState {
+  name: string;
+  legalName: string;
+  taxId: string;
+  country: string;
+  currency: string;
+  locale: string;
+  logoKey: string;
+  primaryColor: string;
+}
 
-  const updateAccess = (key: keyof AccessSettings) => (checked: boolean) =>
-    setAccess((current) => ({ ...current, [key]: checked }));
+function toFormState(gym: Gym): GymFormState {
+  return {
+    name: gym.name,
+    legalName: gym.legalName ?? '',
+    taxId: gym.taxId ?? '',
+    country: gym.country,
+    currency: gym.currency,
+    locale: gym.locale,
+    logoKey: gym.logoKey ?? '',
+    primaryColor: gym.primaryColor ?? '',
+  };
+}
+
+function toUpdateRequest(form: GymFormState): UpdateGymRequest {
+  return {
+    name: form.name.trim(),
+    legalName: form.legalName.trim() || null,
+    taxId: form.taxId.trim() || null,
+    country: form.country.trim().toUpperCase(),
+    currency: form.currency.trim().toUpperCase(),
+    locale: form.locale.trim(),
+    logoKey: form.logoKey.trim() || null,
+    primaryColor: form.primaryColor.trim() || null,
+  };
+}
+
+function GymTab() {
+  const gymId = useSessionStore((s) => s.gym?.id ?? '');
+  const canWrite = usePermission('config:write');
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const query = useQuery({ queryKey: qk.gym(gymId), queryFn: getGym, enabled: Boolean(gymId) });
+
+  const [form, setForm] = React.useState<GymFormState | null>(null);
+  const [formError, setFormError] = React.useState<string | undefined>();
+
+  React.useEffect(() => {
+    if (query.data) setForm(toFormState(query.data));
+  }, [query.data]);
+
+  const updateMutation = useMutation({
+    mutationFn: (payload: UpdateGymRequest) => updateGym(payload),
+    onSuccess: (gym) => {
+      toast({ title: 'Datos del gimnasio actualizados', tone: 'success' });
+      setForm(toFormState(gym));
+      queryClient.invalidateQueries({ queryKey: qk.gym(gymId) });
+    },
+    onError: (error: unknown) => setFormError(errorMessage(error)),
+  });
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setFormError(undefined);
+    if (!form) return;
+    if (!form.name.trim()) {
+      setFormError('El nombre es obligatorio.');
+      return;
+    }
+    if (form.country.trim().length !== 2) {
+      setFormError('El país es un código ISO de 2 letras (ej. AR).');
+      return;
+    }
+    if (form.currency.trim().length !== 3) {
+      setFormError('La moneda es un código ISO de 3 letras (ej. ARS).');
+      return;
+    }
+    updateMutation.mutate(toUpdateRequest(form));
+  };
+
+  if (query.isLoading || (!form && !query.isError)) {
+    return <EmptyState title="Cargando datos del gimnasio" description="Buscando la información..." />;
+  }
+
+  if (query.isError || !query.data) {
+    return (
+      <ErrorState
+        title="No pudimos cargar los datos del gimnasio"
+        description={errorMessage(query.error)}
+        onRetry={() => query.refetch()}
+      />
+    );
+  }
+
+  if (!form) return null;
 
   return (
     <div className="flex flex-col gap-3">
-      <AccordionSection title="Caja" defaultOpen>
-        <ToggleRow
-          id="cash-allow-non-cashiers"
-          label="Permitir operar caja a no cajeros"
-          description="Habilita a cualquier usuario con sesión activa a registrar movimientos de caja, no sólo a quienes tengan el rol de cajero."
-          checked={allowNonCashiers}
-          onChange={setAllowNonCashiers}
-        />
-        <SaveButton />
+      <AccordionSection title="Datos del gimnasio" defaultOpen>
+        <form id="gym-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {formError ? (
+            <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+              {formError}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Nombre" required>
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.name}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, name: e.target.value })}
+                  required
+                />
+              )}
+            </FormField>
+            <FormField label="Razón social">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.legalName}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, legalName: e.target.value })}
+                />
+              )}
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="CUIT / identificación fiscal">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.taxId}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, taxId: e.target.value })}
+                />
+              )}
+            </FormField>
+            <FormField label="País" required hint="Código ISO de 2 letras, ej. AR">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.country}
+                  maxLength={2}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, country: e.target.value })}
+                  required
+                />
+              )}
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Moneda" required hint="Código ISO de 3 letras, ej. ARS">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.currency}
+                  maxLength={3}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, currency: e.target.value })}
+                  required
+                />
+              )}
+            </FormField>
+            <FormField label="Idioma / locale" hint="ej. es-AR">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.locale}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, locale: e.target.value })}
+                />
+              )}
+            </FormField>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <FormField label="Logo" hint="Key del archivo en storage (no hay carga de imagen todavía)">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.logoKey}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, logoKey: e.target.value })}
+                />
+              )}
+            </FormField>
+            <FormField label="Color primario" hint="Hex, ej. #f0a028">
+              {(field) => (
+                <Input
+                  {...field}
+                  value={form.primaryColor}
+                  disabled={!canWrite}
+                  onChange={(e) => setForm((f) => f && { ...f, primaryColor: e.target.value })}
+                />
+              )}
+            </FormField>
+          </div>
+
+          {canWrite ? (
+            <div className="flex justify-end">
+              <Button type="submit" loading={updateMutation.isPending}>
+                Guardar cambios
+              </Button>
+            </div>
+          ) : null}
+        </form>
       </AccordionSection>
 
-      <AccordionSection title="Control de acceso">
-        <ToggleRow
-          id="access-block-on-debt"
-          label="Bloquear ingreso con deuda"
-          description="No permite el check-in de socios con saldo pendiente."
-          checked={access.blockOnDebt}
-          onChange={updateAccess('blockOnDebt')}
-        />
-        <ToggleRow
-          id="access-duplicate-window"
-          label="Ventana de duplicados"
-          description="Bloquea check-ins repetidos del mismo socio dentro de una ventana corta de tiempo."
-          checked={access.duplicateWindow}
-          onChange={updateAccess('duplicateWindow')}
-        />
-        <ToggleRow
-          id="access-sounds"
-          label="Sonidos"
-          description="Reproduce un sonido distinto para ingreso permitido y rechazado."
-          checked={access.sounds}
-          onChange={updateAccess('sounds')}
-        />
-        <SaveButton />
-      </AccordionSection>
-
-      <AccordionSection title="Sede">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="branch-name" className="text-(--text-sm) font-medium text-(--color-text)">
-              Nombre visible
-            </label>
-            <Input
-              id="branch-name"
-              value={branchName}
-              onChange={(event) => setBranchName(event.target.value)}
-            />
+      <AccordionSection title="Estado de la cuenta">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+          <div>
+            <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Identificador</dt>
+            <dd className="mt-0.5 text-(--text-sm) text-(--color-text)">{query.data.slug}</dd>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="branch-timezone" className="text-(--text-sm) font-medium text-(--color-text)">
-              Zona horaria
-            </label>
-            <Select id="branch-timezone" options={TIMEZONE_OPTIONS} value={timezone} onValueChange={setTimezone} />
+          <div>
+            <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Estado</dt>
+            <dd className="mt-0.5">
+              <StatusBadge
+                tone={query.data.status === 'ACTIVE' ? 'success' : 'danger'}
+                label={GYM_STATUS_LABEL[query.data.status]}
+              />
+            </dd>
           </div>
-        </div>
-        <SaveButton />
-      </AccordionSection>
-
-      <AccordionSection title="Parámetros">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="max-capacity" className="text-(--text-sm) font-medium text-(--color-text)">
-              Capacidad máxima de socios
-            </label>
-            <Input
-              id="max-capacity"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={maxCapacity}
-              onChange={(event) => setMaxCapacity(event.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="grace-days" className="text-(--text-sm) font-medium text-(--color-text)">
-              Días de gracia
-            </label>
-            <Input
-              id="grace-days"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={graceDays}
-              onChange={(event) => setGraceDays(event.target.value)}
-            />
-          </div>
-        </div>
-        <SaveButton />
+        </dl>
       </AccordionSection>
     </div>
   );
 }
 
-function BillingTab() {
-  const [cuit, setCuit] = React.useState('');
-  const [posNumber, setPosNumber] = React.useState('');
+const GYM_STATUS_LABEL: Record<Gym['status'], string> = {
+  ACTIVE: 'Activo',
+  SUSPENDED: 'Suspendido',
+  CANCELLED: 'Cancelado',
+};
+
+function BranchesTab() {
+  const gymId = useSessionStore((s) => s.gym?.id ?? '');
+  const query = useQuery({ queryKey: qk.branches(gymId), queryFn: listBranches, enabled: Boolean(gymId) });
+  const branches = query.data?.data ?? [];
+  const activeCount = branches.filter((b) => b.isActive).length;
 
   return (
     <div className="flex flex-col gap-4">
-      <Alert tone="info" title="Integración ARCA en etapa posterior">
-        La facturación electrónica todavía no está conectada. Estos campos quedan a modo de referencia hasta que
-        el backend de facturación esté disponible.
-      </Alert>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="billing-cuit" className="text-(--text-sm) font-medium text-(--color-text)">
-            CUIT
-          </label>
-          <Input
-            id="billing-cuit"
-            value={cuit}
-            onChange={(event) => setCuit(event.target.value)}
-            placeholder="30-12345678-9"
-            disabled
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="billing-pos" className="text-(--text-sm) font-medium text-(--color-text)">
-            Punto de venta
-          </label>
-          <Input
-            id="billing-pos"
-            value={posNumber}
-            onChange={(event) => setPosNumber(event.target.value)}
-            placeholder="0001"
-            disabled
-          />
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-(--text-sm) text-(--color-muted)">
+          {branches.length === 0
+            ? 'Todavía no hay sedes cargadas.'
+            : `${activeCount} de ${branches.length} ${branches.length === 1 ? 'sede activa' : 'sedes activas'}.`}
+        </p>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/settings/branches">Gestionar sedes</Link>
+        </Button>
       </div>
-      <SaveButton />
-    </div>
-  );
-}
 
-function MobileAppTab() {
-  const [allowBookingFromApp, setAllowBookingFromApp] = React.useState(false);
-
-  return (
-    <div className="flex flex-col gap-4">
-      <Alert tone="info" title="Próximamente">
-        La app de socios llega después del MVP. Este ajuste queda preparado para cuando esté disponible.
-      </Alert>
-      <ToggleRow
-        id="mobile-app-booking"
-        label="Permitir reservas desde la app"
-        description="Los socios van a poder reservar turnos de actividades desde su celular."
-        checked={allowBookingFromApp}
-        onChange={setAllowBookingFromApp}
-      />
-      <SaveButton />
+      {query.isLoading ? (
+        <EmptyState title="Cargando sedes" description="Buscando las sedes del gimnasio..." />
+      ) : query.isError ? (
+        <ErrorState
+          title="No pudimos cargar las sedes"
+          description={errorMessage(query.error)}
+          onRetry={() => query.refetch()}
+        />
+      ) : branches.length === 0 ? (
+        <EmptyState
+          title="Sin sedes"
+          description="Creá la primera sede desde “Gestionar sedes”."
+        />
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {branches.map((branch) => (
+            <li
+              key={branch.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-surface) px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-(--color-text)">{branch.name}</p>
+                <p className="text-(--text-xs) text-(--color-muted)">
+                  {branch.timezone}
+                  {branch.address ? ` · ${branch.address}` : ''}
+                </p>
+              </div>
+              {branch.isActive ? (
+                <StatusBadge tone="success" label="Activa" />
+              ) : (
+                <StatusBadge tone="neutral" label="Inactiva" />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -274,54 +397,7 @@ function AccordionSection({
   );
 }
 
-function ToggleRow({
-  id,
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  description?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  const descriptionId = description ? `${id}-description` : undefined;
-  return (
-    <div className="flex items-start gap-3">
-      <Checkbox
-        id={id}
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        aria-describedby={descriptionId}
-      />
-      <div className="flex flex-col gap-0.5">
-        <label htmlFor={id} className="text-(--text-sm) font-medium text-(--color-text)">
-          {label}
-        </label>
-        {description ? (
-          <p id={descriptionId} className="text-(--text-xs) text-(--color-muted)">
-            {description}
-          </p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function SaveButton() {
-  const { toast } = useToast();
-  return (
-    <div className="flex justify-end">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => toast({ title: 'Demo: disponible con backend', tone: 'info' })}
-      >
-        Guardar cambios
-      </Button>
-    </div>
-  );
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiError) return error.detail ?? error.message;
+  return 'Ocurrió un error inesperado.';
 }

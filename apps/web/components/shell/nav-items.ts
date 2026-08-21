@@ -1,22 +1,5 @@
-import type { ComponentType } from 'react';
-import {
-  BarChart3,
-  Bot,
-  CalendarDays,
-  ClipboardList,
-  DoorOpen,
-  Dumbbell,
-  Gift,
-  LayoutDashboard,
-  Package,
-  Settings,
-  Users,
-  Wallet,
-} from 'lucide-react';
 import type { FeatureKey } from '@pulso/contracts/features';
 import type { Permission } from '@pulso/contracts/permissions';
-
-type NavIcon = ComponentType<{ className?: string; 'aria-hidden'?: boolean }>;
 
 export interface NavItem {
   href: string;
@@ -28,108 +11,145 @@ export interface NavItem {
   mock?: boolean;
 }
 
-export interface NavSection {
+export interface NavGroup {
   id: string;
   label: string;
-  icon: NavIcon;
-  /** Enlace directo (sin submenú). Excluyente con `children`. */
-  href?: string;
-  permission?: Permission;
-  feature?: FeatureKey;
-  mock?: boolean;
-  children?: readonly NavItem[];
+  items: readonly NavItem[];
 }
 
 /**
- * Navegación agrupada del sidebar. Cada sección es un enlace directo o un
- * grupo colapsable. El filtrado por permiso/feature elimina primero los hijos
- * y después las secciones que quedan vacías.
+ * Navegación del sidebar (LEODARROSAFIT_ALIGNMENT_PLAN.md §4): grupos
+ * planos, sin acordeón — todos los ítems visibles bajo su label, como la
+ * referencia. El filtrado por permiso/feature elimina primero los ítems y
+ * después los grupos que quedan vacíos.
+ *
+ * Sólo rutas con backend real (o alias de una ruta real). Los módulos
+ * puramente demo (rutinas, ejercicios, instructores, reservas, facturación
+ * ARCA, productos, puntos, WhatsApp real, AI, entrenamientos) NO están acá:
+ * sus páginas siguen existiendo para no dejar trabajo a medio hacer, pero se
+ * purgan del sidebar y del build recién en la Fase 3 del plan.
+ *
+ * "Nuevo plan" (`#/activities/new` en la referencia) no tiene ruta propia en
+ * Next todavía (no existe `/plans/new`) — se omite a propósito en vez de
+ * apuntar a una ruta muerta; queda pendiente para cuando exista la página.
+ *
+ * Dispositivos (`/settings/devices`) tiene página propia y queda en el nav
+ * aunque su backend real (gestión de agentes) llega en la Fase 4: por eso NO
+ * se marca `mock` (no es un módulo demo genérico, es una integración con
+ * fecha de llegada concreta).
  */
-export const NAV_SECTIONS: readonly NavSection[] = [
-  { id: 'dashboard', label: 'Inicio', icon: LayoutDashboard, href: '/dashboard' },
-  { id: 'access', label: 'Acceso', icon: DoorOpen, href: '/access', permission: 'access:operate' },
+export const NAV_GROUPS: readonly NavGroup[] = [
   {
-    id: 'members',
+    id: 'principal',
+    label: 'Principal',
+    items: [
+      { href: '/dashboard', label: 'Dashboard' },
+      { href: '/access', label: 'Acceso', permission: 'access:operate' },
+    ],
+  },
+  {
+    id: 'socios',
     label: 'Socios',
-    icon: Users,
-    children: [
-      { href: '/members', label: 'Listado de socios', permission: 'member:read' },
+    items: [
+      { href: '/members', label: 'Socios', permission: 'member:read' },
       { href: '/members/new', label: 'Nuevo socio', permission: 'member:write' },
       { href: '/members/attendance', label: 'Asistencias', permission: 'attendance:read' },
       { href: '/members/debt', label: 'Deudores', permission: 'member:read' },
-      { href: '/members/inactive', label: 'Baja de socios', permission: 'member:read' },
-      { href: '/workouts', label: 'Entrenamientos', permission: 'routine:read', mock: true },
+      { href: '/members/inactive', label: 'Baja e inactivos', permission: 'member:read' },
     ],
   },
   {
-    id: 'activities',
+    id: 'actividades',
     label: 'Actividades',
-    icon: Dumbbell,
-    children: [
+    items: [
       { href: '/plans', label: 'Planes', permission: 'plan:read' },
       { href: '/activities', label: 'Actividades', permission: 'plan:read' },
-      { href: '/activities/routines', label: 'Rutinas', permission: 'routine:read', mock: true },
-      { href: '/activities/routines/exercises', label: 'Ejercicios', permission: 'routine:read', mock: true },
     ],
   },
   {
-    id: 'instructors',
-    label: 'Instructores',
-    icon: ClipboardList,
-    children: [
-      { href: '/instructors', label: 'Listado', permission: 'instructor:read', mock: true },
-      { href: '/instructors/attendance', label: 'Asistencias', permission: 'instructor:attendance', mock: true },
-    ],
+    id: 'staff',
+    label: 'Staff',
+    items: [{ href: '/settings/users', label: 'Usuarios', permission: 'user:read' }],
   },
   {
-    id: 'schedule',
-    label: 'Reservas',
-    icon: CalendarDays,
-    children: [
-      { href: '/schedule', label: 'Cronograma', permission: 'reservation:read', mock: true },
-      { href: '/schedule/exceptions', label: 'Excepciones y feriados', permission: 'reservation:read', mock: true },
-      { href: '/schedule/reservations', label: 'Calendario', permission: 'reservation:read', mock: true },
-    ],
-  },
-  {
-    id: 'cash',
+    id: 'caja',
     label: 'Caja',
-    icon: Wallet,
-    children: [
-      { href: '/cash', label: 'Ver caja', permission: 'cash:read' },
+    items: [
+      { href: '/cash', label: 'Caja', permission: 'cash:read' },
       { href: '/cash/daybook', label: 'Libro diario', permission: 'cash:read' },
       { href: '/cash/concepts', label: 'Conceptos', permission: 'cash:read' },
       { href: '/cash/payment-methods', label: 'Métodos de pago', permission: 'cash:read' },
-      { href: '/cash/invoices', label: 'Factura electrónica', permission: 'billing:read', mock: true },
     ],
   },
-  { id: 'products', label: 'Productos', icon: Package, href: '/products', permission: 'product:read', mock: true },
   {
-    id: 'loyalty',
-    label: 'Puntos',
-    icon: Gift,
-    children: [
-      { href: '/loyalty/members', label: 'Por socios', permission: 'loyalty:read', mock: true },
-      { href: '/loyalty/history', label: 'Historial global', permission: 'loyalty:read', mock: true },
-      { href: '/loyalty/config', label: 'Configuración', permission: 'loyalty:config', mock: true },
-    ],
+    id: 'analisis',
+    label: 'Análisis',
+    items: [{ href: '/stats', label: 'Estadísticas', permission: 'stats:read', mock: true }],
   },
-  { id: 'stats', label: 'Estadísticas', icon: BarChart3, href: '/stats', permission: 'stats:read', mock: true },
-  { id: 'ai', label: 'Asistente', icon: Bot, href: '/ai', mock: true },
   {
-    id: 'settings',
-    label: 'Configuración',
-    icon: Settings,
-    children: [
-      { href: '/config', label: 'General', permission: 'config:read', mock: true },
+    id: 'sistema',
+    label: 'Sistema',
+    items: [
+      { href: '/config', label: 'Configuración', permission: 'config:read' },
       { href: '/settings/branches', label: 'Sedes', permission: 'config:read' },
-      { href: '/settings/users', label: 'Usuarios', permission: 'user:read' },
-      { href: '/settings/devices', label: 'Dispositivos', permission: 'device:manage', mock: true },
+      { href: '/settings/devices', label: 'Dispositivos', permission: 'device:manage' },
+      { href: '/account', label: 'Mi cuenta' },
     ],
   },
 ] as const;
 
 /** Aplana todas las entradas navegables (para calcular el estado activo). */
-export function flattenNavHrefs(sections: readonly NavSection[]): string[] {
-  return sections.flatMap((s) => (s.href ? [s.href] : (s.children ?? []).map((c) => c.href)));
+export function flattenNavHrefs(groups: readonly NavGroup[]): string[] {
+  return groups.flatMap((g) => g.items.map((item) => item.href));
+}
+
+/**
+ * Abreviatura de 1-2 letras para el sidebar colapsado y las iniciales del
+ * logo (LEODARROSAFIT_ALIGNMENT_PLAN.md §1: logo "LD" para "LeoDarrosaFIT").
+ * Mismo algoritmo que la referencia: toma las mayúsculas del texto; si no
+ * hay ninguna (todo en minúscula), cae a las dos primeras letras en mayúscula.
+ */
+export function computeAbbr(text: string): string {
+  const upper = text.replace(/[^A-ZÁÉÍÓÚÑ]/g, '');
+  return (upper || text.slice(0, 2).toUpperCase()).slice(0, 2);
+}
+
+/**
+ * Separa el nombre del gym en una parte base y una parte "acento" para el
+ * wordmark del sidebar (ver Sidebar.tsx `BrandMark`): si el nombre termina
+ * en una racha de 2+ mayúsculas (p. ej. "LeoDarrosaFIT" → "FIT") esa racha va
+ * en acento; si no, la última palabra separada por espacio.
+ */
+export function splitBrandWordmark(name: string): { base: string; accent: string } {
+  const trimmed = name.trim();
+  const upperTail = /^(.*?)([A-ZÁÉÍÓÚÑ]{2,})$/.exec(trimmed);
+  const base = upperTail?.[1];
+  const accent = upperTail?.[2];
+  if (base && base.length > 0 && accent) {
+    return { base, accent };
+  }
+  const parts = trimmed.split(/\s+/);
+  if (parts.length > 1) {
+    const accent = parts.pop() as string;
+    return { base: `${parts.join(' ')} `, accent };
+  }
+  return { base: '', accent: trimmed };
+}
+
+/**
+ * Título de página para el header (LEODARROSAFIT_ALIGNMENT_PLAN.md §2): el
+ * label del ítem de nav cuyo href matchea más largo contra el pathname
+ * actual, misma regla de "match más largo gana" que el estado activo del
+ * sidebar.
+ */
+export function findPageTitle(pathname: string, groups: readonly NavGroup[] = NAV_GROUPS): string | undefined {
+  let best: NavItem | undefined;
+  for (const group of groups) {
+    for (const item of group.items) {
+      if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+        if (!best || item.href.length > best.href.length) best = item;
+      }
+    }
+  }
+  return best?.label;
 }

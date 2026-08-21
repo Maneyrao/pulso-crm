@@ -1,25 +1,94 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@pulso/ui';
 import type { ReactNode } from 'react';
+import type { Branch, Gym } from '@pulso/contracts/tenancy';
 
 /**
- * Configuración general (demo, sin backend). Cubre gate de permiso, tabs,
- * acordeones (Caja / Control de acceso / Sede / Parámetros) y el toast de
- * "Guardar cambios" en cada tab.
+ * Configuración (`GET/PATCH /gym`, `GET /branches`). Sólo dos tabs con datos
+ * reales: "Gimnasio" (editable con `config:write`) y "Sedes" (listado con
+ * link a `/settings/branches`, sin CRUD duplicado acá).
  */
 
-function withToast(children: ReactNode): ReactNode {
-  return <ToastProvider>{children}</ToastProvider>;
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/config',
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock('next/link', () => ({
+  default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+const getGymMock = vi.fn();
+const updateGymMock = vi.fn();
+const listBranchesMock = vi.fn();
+vi.mock('@/lib/api/tenancy', () => ({
+  getGym: (...args: unknown[]) => getGymMock(...args),
+  updateGym: (...args: unknown[]) => updateGymMock(...args),
+  listBranches: (...args: unknown[]) => listBranchesMock(...args),
+  createBranch: vi.fn(),
+  updateBranch: vi.fn(),
+  deactivateBranch: vi.fn(),
+}));
+
+function withProviders(children: ReactNode): ReactNode {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return (
+    <QueryClientProvider client={qc}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
+  );
+}
+
+function makeGym(overrides: Partial<Gym> = {}): Gym {
+  return {
+    id: 'g1',
+    slug: 'demo',
+    name: 'Gimnasio Demo',
+    legalName: null,
+    taxId: null,
+    country: 'AR',
+    currency: 'ARS',
+    locale: 'es-AR',
+    status: 'ACTIVE',
+    suspendedAt: null,
+    suspendedReason: null,
+    saasPlanId: '00000000-0000-0000-0000-0000000000f1',
+    logoKey: null,
+    primaryColor: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function makeBranch(overrides: Partial<Branch> = {}): Branch {
+  return {
+    id: 'b1',
+    gymId: 'g1',
+    name: 'Sede Centro',
+    timezone: 'America/Argentina/Buenos_Aires',
+    address: null,
+    phone: null,
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
 }
 
 async function primeSession(permissions: string[] = ['config:read']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
-    gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
-    branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
+    user: { id: 'u1', firstName: 'Ana', lastName: 'T', email: 'a@t.com' },
+    gym: { id: 'g1', slug: 'demo', name: 'Gimnasio Demo', currency: 'ARS', features: [] },
+    branches: [{ id: 'b1', name: 'Sede Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
     permissions,
     status: 'authenticated',
@@ -27,6 +96,9 @@ async function primeSession(permissions: string[] = ['config:read']): Promise<vo
 }
 
 beforeEach(async () => {
+  getGymMock.mockReset();
+  updateGymMock.mockReset();
+  listBranchesMock.mockReset();
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: null,
@@ -39,106 +111,80 @@ beforeEach(async () => {
 });
 
 describe('ConfigPage', () => {
-  it('sin permiso config:read muestra el mensaje de sin acceso', async () => {
+  it('sin permiso config:read muestra el fallback de sin acceso', async () => {
     await primeSession([]);
+
     const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
-    expect(screen.getByText('Sin acceso')).toBeInTheDocument();
+    render(withProviders(<ConfigPage />));
+
+    expect(screen.getByText(/Sin acceso/i)).toBeInTheDocument();
   });
 
-  it('con permiso muestra las tres tabs y la sección "Caja" abierta por defecto', async () => {
-    await primeSession();
+  it('tab Gimnasio: pinta los datos reales de GET /gym sin secciones demo', async () => {
+    await primeSession(['config:read']);
+    getGymMock.mockResolvedValue(makeGym());
+    listBranchesMock.mockResolvedValue({ data: [makeBranch()] });
+
     const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
+    render(withProviders(<ConfigPage />));
 
-    expect(screen.getByRole('tab', { name: 'Gimnasio' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Facturación electrónica' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'App móvil' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Configuración' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByDisplayValue('Gimnasio Demo')).toBeInTheDocument());
+    expect(screen.getByDisplayValue('AR')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('ARS')).toBeInTheDocument();
 
-    expect(screen.getByLabelText('Permitir operar caja a no cajeros')).toBeVisible();
+    // Sin los tabs demo que no persisten (facturación, app móvil, control de acceso).
+    expect(screen.queryByRole('tab', { name: /Facturación/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: /App móvil/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Control de acceso/i)).not.toBeInTheDocument();
   });
 
-  it('abrir el acordeón "Control de acceso" muestra sus tres toggles y togglear cambia el estado', async () => {
-    await primeSession();
+  it('sin config:write: los campos están deshabilitados y no hay botón "Guardar cambios"', async () => {
+    await primeSession(['config:read']);
+    getGymMock.mockResolvedValue(makeGym());
+    listBranchesMock.mockResolvedValue({ data: [] });
+
     const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
+    render(withProviders(<ConfigPage />));
 
-    fireEvent.click(screen.getByText('Control de acceso'));
-
-    const blockOnDebt = screen.getByLabelText('Bloquear ingreso con deuda');
-    const duplicateWindow = screen.getByLabelText('Ventana de duplicados');
-    const sounds = screen.getByLabelText('Sonidos');
-
-    expect(blockOnDebt).toBeChecked();
-    expect(duplicateWindow).toBeChecked();
-    expect(sounds).toBeChecked();
-
-    fireEvent.click(sounds);
-    expect(sounds).not.toBeChecked();
+    await waitFor(() => expect(screen.getByDisplayValue('Gimnasio Demo')).toBeInTheDocument());
+    expect(screen.getByDisplayValue('Gimnasio Demo')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /Guardar cambios/i })).not.toBeInTheDocument();
   });
 
-  it('la sección "Sede" permite editar nombre visible y zona horaria', async () => {
-    const user = userEvent.setup();
-    await primeSession();
+  it('con config:write: edita el nombre y envía PATCH /gym con los campos reales', async () => {
+    await primeSession(['config:read', 'config:write']);
+    getGymMock.mockResolvedValue(makeGym());
+    listBranchesMock.mockResolvedValue({ data: [] });
+    updateGymMock.mockResolvedValueOnce(makeGym({ name: 'Gimnasio Actualizado' }));
+
     const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
+    render(withProviders(<ConfigPage />));
 
-    fireEvent.click(screen.getByText('Sede'));
+    const nameInput = await screen.findByDisplayValue('Gimnasio Demo');
+    fireEvent.change(nameInput, { target: { value: 'Gimnasio Actualizado' } });
+    fireEvent.click(screen.getByRole('button', { name: /Guardar cambios/i }));
 
-    const nameInput = screen.getByLabelText('Nombre visible') as HTMLInputElement;
-    fireEvent.change(nameInput, { target: { value: 'Sede Norte' } });
-    expect(nameInput).toHaveValue('Sede Norte');
-
-    await user.click(screen.getByLabelText('Zona horaria'));
-    await user.click(screen.getByRole('option', { name: 'Córdoba (GMT-3)' }));
-    expect(screen.getByLabelText('Zona horaria')).toHaveTextContent('Córdoba (GMT-3)');
+    await waitFor(() => expect(updateGymMock).toHaveBeenCalledTimes(1));
+    const [payload] = updateGymMock.mock.calls[0] as [Record<string, unknown>];
+    expect(payload).toMatchObject({ name: 'Gimnasio Actualizado', country: 'AR', currency: 'ARS' });
   });
 
-  it('la sección "Parámetros" tiene capacidad máxima y días de gracia', async () => {
-    await primeSession();
+  it('tab Sedes: lista las sedes reales de GET /branches con link a /settings/branches', async () => {
+    await primeSession(['config:read']);
+    getGymMock.mockResolvedValue(makeGym());
+    listBranchesMock.mockResolvedValue({ data: [makeBranch(), makeBranch({ id: 'b2', name: 'Sede Norte', isActive: false })] });
+
     const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
+    render(withProviders(<ConfigPage />));
 
-    fireEvent.click(screen.getByText('Parámetros'));
+    // Radix Tabs activa con eventos de pointer reales: fireEvent.click no cambia de tab en jsdom.
+    const user = (await import('@testing-library/user-event')).default.setup();
+    await user.click(screen.getByRole('tab', { name: 'Sedes' }));
 
-    expect(screen.getByLabelText('Capacidad máxima de socios')).toHaveValue(150);
-    expect(screen.getByLabelText('Días de gracia')).toHaveValue(3);
-  });
-
-  it('guardar cambios en Gimnasio muestra el toast de demo', async () => {
-    await primeSession();
-    const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Guardar cambios' })[0]!);
-    expect(await screen.findByText('Demo: disponible con backend')).toBeInTheDocument();
-  });
-
-  it('la tab "Facturación electrónica" muestra el alert de ARCA y campos deshabilitados', async () => {
-    const user = userEvent.setup();
-    await primeSession();
-    const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
-
-    await user.click(screen.getByRole('tab', { name: 'Facturación electrónica' }));
-
-    expect(screen.getByText('Integración ARCA en etapa posterior')).toBeInTheDocument();
-    expect(screen.getByLabelText('CUIT')).toBeDisabled();
-    expect(screen.getByLabelText('Punto de venta')).toBeDisabled();
-  });
-
-  it('la tab "App móvil" muestra el alert de próximamente y el toggle de reservas', async () => {
-    const user = userEvent.setup();
-    await primeSession();
-    const { default: ConfigPage } = await import('./page');
-    render(withToast(<ConfigPage />));
-
-    await user.click(screen.getByRole('tab', { name: 'App móvil' }));
-
-    expect(screen.getByText('La app de socios llega después del MVP.', { exact: false })).toBeInTheDocument();
-    const bookingToggle = screen.getByLabelText('Permitir reservas desde la app');
-    expect(bookingToggle).not.toBeChecked();
-    fireEvent.click(bookingToggle);
-    expect(bookingToggle).toBeChecked();
+    await waitFor(() => expect(screen.getByText('Sede Centro')).toBeInTheDocument());
+    expect(screen.getByText('Sede Norte')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: /Gestionar sedes/i });
+    expect(link).toHaveAttribute('href', '/settings/branches');
   });
 });

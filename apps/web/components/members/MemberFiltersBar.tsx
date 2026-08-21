@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Checkbox, Input, Select } from '@pulso/ui';
+import { Input } from '@pulso/ui';
+import { SegmentControl } from '@/components/shared/SegmentControl';
 import type { MemberFiltersState } from '@/lib/hooks/useMemberFilters';
 
 export interface MemberFiltersBarProps {
@@ -9,18 +10,41 @@ export interface MemberFiltersBarProps {
   onChange: (patch: Partial<MemberFiltersState>) => void;
 }
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'Todos los estados' },
-  { value: 'ACTIVE', label: 'Activo' },
-  { value: 'INACTIVE', label: 'Inactivo' },
+type Segment = 'all' | 'active' | 'debt' | 'expired';
+
+const SEGMENT_OPTIONS: Array<{ value: Segment; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'active', label: 'Activos' },
+  { value: 'debt', label: 'En deuda' },
+  { value: 'expired', label: 'Vencidos' },
 ];
 
-const MEMBERSHIP_OPTIONS = [
-  { value: '', label: 'Cualquier membresía' },
-  { value: 'ACTIVE', label: 'Con membresía activa' },
-  { value: 'EXPIRED', label: 'Membresía vencida' },
-  { value: 'NONE', label: 'Sin membresía' },
-];
+/**
+ * Segmento activo derivado de los tres query params reales de `GET /members`
+ * (status/membershipStatus/hasDebt). Son mutuamente excluyentes en esta UI —
+ * elegir un segmento limpia los otros dos — igual que el filtro `fl` de la
+ * referencia LeoDarrosaFIT.
+ */
+function segmentFromFilters(filters: MemberFiltersState): Segment {
+  if (filters.hasDebt) return 'debt';
+  if (filters.membershipStatus === 'EXPIRED') return 'expired';
+  if (filters.status === 'ACTIVE') return 'active';
+  return 'all';
+}
+
+function patchForSegment(segment: Segment): Partial<MemberFiltersState> {
+  switch (segment) {
+    case 'active':
+      return { status: 'ACTIVE', membershipStatus: '', hasDebt: false };
+    case 'debt':
+      return { status: '', membershipStatus: '', hasDebt: true };
+    case 'expired':
+      return { status: '', membershipStatus: 'EXPIRED', hasDebt: false };
+    case 'all':
+    default:
+      return { status: '', membershipStatus: '', hasDebt: false };
+  }
+}
 
 /** Búsqueda con debounce de 300 ms y mínimo 2 caracteres (API_CONTRACTS §searchQuerySchema). */
 export function MemberFiltersBar({ filters, onChange }: MemberFiltersBarProps) {
@@ -54,39 +78,12 @@ export function MemberFiltersBar({ filters, onChange }: MemberFiltersBarProps) {
         />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="member-status" className="text-(--text-sm) font-medium text-(--color-text)">
-          Estado
-        </label>
-        <Select
-          id="member-status"
-          value={filters.status || undefined}
-          onValueChange={(value) => onChange({ status: value })}
-          options={STATUS_OPTIONS}
-          placeholder="Todos los estados"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="member-membership" className="text-(--text-sm) font-medium text-(--color-text)">
-          Membresía
-        </label>
-        <Select
-          id="member-membership"
-          value={filters.membershipStatus || undefined}
-          onValueChange={(value) => onChange({ membershipStatus: value })}
-          options={MEMBERSHIP_OPTIONS}
-          placeholder="Cualquier membresía"
-        />
-      </div>
-
-      <label className="flex items-center gap-2 pb-2 text-(--text-sm) text-(--color-text)">
-        <Checkbox
-          checked={filters.hasDebt}
-          onChange={(e) => onChange({ hasDebt: e.target.checked })}
-        />
-        Con deuda
-      </label>
+      <SegmentControl
+        aria-label="Filtrar socios por estado"
+        options={SEGMENT_OPTIONS}
+        value={segmentFromFilters(filters)}
+        onChange={(segment) => onChange(patchForSegment(segment))}
+      />
     </div>
   );
 }

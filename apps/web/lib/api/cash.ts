@@ -1,10 +1,13 @@
 import type {
+  CashConcept,
   CashRegister,
   CashSession,
   CloseCashSessionRequest,
   CloseCashSessionResponse,
+  CreateCashConceptRequest,
   CreateCashMovementRequest,
   CreateCashMovementResponse,
+  CreatePaymentMethodRequest,
   DaybookQuery,
   DaybookResponse,
   ListCashMovementsQuery,
@@ -16,8 +19,11 @@ import type {
   ListCashConceptsResponse,
   OpenCashSessionRequest,
   OpenCashSessionResponse,
+  PaymentMethod,
   ReverseCashMovementRequest,
   ReverseCashMovementResponse,
+  UpdateCashConceptRequest,
+  UpdatePaymentMethodRequest,
 } from '@pulso/contracts/cash';
 import { apiFetch, toQueryString } from './client.js';
 
@@ -108,8 +114,27 @@ export function listPaymentMethods(): Promise<ListPaymentMethodsResponse> {
   return apiFetch<ListPaymentMethodsResponse>('/cash/payment-methods');
 }
 
+export function createPaymentMethod(payload: CreatePaymentMethodRequest): Promise<PaymentMethod> {
+  return apiFetch<PaymentMethod>('/cash/payment-methods', { method: 'POST', body: payload });
+}
+
+export function updatePaymentMethod(
+  id: string,
+  payload: UpdatePaymentMethodRequest,
+): Promise<PaymentMethod> {
+  return apiFetch<PaymentMethod>(`/cash/payment-methods/${id}`, { method: 'PATCH', body: payload });
+}
+
 export function listCashConcepts(): Promise<ListCashConceptsResponse> {
   return apiFetch<ListCashConceptsResponse>('/cash/concepts');
+}
+
+export function createCashConcept(payload: CreateCashConceptRequest): Promise<CashConcept> {
+  return apiFetch<CashConcept>('/cash/concepts', { method: 'POST', body: payload });
+}
+
+export function updateCashConcept(id: string, payload: UpdateCashConceptRequest): Promise<CashConcept> {
+  return apiFetch<CashConcept>(`/cash/concepts/${id}`, { method: 'PATCH', body: payload });
 }
 
 /**

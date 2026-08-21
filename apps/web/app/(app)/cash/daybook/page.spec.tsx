@@ -203,6 +203,23 @@ describe('DaybookPage', () => {
     // Formato es-AR de miles: "2.000,00" y "500,00".
     expect(inSection.getAllByText(/2\.000,00/).length).toBeGreaterThan(0);
     expect(inSection.getAllByText(/500,00/).length).toBeGreaterThan(0);
+
+    // Subtítulo con el saldo del período (2.000 ingreso - 500 egreso = 1.500).
+    // El subtítulo trae rango + saldo en un solo nodo; "1.500,00" también aparece como
+    // total neto del día en el pie de la tabla, así que se asserta sobre el subtítulo.
+    await waitFor(() => expect(screen.getByText(/saldo/i)).toBeInTheDocument());
+    expect(screen.getByText(/saldo/i)).toHaveTextContent('1.500,00');
+  });
+
+  it('atajos de mes: "Mes actual" y "Mes anterior" están disponibles', async () => {
+    await primeSession();
+    getDaybookMock.mockResolvedValue(makeDaybook());
+
+    const { default: DaybookPage } = await import('./page');
+    render(withProviders(<DaybookPage />));
+
+    expect(screen.getByRole('button', { name: /Mes actual/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Mes anterior/i })).toBeInTheDocument();
   });
 
   it('cambio de rango: dispara una segunda query con los nuevos from/to', async () => {
@@ -212,21 +229,28 @@ describe('DaybookPage', () => {
     const { default: DaybookPage } = await import('./page');
     render(withProviders(<DaybookPage />));
 
+    // Default: desde el primer día del mes actual hasta hoy.
+    const today = new Date();
+    const expectedFrom = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+    const expectedTo = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
     await waitFor(() => expect(getDaybookMock).toHaveBeenCalled());
     const firstCall = getDaybookMock.mock.calls[0]?.[0] as { from: string; to: string };
-    expect(firstCall.from).toBe(firstCall.to);
+    expect(firstCall.from).toBe(expectedFrom);
+    expect(firstCall.to).toBe(expectedTo);
 
-    // Cambiar "Desde" a un día anterior fuerza un rekey de la query.
+    // Cambiar "Desde" a un día anterior fuerza un rekey de la query. La fecha fija tiene que
+    // ser distinta del default (primer día del mes actual) en cualquier mes en que corra el test.
     const fromInput = screen.getByLabelText(/Desde/i);
-    fireEvent.change(fromInput, { target: { value: '2026-08-01' } });
+    fireEvent.change(fromInput, { target: { value: '2020-01-15' } });
 
     await waitFor(() => expect(getDaybookMock.mock.calls.length).toBeGreaterThan(1));
     const lastCall = getDaybookMock.mock.calls[getDaybookMock.mock.calls.length - 1]?.[0] as {
       from: string;
       to: string;
     };
-    expect(lastCall.from).toBe('2026-08-01');
+    expect(lastCall.from).toBe('2020-01-15');
     // `to` sigue siendo el default (hoy).
-    expect(lastCall.to).toBe(firstCall.to);
+    expect(lastCall.to).toBe(expectedTo);
   });
 });

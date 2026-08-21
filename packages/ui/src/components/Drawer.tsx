@@ -24,14 +24,14 @@ export function Drawer({ open, onOpenChange, title, hideTitle, side = 'left', ch
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 data-[state=open]:animate-(--animate-fade-in)" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-(--animate-fade-in)" />
         <DialogPrimitive.Content
           className={cn(
             'fixed inset-y-0 z-50 flex w-72 max-w-[85vw] flex-col bg-(--color-surface) shadow-(--shadow-lg) outline-none',
             'transition-transform duration-200 motion-reduce:transition-none',
             side === 'left'
-              ? 'left-0 border-r border-(--color-border) data-[state=closed]:-translate-x-full data-[state=open]:translate-x-0'
-              : 'right-0 border-l border-(--color-border) data-[state=closed]:translate-x-full data-[state=open]:translate-x-0',
+              ? 'left-0 border-r-2 border-(--color-border) data-[state=closed]:-translate-x-full data-[state=open]:translate-x-0'
+              : 'right-0 border-l-2 border-(--color-border) data-[state=closed]:translate-x-full data-[state=open]:translate-x-0',
             className,
           )}
         >

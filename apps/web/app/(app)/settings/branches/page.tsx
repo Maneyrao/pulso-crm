@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Building2 } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Branch, CreateBranchRequest, UpdateBranchRequest } from '@pulso/contracts/tenancy';
 import {
@@ -15,6 +16,7 @@ import {
   useToast,
   type DataTableColumn,
 } from '@pulso/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { createBranch, deactivateBranch, listBranches, updateBranch } from '@/lib/api/tenancy';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
@@ -212,15 +214,16 @@ function BranchesScreen() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-(--text-2xl) font-semibold text-(--color-text)">Sedes</h1>
-          <p className="text-(--text-sm) text-(--color-muted)">Sedes del gimnasio y su configuración básica.</p>
-        </div>
-        <PermissionGate permission="config:write">
-          <Button onClick={openCreate}>Nueva sede</Button>
-        </PermissionGate>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title="Sedes"
+        description="Sedes del gimnasio y su configuración básica."
+        actions={
+          <PermissionGate permission="config:write">
+            <Button onClick={openCreate}>Nueva sede</Button>
+          </PermissionGate>
+        }
+      />
 
       <DataTable
         caption="Sedes del gimnasio"

@@ -1,108 +1,118 @@
 /**
  * Tokens de diseño — Pulso CRM.
  *
- * Identidad propia, no derivada del producto auditado (ControlFit: Material UI,
- * tema oscuro, acento azul). Acá el acento es violeta ("Pulso Violeta"): tiene
- * carácter y energía sin caer en el rojo/naranja típico de marca fitness (que
- * ya está reservado para "peligro" en el sistema) ni en el azul de Material.
- * Tema claro por defecto — mostrador de recepción con luz ambiente alta — con
- * `.dark` disponible para el resto de los turnos.
+ * Portados 1:1 desde la referencia visual `LeoDarrosaFIT.html` (ver
+ * docs/LEODARROSAFIT_ALIGNMENT_PLAN.md §1). Sistema dark-first, brutalista:
+ * bordes rectos (radio 0 en todo), bordes gruesos (2px), acento ámbar en
+ * oscuro / rojo-anaranjado en claro. El tema oscuro es el default de marca;
+ * `.light` (aplicado en <html>, ver apps/web/app/layout.tsx y
+ * components/shell/ThemeToggle.tsx) sobreescribe al tema claro.
  *
- * Todos los pares texto/fondo listados cumplen WCAG AA (4.5:1) para texto
- * normal; los tokens `access-*` (usados en el resultado de /access) están
- * reforzados para acercarse a AAA, porque ese banner se lee a distancia y
- * nunca puede depender sólo del color (ver StatusBadge).
+ * Los NOMBRES de los tokens se mantienen idénticos a la versión anterior
+ * (violeta, light-first) para no romper ninguna página existente: sólo
+ * cambian los valores. Todos los pares texto/fondo listados abajo cumplen
+ * WCAG AA (4.5:1) para texto normal, salvo donde se documenta lo contrario;
+ * los tokens `access-*` (usados en el resultado de /access) están reforzados
+ * porque ese banner se lee a distancia y nunca puede depender sólo del color
+ * (ver StatusBadge).
  */
 
 @theme {
-  /* ---- Motion operacional (ver CONTROLFIT_PARITY_AUDIT §4) ---- */
-  --animate-fade-in: pulso-fade-in 160ms ease-out;
-  --animate-page-in: pulso-page-in 160ms ease-out;
-  --animate-shimmer: pulso-shimmer 1.4s ease-in-out infinite;
+  /* ---- Motion operacional (nombres lf* de la referencia) ---- */
+  --animate-fade-in: lfFadeIn 200ms ease-out;
+  --animate-page-in: lfFadeIn 250ms ease-out;
+  --animate-shimmer: lfShimmer 1.1s linear infinite;
+  --animate-lf-scale-in: lfScaleIn 200ms ease-out;
+  --animate-lf-pulse: lfPulse 2.4s ease-in-out infinite;
 
-  @keyframes pulso-fade-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  @keyframes lfShimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
   }
-  @keyframes pulso-page-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
+  @keyframes lfFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
   }
-  @keyframes pulso-shimmer {
-    0% { background-position: 150% 0; }
-    100% { background-position: -50% 0; }
+  @keyframes lfScaleIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+  }
+  @keyframes lfPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
   }
 
-  /* ---- Color: base neutra ---- */
-  --color-bg: #fafafa;
-  --color-surface: #ffffff;
-  --color-surface-foreground: #18181b;
-  --color-border: #e4e4e9;
-  --color-border-strong: #c9c9d2;
-  --color-text: #18181b;
-  --color-text-foreground: #ffffff;
-  --color-muted: #6b6b76;
-  --color-muted-foreground: #ffffff;
-  --color-muted-subtle: #f1f1f4;
-  --color-muted-subtle-foreground: #3f3f46;
+  /* ---- Color: base neutra (dark, default de marca) ---- */
+  --color-bg: #151312;
+  --color-surface: #1a1817;
+  --color-surface-foreground: #ece9e6;
+  --color-border: #2e2b29;
+  --color-border-strong: #3a3633;
+  --color-text: #ece9e6;
+  --color-text-foreground: #151312;
+  --color-muted: #9a938c;
+  --color-muted-foreground: #151312;
+  --color-muted-subtle: #242120;
+  --color-muted-subtle-foreground: #c9c3bd;
 
-  /* ---- Color: acento primario (Pulso Violeta) ---- */
-  --color-primary: #6d28d9;
-  --color-primary-foreground: #ffffff;
-  --color-primary-subtle: #f2ebfe;
-  --color-primary-subtle-foreground: #4c1d95;
-  --color-primary-hover: #5b21b6;
-  --color-primary-active: #4c1d95;
+  /* ---- Color: acento primario (ámbar en oscuro) ---- */
+  --color-primary: #f0a028;
+  --color-primary-foreground: #151312;
+  --color-primary-subtle: rgba(240, 160, 40, 0.12);
+  --color-primary-subtle-foreground: #f6bb55;
+  --color-primary-hover: #f6bb55;
+  --color-primary-active: #d98f1f;
 
   /* ---- Color: estados semánticos ---- */
-  --color-success: #15803d;
-  --color-success-foreground: #ffffff;
-  --color-success-subtle: #e7f6ec;
-  --color-success-subtle-foreground: #14532d;
+  --color-success: #5fbf77;
+  --color-success-foreground: #0b2812;
+  --color-success-subtle: rgba(95, 191, 119, 0.12);
+  --color-success-subtle-foreground: #7ed996;
 
-  --color-warning: #92400e;
-  --color-warning-foreground: #ffffff;
-  --color-warning-subtle: #fdf0dc;
-  --color-warning-subtle-foreground: #78350f;
+  /* Warning reutiliza el acento ámbar, igual que la referencia (tag "warn"). */
+  --color-warning: #f0a028;
+  --color-warning-foreground: #151312;
+  --color-warning-subtle: rgba(240, 160, 40, 0.12);
+  --color-warning-subtle-foreground: #f6bb55;
 
-  --color-danger: #b91c1c;
-  --color-danger-foreground: #ffffff;
-  --color-danger-subtle: #fde8e8;
-  --color-danger-subtle-foreground: #7f1d1d;
+  --color-danger: #d43b29;
+  --color-danger-foreground: #fdf0ee;
+  --color-danger-subtle: rgba(212, 59, 41, 0.14);
+  --color-danger-subtle-foreground: #ec6a58;
 
-  --color-info: #0e7490;
-  --color-info-foreground: #ffffff;
-  --color-info-subtle: #e0f5f9;
-  --color-info-subtle-foreground: #164e63;
+  --color-info: #7fa8d9;
+  --color-info-foreground: #0d1f33;
+  --color-info-subtle: rgba(127, 168, 217, 0.14);
+  --color-info-subtle-foreground: #a9c6ea;
 
   /* ---- Color: control de acceso — contraste reforzado ----
    * Se usan en el banner grande de /access (ALLOWED/DENIED). Nunca solas:
    * siempre acompañadas de texto + ícono (ver StatusBadge, AccessResultCard). */
-  --color-access-allowed: #0f6b30;
-  --color-access-allowed-foreground: #ffffff;
-  --color-access-allowed-subtle: #dcf3e3;
-  --color-access-allowed-subtle-foreground: #0a4a20;
+  --color-access-allowed: #5fbf77;
+  --color-access-allowed-foreground: #0b2812;
+  --color-access-allowed-subtle: rgba(95, 191, 119, 0.16);
+  --color-access-allowed-subtle-foreground: #7ed996;
 
-  --color-access-denied: #a01515;
-  --color-access-denied-foreground: #ffffff;
-  --color-access-denied-subtle: #fadada;
-  --color-access-denied-subtle-foreground: #6b0f0f;
+  --color-access-denied: #ec3013;
+  --color-access-denied-foreground: #2a0d06;
+  --color-access-denied-subtle: rgba(236, 48, 19, 0.16);
+  --color-access-denied-subtle-foreground: #ff7a5c;
 
-  /* ---- Radios ---- */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-full: 999px;
+  /* ---- Radios: 0 en todo (bordes rectos, sin rounding) ---- */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-full: 0px;
 
-  /* ---- Sombras (elevación sutil, sin dramatismo) ---- */
-  --shadow-sm: 0 1px 2px 0 rgb(24 24 27 / 0.05);
-  --shadow-md: 0 2px 8px -2px rgb(24 24 27 / 0.1), 0 1px 2px -1px rgb(24 24 27 / 0.06);
-  --shadow-lg: 0 8px 24px -4px rgb(24 24 27 / 0.14), 0 2px 6px -2px rgb(24 24 27 / 0.08);
+  /* ---- Sombras (dark: ambiente negro, ver override en .light) ---- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
 
-  /* ---- Tipografía ---- */
-  --font-sans:
-    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* ---- Tipografía: Archivo (next/font/google, ver apps/web/app/layout.tsx) ---- */
+  --font-sans: var(--font-archivo), system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-heading-weight: 800;
 
   --text-xs: 0.75rem;
   --text-sm: 0.8125rem;
@@ -125,61 +135,64 @@
   --focus-ring-offset: 2px;
 }
 
-/* Tema oscuro: mismos tokens, valores propios. Se activa con la clase `.dark`
- * en un ancestro (normalmente <html>), controlada por preferencia del usuario. */
-.dark {
-  --color-bg: #121116;
-  --color-surface: #1b1a21;
-  --color-surface-foreground: #f4f4f6;
-  --color-border: #313039;
-  --color-border-strong: #45434f;
-  --color-text: #f4f4f6;
-  --color-text-foreground: #18181b;
-  --color-muted: #a8a6b3;
-  --color-muted-foreground: #18181b;
-  --color-muted-subtle: #242229;
-  --color-muted-subtle-foreground: #d4d2db;
+/* Tema claro: mismos tokens, valores propios. Se activa con la clase `.light`
+ * en un ancestro (normalmente <html>); sin esa clase el default es oscuro
+ * (marca dark-first, ver ThemeToggle.tsx / THEME_BOOTSTRAP en layout.tsx). */
+.light {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-surface-foreground: #201e1d;
+  --color-border: #d7d3d3;
+  --color-border-strong: #bab6b6;
+  --color-text: #201e1d;
+  --color-text-foreground: #f3f2f2;
+  --color-muted: #605d5d;
+  --color-muted-foreground: #f8f4f4;
+  --color-muted-subtle: #eae7e7;
+  --color-muted-subtle-foreground: #444141;
 
-  --color-primary: #a78bfa;
-  --color-primary-foreground: #1e1033;
-  --color-primary-subtle: #2c2140;
-  --color-primary-subtle-foreground: #e4d9fe;
-  --color-primary-hover: #bda6fb;
-  --color-primary-active: #c9b6fc;
+  --color-primary: #ec3013;
+  --color-primary-foreground: #fdf5f3;
+  --color-primary-subtle: #fff2ef;
+  --color-primary-subtle-foreground: #7c1405;
+  --color-primary-hover: #dd2b0f;
+  --color-primary-active: #ae1800;
 
-  --color-success: #4ade80;
-  --color-success-foreground: #0a2b16;
-  --color-success-subtle: #163524;
-  --color-success-subtle-foreground: #b7f0cc;
+  --color-success: #1f7a3d;
+  --color-success-foreground: #ffffff;
+  --color-success-subtle: #e3f5e8;
+  --color-success-subtle-foreground: #145c2c;
 
-  --color-warning: #fbbf24;
-  --color-warning-foreground: #3a2504;
-  --color-warning-subtle: #3a2c10;
-  --color-warning-subtle-foreground: #fde4b0;
+  --color-warning: #9a5b00;
+  --color-warning-foreground: #ffffff;
+  --color-warning-subtle: #fbeed7;
+  --color-warning-subtle-foreground: #7a4600;
 
-  --color-danger: #f87171;
-  --color-danger-foreground: #3a0d0d;
-  --color-danger-subtle: #3a1717;
-  --color-danger-subtle-foreground: #fecaca;
+  /* El danger reutiliza el acento, igual que la referencia ("clasico" es un
+   * único acento rojo-anaranjado para marca y negativos). */
+  --color-danger: #ec3013;
+  --color-danger-foreground: #fdf5f3;
+  --color-danger-subtle: #fff2ef;
+  --color-danger-subtle-foreground: #7c1405;
 
-  --color-info: #22d3ee;
-  --color-info-foreground: #062730;
-  --color-info-subtle: #123138;
-  --color-info-subtle-foreground: #a5e9f5;
+  --color-info: #2b6cb0;
+  --color-info-foreground: #ffffff;
+  --color-info-subtle: #e8f1fb;
+  --color-info-subtle-foreground: #1a4a7a;
 
-  --color-access-allowed: #34d399;
-  --color-access-allowed-foreground: #062017;
-  --color-access-allowed-subtle: #103524;
-  --color-access-allowed-subtle-foreground: #b7f0d5;
+  --color-access-allowed: #1f7a3d;
+  --color-access-allowed-foreground: #ffffff;
+  --color-access-allowed-subtle: #e3f5e8;
+  --color-access-allowed-subtle-foreground: #145c2c;
 
-  --color-access-denied: #fb7185;
-  --color-access-denied-foreground: #2c0a10;
-  --color-access-denied-subtle: #3a1620;
-  --color-access-denied-subtle-foreground: #fecdd6;
+  --color-access-denied: #ec3013;
+  --color-access-denied-foreground: #fdf5f3;
+  --color-access-denied-subtle: #fff2ef;
+  --color-access-denied-subtle-foreground: #7c1405;
 
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
-  --shadow-md: 0 2px 8px -2px rgb(0 0 0 / 0.45), 0 1px 2px -1px rgb(0 0 0 / 0.3);
-  --shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.35);
+  --shadow-sm: 0 1px 2px rgba(45, 43, 43, 0.14);
+  --shadow-md: 0 3px 10px rgba(45, 43, 43, 0.16);
+  --shadow-lg: 0 12px 32px rgba(45, 43, 43, 0.22);
 }
 
 /* Foco visible global: nunca se elimina el outline, sólo se estiliza. */
@@ -187,6 +200,20 @@
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: var(--focus-ring-offset);
 }
+
+/* Tipografía de encabezados (LEODARROSAFIT_ALIGNMENT_PLAN.md §1): Archivo,
+ * weight 800, escala fija. Sólo aplica a headings sin tamaño explícito —
+ * cualquier clase de Tailwind (`text-2xl`, etc.) tiene mayor especificidad
+ * y sigue ganando, así que esto no rompe páginas que ya definen su tamaño. */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-weight: var(--font-heading-weight);
+  letter-spacing: -0.015em;
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

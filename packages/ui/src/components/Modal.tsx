@@ -31,10 +31,10 @@ export function Modal({ open, onOpenChange, title, description, children, footer
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-(--animate-fade-in)" />
         <DialogPrimitive.Content
           className={cn(
-            'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-6 shadow-(--shadow-lg)',
+            'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-surface) p-6 shadow-(--shadow-lg) data-[state=open]:animate-(--animate-lf-scale-in)',
             SIZES[size],
           )}
         >

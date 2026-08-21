@@ -12,22 +12,28 @@ export interface KpiCardProps {
   hint?: string;
 }
 
+/**
+ * KPI del inicio: label uppercase chico (CardTitle sin overrides — mismo
+ * tratamiento que "ÚLTIMOS ACCESOS"/"CAJA · HOY") y valor grande en negrita
+ * (30px, `--text-3xl`), sin deltas inventados (LEODARROSAFIT_ALIGNMENT_PLAN.md
+ * Fase 2A, misión dashboard).
+ */
 export function KpiCard({ title, loading, error, value, hint }: KpiCardProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-(--text-sm) font-medium text-(--color-muted)">{title}</CardTitle>
+        <CardTitle>{title}</CardTitle>
       </CardHeader>
       <CardContent>
         {loading ? (
-          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-9 w-24" />
         ) : error ? (
           <p role="alert" className="text-(--text-sm) text-(--color-danger)">
             {error}
           </p>
         ) : (
           <>
-            <p className="text-(--text-2xl) font-semibold text-(--color-text)">{value}</p>
+            <p className="text-(--text-3xl) font-bold tabular-nums text-(--color-text)">{value}</p>
             {hint ? <p className="mt-1 text-(--text-xs) text-(--color-muted)">{hint}</p> : null}
           </>
         )}

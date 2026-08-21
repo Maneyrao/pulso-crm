@@ -1,14 +1,15 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ToastProvider } from '@pulso/ui';
 import type { ReactNode } from 'react';
 import type { PaymentMethod } from '@pulso/contracts/cash';
 
 /**
- * Caja › Métodos de pago (`GET /cash/payment-methods`). `lib/api/cash.ts`
- * sólo expone `listPaymentMethods` (sin create/update), así que la pantalla
- * es de sólo lectura: se verifica el render feliz, el estado vacío y el de
- * error.
+ * Caja › Métodos de pago (`GET /cash/payment-methods` — `cash:read`;
+ * alta/edición con `config:write` vía `POST/PATCH /cash/payment-methods`,
+ * cableados en `lib/api/cash.ts` porque el backend ya expone
+ * `CashConfigController`).
  */
 
 vi.mock('next/navigation', () => ({
@@ -18,9 +19,15 @@ vi.mock('next/navigation', () => ({
 }));
 
 const listPaymentMethodsMock = vi.fn();
+const createPaymentMethodMock = vi.fn();
+const updatePaymentMethodMock = vi.fn();
 vi.mock('@/lib/api/cash', () => ({
   listPaymentMethods: (...args: unknown[]) => listPaymentMethodsMock(...args),
+  createPaymentMethod: (...args: unknown[]) => createPaymentMethodMock(...args),
+  updatePaymentMethod: (...args: unknown[]) => updatePaymentMethodMock(...args),
   listCashConcepts: vi.fn(),
+  createCashConcept: vi.fn(),
+  updateCashConcept: vi.fn(),
   getCurrentCashSession: vi.fn(),
   listCashSessions: vi.fn(),
   listCashMovements: vi.fn(),
@@ -35,17 +42,21 @@ vi.mock('@/lib/api/cash', () => ({
 
 function withQuery(children: ReactNode): ReactNode {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={qc}>
+      <ToastProvider>{children}</ToastProvider>
+    </QueryClientProvider>
+  );
 }
 
-async function primeSession(): Promise<void> {
+async function primeSession(permissions: string[] = ['cash:read']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com' },
     gym: { id: 'g1', slug: 'demo', name: 'Demo', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
-    permissions: ['cash:read'],
+    permissions,
     status: 'authenticated',
   } as never);
 }
@@ -65,6 +76,8 @@ function makeMethod(overrides: Partial<PaymentMethod> = {}): PaymentMethod {
 
 beforeEach(async () => {
   listPaymentMethodsMock.mockReset();
+  createPaymentMethodMock.mockReset();
+  updatePaymentMethodMock.mockReset();
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: null,
@@ -144,5 +157,46 @@ describe('PaymentMethodsPage', () => {
       expect(screen.getByText(/No se pudieron cargar los métodos de pago/)).toBeInTheDocument(),
     );
     expect(screen.getByRole('button', { name: /Reintentar/i })).toBeInTheDocument();
+  });
+
+  it('sin config:write no muestra "Nuevo método" ni acciones de fila', async () => {
+    await primeSession();
+    listPaymentMethodsMock.mockResolvedValueOnce({ data: [makeMethod()] });
+
+    const { default: PaymentMethodsPage } = await import('./page');
+    render(withQuery(<PaymentMethodsPage />));
+
+    await waitFor(() => expect(screen.getByText('Efectivo')).toBeInTheDocument());
+    expect(screen.queryByRole('button', { name: /Nuevo método/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Editar/i })).not.toBeInTheDocument();
+  });
+
+  it('con config:write: crea un método de pago nuevo con code/name/countsAsCash', async () => {
+    await primeSession(['cash:read', 'config:write']);
+    listPaymentMethodsMock.mockResolvedValue({ data: [] });
+    createPaymentMethodMock.mockResolvedValueOnce(
+      makeMethod({ id: '00000000-0000-0000-0000-000000000003', code: 'TRANSFER', name: 'Transferencia' }),
+    );
+
+    const { default: PaymentMethodsPage } = await import('./page');
+    render(withQuery(<PaymentMethodsPage />));
+
+    await waitFor(() => expect(screen.getByText(/Todavía no hay métodos de pago/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /Nuevo método/i }));
+
+    const nameInput = await screen.findByLabelText(/^Nombre\b/i);
+    fireEvent.change(nameInput, { target: { value: 'Transferencia' } });
+    const codeInput = screen.getByLabelText(/^Código\b/i);
+    fireEvent.change(codeInput, { target: { value: 'transfer' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /^Guardar$/i }));
+
+    await waitFor(() => expect(createPaymentMethodMock).toHaveBeenCalledTimes(1));
+    expect(createPaymentMethodMock).toHaveBeenCalledWith({
+      code: 'TRANSFER',
+      name: 'Transferencia',
+      countsAsCash: false,
+      sortOrder: 0,
+    });
   });
 });

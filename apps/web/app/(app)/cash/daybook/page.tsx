@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { BookOpen } from 'lucide-react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import type {
   CashMovement,
@@ -9,8 +10,9 @@ import type {
   DaybookResponse,
   PaymentMethod,
 } from '@pulso/contracts/cash';
-import { subMoney, sumMoney } from '@pulso/config/money';
+import { formatMoney, subMoney, sumMoney } from '@pulso/config/money';
 import {
+  Button,
   DataTable,
   EmptyState,
   ErrorState,
@@ -20,6 +22,7 @@ import {
   StatusBadge,
   type DataTableColumn,
 } from '@pulso/ui';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { getDaybook, listPaymentMethods } from '@/lib/api/cash';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
@@ -49,9 +52,10 @@ function DaybookScreen() {
   const gymId = useSessionStore((s) => s.gym?.id);
   const activeBranchId = useSessionStore((s) => s.activeBranchId ?? null);
 
-  const today = React.useMemo(() => toIsoDate(new Date()), []);
-  const [from, setFrom] = React.useState(today);
-  const [to, setTo] = React.useState(today);
+  const today = React.useMemo(() => new Date(), []);
+  const todayIso = React.useMemo(() => toIsoDate(today), [today]);
+  const [from, setFrom] = React.useState(() => toIsoDate(startOfMonth(today)));
+  const [to, setTo] = React.useState(todayIso);
 
   const daybookQuery = useQuery({
     queryKey: qk.daybook(gymId ?? '', activeBranchId, from, to),
@@ -70,40 +74,68 @@ function DaybookScreen() {
     [paymentMethodsQuery.data],
   );
 
+  const days = React.useMemo(() => daybookQuery.data?.data ?? [], [daybookQuery.data]);
+  const periodBalance = React.useMemo(() => {
+    const income = sumMoney(days.flatMap((d) => d.totalsByMethod.map((t) => t.income)));
+    const expense = sumMoney(days.flatMap((d) => d.totalsByMethod.map((t) => t.expense)));
+    return subMoney(income, expense);
+  }, [days]);
+
+  const selectCurrentMonth = () => {
+    setFrom(toIsoDate(startOfMonth(today)));
+    setTo(todayIso);
+  };
+  const selectPreviousMonth = () => {
+    const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    setFrom(toIsoDate(startOfMonth(prevMonthEnd)));
+    setTo(toIsoDate(prevMonthEnd));
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-(--text-2xl) font-semibold text-(--color-text)">Libro diario</h1>
-          <p className="text-(--text-sm) text-(--color-muted)">
-            Sesiones y movimientos agrupados por día de negocio, con totales por método.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        icon={BookOpen}
+        title="Libro diario"
+        description={
+          daybookQuery.isSuccess
+            ? `${formatRangeLabel(from, to)} · saldo ${formatMoney(periodBalance)}`
+            : 'Sesiones y movimientos agrupados por día de negocio, con totales por método.'
+        }
+      />
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:max-w-md">
-        <FormField label="Desde">
-          {(field) => (
-            <Input
-              {...field}
-              type="date"
-              value={from}
-              max={to}
-              onChange={(e) => setFrom(e.target.value)}
-            />
-          )}
-        </FormField>
-        <FormField label="Hasta">
-          {(field) => (
-            <Input
-              {...field}
-              type="date"
-              value={to}
-              min={from}
-              onChange={(e) => setTo(e.target.value)}
-            />
-          )}
-        </FormField>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={selectCurrentMonth}>
+            Mes actual
+          </Button>
+          <Button type="button" variant="outline" size="sm" onClick={selectPreviousMonth}>
+            Mes anterior
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <FormField label="Desde">
+            {(field) => (
+              <Input
+                {...field}
+                type="date"
+                value={from}
+                max={to}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            )}
+          </FormField>
+          <FormField label="Hasta">
+            {(field) => (
+              <Input
+                {...field}
+                type="date"
+                value={to}
+                min={from}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            )}
+          </FormField>
+        </div>
       </div>
 
       {from && to && from > to ? (
@@ -324,6 +356,19 @@ function toIsoDate(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+function startOfMonth(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+/** "01/08/2026 – 20/08/2026" para el subtítulo del período. */
+function formatRangeLabel(from: string, to: string): string {
+  const fmt = (iso: string) => {
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  };
+  return from === to ? fmt(from) : `${fmt(from)} – ${fmt(to)}`;
 }
 
 function formatTime(iso: string): string {

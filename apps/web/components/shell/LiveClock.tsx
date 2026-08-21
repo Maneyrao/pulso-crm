@@ -1,11 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { CalendarDays, Clock } from 'lucide-react';
 
 /**
- * Fecha y hora local en vivo. Se monta client-only (estado inicial null)
- * para no romper la hidratación con la hora del servidor.
+ * Fecha y hora local en vivo, formato de la referencia: "13 de agosto ·
+ * 09:12:45" con la hora en tabular-nums destacada. Se monta client-only
+ * (estado inicial null) para no romper la hidratación con la hora del
+ * servidor.
  */
 export function LiveClock() {
   const [now, setNow] = React.useState<Date | null>(null);
@@ -27,16 +28,8 @@ export function LiveClock() {
   }).format(now);
 
   return (
-    <div className="hidden items-center gap-3 rounded-(--radius-full) border border-(--color-border) bg-(--color-bg) px-3 py-1.5 text-(--text-sm) text-(--color-text) md:flex">
-      <span className="flex items-center gap-1.5">
-        <CalendarDays className="h-3.5 w-3.5 text-(--color-muted)" aria-hidden={true} />
-        {date}
-      </span>
-      <span aria-hidden={true} className="h-3.5 w-px bg-(--color-border-strong)" />
-      <span className="flex items-center gap-1.5 tabular-nums">
-        <Clock className="h-3.5 w-3.5 text-(--color-muted)" aria-hidden={true} />
-        {time}
-      </span>
-    </div>
+    <span className="whitespace-nowrap text-[12px] text-(--color-muted) tabular-nums">
+      {date} · <span className="font-semibold text-(--color-text)">{time}</span>
+    </span>
   );
 }

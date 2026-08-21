@@ -19,12 +19,12 @@ export function PageHeader({ title, description, icon: Icon, actions, mock, clas
     <div className={cn('mb-6 flex flex-wrap items-start justify-between gap-3', className)}>
       <div className="flex min-w-0 items-center gap-3">
         {Icon ? (
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-(--radius-lg) bg-(--color-primary-subtle) text-(--color-primary-subtle-foreground)">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-primary-subtle) text-(--color-primary-subtle-foreground)">
             <Icon className="h-5.5 w-5.5" aria-hidden={true} />
           </span>
         ) : null}
         <div className="min-w-0">
-          <h1 className="flex flex-wrap items-center gap-2 text-(--text-2xl) font-bold tracking-tight text-(--color-text)">
+          <h1 className="flex flex-wrap items-center gap-2 text-(--text-2xl) font-extrabold tracking-tight text-(--color-text)">
             {title}
             {mock ? <MockBadge /> : null}
           </h1>

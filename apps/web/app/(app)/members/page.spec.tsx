@@ -105,7 +105,10 @@ describe('MembersPage', () => {
           firstName: 'Bruno',
           lastName: 'García',
           documentMasked: '•••••789',
-          balance: '15000.00',
+          // Convención real del ledger: saldo NEGATIVO = deuda (backend
+          // filtra `hasDebt` con `balance < 0`, ver members.service.ts). Un
+          // balance positivo es saldo a favor, no deuda.
+          balance: '-15000.00',
           activeMembership: null,
         }),
       ]),

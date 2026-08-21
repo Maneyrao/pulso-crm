@@ -1,36 +1,69 @@
 'use client';
 
-import { User } from 'lucide-react';
-import { Badge, Card, CardContent } from '@pulso/ui';
+import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { ChevronDown, LogOut, User } from 'lucide-react';
+import { Badge, Button, StatusBadge } from '@pulso/ui';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { logout } from '@/lib/api/auth';
 import { useSessionStore } from '@/lib/stores/session';
 
 /**
- * Mi cuenta: datos de la sesión activa (`GET /auth/me`, ya en el store — no
- * hace falta una query nueva).
+ * Mi cuenta: datos reales de la sesión activa (`GET /auth/me`, ya en el
+ * store — no hace falta una query nueva) + logout.
  *
- * No hay endpoint de cambio de contraseña propio en `lib/api/auth.ts` ni en
- * `lib/api/iam.ts` — sólo `resetUserPassword(id)` en `iam.ts`, que es una
- * acción administrativa sobre OTRO usuario (`POST /users/:id/reset-password`,
- * pensada para IAM), no un "cambiar mi contraseña" con actual/nueva/repetir.
- * Por eso esta pantalla es de sólo lectura, sin esa sección.
+ * No hay campo "Rol" en `AuthUser`/`AuthSession` (API_CONTRACTS §3): sólo
+ * viaja `permissions: Permission[]`, sin un nombre de rol resuelto para el
+ * usuario en sesión. Por eso esta pantalla muestra los permisos reales en
+ * vez de inventar un rol. Tampoco hay endpoint de "cambiar mi contraseña"
+ * (sólo `resetUserPassword(id)`, una acción administrativa sobre OTRO
+ * usuario) ni datos de segundo factor / última actividad: no se muestran
+ * porque no existen en el backend.
  */
 export default function AccountPage() {
   const user = useSessionStore((s) => s.user);
   const gym = useSessionStore((s) => s.gym);
   const branches = useSessionStore((s) => s.branches);
   const activeBranchId = useSessionStore((s) => s.activeBranchId);
+  const permissions = useSessionStore((s) => s.permissions);
+  const clearSession = useSessionStore((s) => s.clearSession);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [loggingOut, setLoggingOut] = React.useState(false);
 
   if (!user) return null;
 
   const initials = getInitials(user.firstName, user.lastName);
+  const activeBranch = branches.find((b) => b.id === activeBranchId);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      clearSession();
+      queryClient.clear();
+      router.push('/login');
+    }
+  };
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader icon={User} title="Mi cuenta" description="Datos de tu usuario en el gimnasio actual." />
+      <PageHeader
+        icon={User}
+        title="Mi cuenta"
+        description="Datos de tu usuario y permisos en el gimnasio actual."
+        actions={
+          <Button variant="danger" onClick={() => void handleLogout()} loading={loggingOut}>
+            <LogOut className="h-4 w-4" aria-hidden={true} />
+            Cerrar sesión
+          </Button>
+        }
+      />
 
-      <Card>
-        <CardContent className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <AccordionSection title="Perfil" defaultOpen>
           <div className="flex items-center gap-4">
             <span
               aria-hidden="true"
@@ -53,9 +86,7 @@ export default function AccountPage() {
             </div>
             <div>
               <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Sede activa</dt>
-              <dd className="mt-0.5 text-(--text-base) text-(--color-text)">
-                {branches.find((b) => b.id === activeBranchId)?.name ?? '—'}
-              </dd>
+              <dd className="mt-0.5 text-(--text-base) text-(--color-text)">{activeBranch?.name ?? '—'}</dd>
             </div>
             <div className="md:col-span-2">
               <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">
@@ -74,9 +105,47 @@ export default function AccountPage() {
               </dd>
             </div>
           </dl>
-        </CardContent>
-      </Card>
+        </AccordionSection>
+
+        <AccordionSection title={`Permisos (${permissions.length})`}>
+          {permissions.length === 0 ? (
+            <p className="text-(--text-sm) text-(--color-muted)">Sin permisos asignados.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {[...permissions].sort().map((permission) => (
+                <StatusBadge key={permission} tone="info" label={permission} />
+              ))}
+            </div>
+          )}
+        </AccordionSection>
+      </div>
     </div>
+  );
+}
+
+function AccordionSection({
+  title,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      className="group rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface)"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-(--text-base) font-medium text-(--color-text) [&::-webkit-details-marker]:hidden">
+        {title}
+        <ChevronDown
+          className="h-4 w-4 shrink-0 text-(--color-muted) transition-transform duration-200 group-open:rotate-180"
+          aria-hidden={true}
+        />
+      </summary>
+      <div className="flex flex-col gap-4 border-t border-(--color-border) px-4 py-4">{children}</div>
+    </details>
   );
 }
 

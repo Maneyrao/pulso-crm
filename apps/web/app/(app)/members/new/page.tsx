@@ -2,11 +2,11 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { DOCUMENT_TYPES, documentHint } from '@pulso/config/document';
-import type { CreateMemberRequest, MemberDocumentType, Gender } from '@pulso/contracts/members';
-import { GENDERS } from '@pulso/contracts/members';
+import type { CreateMemberRequest, Member, MemberDocumentType } from '@pulso/contracts/members';
+import type { CreateMembershipRequest, CreateMembershipResponse, MembershipCharge } from '@pulso/contracts/memberships';
+import type { Plan } from '@pulso/contracts/catalog';
 import {
   Alert,
   Button,
@@ -14,70 +14,83 @@ import {
   EmptyState,
   FormField,
   Input,
+  MoneyDisplay,
+  MoneyInput,
   Select,
   Stepper,
-  Textarea,
-  useToast,
   type StepperStep,
 } from '@pulso/ui';
 import { createMember } from '@/lib/api/members';
+import { createMembership } from '@/lib/api/memberships';
+import { listPlans } from '@/lib/api/catalog';
+import { listBranches } from '@/lib/api/tenancy';
+import { getCurrentCashSession, listPaymentMethods } from '@/lib/api/cash';
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
 
-/** Se guarda como borrador; los campos sensibles (documento, email) NO se persisten. */
-const DRAFT_KEY = 'member-draft-v1';
+/**
+ * Alta de socio (Fase 2B, LEODARROSAFIT_ALIGNMENT_PLAN.md): wizard de tres
+ * pasos que compone llamadas reales y ya probadas — `POST /members`,
+ * `POST /members/:id/memberships` (con `charge` embebido: el backend crea el
+ * `CashMovement` atómicamente cuando `mode: 'NOW'`, no hace falta un
+ * `POST /cash/movements` aparte) — con manejo de error por paso: si el socio
+ * ya se creó, un reintento NUNCA vuelve a crearlo, retoma desde el paso que
+ * falló.
+ *
+ * Paso 2 (plan) y paso 3 (pago) son omitibles: un socio puede darse de alta
+ * sin membresía, y una membresía puede quedar sin cobrar si no hay caja
+ * abierta (o si el operador elige cobrar después).
+ */
 
-interface DraftState {
-  documentType: MemberDocumentType;
-  firstName: string;
-  lastName: string;
-  birthDate: string;
-  gender: string;
-  phone: string;
-  address: string;
-  notes: string;
-}
-
-interface FormState extends DraftState {
-  documentNumber: string;
-  email: string;
-}
-
-const EMPTY_FORM: FormState = {
-  documentType: 'DNI',
-  documentNumber: '',
-  firstName: '',
-  lastName: '',
-  birthDate: '',
-  gender: '',
-  email: '',
-  phone: '',
-  address: '',
-  notes: '',
-};
+type StepId = 'personal' | 'plan' | 'payment';
 
 const STEPS: readonly StepperStep[] = [
-  { id: 'identity', label: 'Identidad', description: 'Nombre, documento y datos personales.' },
-  { id: 'contact', label: 'Contacto', description: 'Cómo comunicarnos con el socio.' },
-  { id: 'review', label: 'Revisión', description: 'Verificá y confirmá el alta.' },
+  { id: 'personal', label: 'Datos personales', description: 'Nombre, documento y contacto.' },
+  { id: 'plan', label: 'Plan y membresía', description: 'Opcional: se puede omitir.' },
+  { id: 'payment', label: 'Pago', description: 'Opcional: requiere caja abierta.' },
 ];
 
 const DOCUMENT_OPTIONS = DOCUMENT_TYPES.map((type) => ({ value: type, label: type }));
 
-/** Etiquetas humanas — el enum del backend está en inglés. */
-const GENDER_LABELS: Record<Gender, string> = {
-  FEMALE: 'Femenino',
-  MALE: 'Masculino',
-  OTHER: 'Otro',
-  UNDISCLOSED: 'Prefiero no decir',
+interface PersonalFormState {
+  documentType: MemberDocumentType;
+  documentNumber: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  birthDate: string;
+}
+
+const EMPTY_PERSONAL: PersonalFormState = {
+  documentType: 'DNI',
+  documentNumber: '',
+  firstName: '',
+  lastName: '',
+  phone: '',
+  email: '',
+  birthDate: '',
 };
 
-const GENDER_OPTIONS = [
-  { value: '', label: 'Sin especificar' },
-  ...GENDERS.map((g) => ({ value: g, label: GENDER_LABELS[g] })),
-];
+interface PlanFormState {
+  planId: string;
+  branchId: string;
+  startDate: string;
+}
+
+function todayYmd(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+interface DoneSummary {
+  member: Member;
+  membership: CreateMembershipResponse | null;
+}
 
 export default function NewMemberPage() {
   return (
@@ -93,201 +106,354 @@ export default function NewMemberPage() {
 }
 
 function NewMemberScreen() {
-  const router = useRouter();
+  const gymId = useSessionStore((s) => s.gym?.id ?? '');
   const branchId = useSessionStore((s) => s.activeBranchId);
-  const { toast } = useToast();
-  const idempotency = useIdempotencyKey();
+  const branches = useSessionStore((s) => s.branches);
+  const memberIdempotency = useIdempotencyKey();
+  const membershipIdempotency = useIdempotencyKey();
 
-  const [form, setForm] = React.useState<FormState>(() => ({ ...EMPTY_FORM, ...loadDraft() }));
-  const [stepId, setStepId] = React.useState<(typeof STEPS)[number]['id']>('identity');
-  const [error, setError] = React.useState<string | undefined>();
-  const [stepErrors, setStepErrors] = React.useState<Partial<Record<keyof FormState, string>>>({});
-  const [completed, setCompleted] = React.useState<string[]>([]);
+  const [stepId, setStepId] = React.useState<StepId>('personal');
+  const [completed, setCompleted] = React.useState<StepId[]>([]);
+  const [personalForm, setPersonalForm] = React.useState<PersonalFormState>(EMPTY_PERSONAL);
+  const [personalErrors, setPersonalErrors] = React.useState<Partial<Record<keyof PersonalFormState, string>>>({});
+  const [personalError, setPersonalError] = React.useState<string | undefined>();
 
-  // Guarda el borrador (sin documento ni email) cada vez que cambia el formulario.
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const draft: DraftState = {
-      documentType: form.documentType,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      birthDate: form.birthDate,
-      gender: form.gender,
-      phone: form.phone,
-      address: form.address,
-      notes: form.notes,
-    };
-    try {
-      window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-    } catch {
-      // sessionStorage puede fallar en modo privado; no interrumpe el flujo.
-    }
-  }, [form]);
+  const [member, setMember] = React.useState<Member | null>(null);
 
-  const mutation = useMutation({
-    mutationFn: (payload: CreateMemberRequest) => createMember(payload, idempotency.getKey()),
-    onSuccess: (member) => {
-      // Limpieza del borrador — el alta ya se persistió.
-      try {
-        window.sessionStorage.removeItem(DRAFT_KEY);
-      } catch {
-        /* ignore */
-      }
-      toast({ title: 'Socio creado', description: `${member.firstName} ${member.lastName}`, tone: 'success' });
-      router.push(`/members/${member.id}`);
-    },
-    onError: (err: unknown) => {
-      setError(errorMessage(err));
-    },
+  const [planForm, setPlanForm] = React.useState<PlanFormState>(() => ({
+    planId: '',
+    branchId: branchId ?? '',
+    startDate: todayYmd(),
+  }));
+  const [priceOverride, setPriceOverride] = React.useState('');
+  const [planError, setPlanError] = React.useState<string | undefined>();
+
+  const [paymentMethodId, setPaymentMethodId] = React.useState('');
+  const [chargeAmount, setChargeAmount] = React.useState('');
+  const [paymentError, setPaymentError] = React.useState<string | undefined>();
+
+  const [done, setDone] = React.useState<DoneSummary | null>(null);
+
+  const plansQuery = useQuery({
+    queryKey: qk.plans(gymId),
+    queryFn: listPlans,
+    enabled: Boolean(gymId) && stepId === 'plan',
+  });
+  const branchesQuery = useQuery({
+    queryKey: qk.branches(gymId),
+    queryFn: listBranches,
+    enabled: Boolean(gymId) && stepId === 'plan',
+  });
+  const cashSessionQuery = useQuery({
+    queryKey: qk.cashSession(gymId, branchId),
+    queryFn: getCurrentCashSession,
+    enabled: Boolean(gymId) && stepId === 'payment' && Boolean(planForm.planId),
+  });
+  const paymentMethodsQuery = useQuery({
+    queryKey: qk.paymentMethods(gymId),
+    queryFn: listPaymentMethods,
+    enabled: Boolean(gymId) && stepId === 'payment' && Boolean(cashSessionQuery.data),
   });
 
-  const setField = <K extends keyof FormState>(key: K, value: FormState[K]): void => {
-    setForm((f) => ({ ...f, [key]: value }));
-    if (stepErrors[key]) {
-      setStepErrors((s) => {
-        const next = { ...s };
-        delete next[key];
-        return next;
-      });
-    }
-  };
+  const activePlans = React.useMemo(() => (plansQuery.data?.data ?? []).filter((p) => p.isActive), [plansQuery.data]);
+  const planOptions = React.useMemo(() => activePlans.map((p) => ({ value: p.id, label: p.name })), [activePlans]);
+  const branchList = branchesQuery.data?.data ?? branches;
+  const branchOptions = React.useMemo(() => branchList.map((b) => ({ value: b.id, label: b.name })), [branchList]);
+  const paymentMethodOptions = React.useMemo(
+    () => (paymentMethodsQuery.data?.data ?? []).filter((pm) => pm.isActive).map((pm) => ({ value: pm.id, label: pm.name })),
+    [paymentMethodsQuery.data],
+  );
+  const selectedPlan: Plan | undefined = activePlans.find((p) => p.id === planForm.planId);
 
-  const validateIdentity = (): boolean => {
-    const errs: Partial<Record<keyof FormState, string>> = {};
-    if (!form.firstName.trim()) errs.firstName = 'Ingresá el nombre.';
-    if (!form.lastName.trim()) errs.lastName = 'Ingresá el apellido.';
-    if (!form.documentNumber.trim()) errs.documentNumber = 'Ingresá el documento.';
-    setStepErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
+  const createMemberMutation = useMutation({
+    mutationFn: (payload: CreateMemberRequest) => createMember(payload, memberIdempotency.getKey()),
+    onSuccess: (created) => {
+      setMember(created);
+      setCompleted((c) => Array.from(new Set([...c, 'personal' as StepId])));
+      setStepId('plan');
+    },
+    onError: (err: unknown) => setPersonalError(errorMessage(err)),
+  });
 
-  const validateContact = (): boolean => {
-    const errs: Partial<Record<keyof FormState, string>> = {};
-    if (form.email.trim() && !/^\S+@\S+\.\S+$/.test(form.email.trim())) {
+  const createMembershipMutation = useMutation({
+    mutationFn: (payload: CreateMembershipRequest) => {
+      if (!member) throw new Error('El socio todavía no se creó.');
+      return createMembership(member.id, payload, membershipIdempotency.getKey());
+    },
+    onSuccess: (result) => {
+      if (member) setDone({ member, membership: result });
+    },
+    onError: (err: unknown) => setPaymentError(errorMessage(err)),
+  });
+
+  const validatePersonal = (): boolean => {
+    const errs: Partial<Record<keyof PersonalFormState, string>> = {};
+    if (!personalForm.firstName.trim()) errs.firstName = 'Ingresá el nombre.';
+    if (!personalForm.lastName.trim()) errs.lastName = 'Ingresá el apellido.';
+    if (!personalForm.documentNumber.trim()) errs.documentNumber = 'Ingresá el documento.';
+    if (personalForm.email.trim() && !/^\S+@\S+\.\S+$/.test(personalForm.email.trim())) {
       errs.email = 'Formato de email inválido.';
     }
-    if (form.phone.trim() && form.phone.trim().length < 6) {
+    if (personalForm.phone.trim() && personalForm.phone.trim().length < 6) {
       errs.phone = 'Ingresá al menos 6 dígitos.';
     }
-    setStepErrors(errs);
+    setPersonalErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const goToStep = (target: (typeof STEPS)[number]['id']): void => {
-    setError(undefined);
-    if (stepId === 'identity' && target !== 'identity') {
-      if (!validateIdentity()) return;
-      setCompleted((c) => Array.from(new Set([...c, 'identity'])));
-    }
-    if (stepId === 'contact' && target === 'review') {
-      if (!validateContact()) return;
-      setCompleted((c) => Array.from(new Set([...c, 'contact'])));
-    }
-    setStepId(target);
+  const setPersonalField = <K extends keyof PersonalFormState>(key: K, value: PersonalFormState[K]): void => {
+    setPersonalForm((f) => ({ ...f, [key]: value }));
+    if (personalErrors[key]) setPersonalErrors((s) => ({ ...s, [key]: undefined }));
   };
 
-  const handleSubmit = (): void => {
-    if (!branchId) {
-      setError('Elegí una sede activa antes de crear el socio.');
+  const handlePersonalSubmit = (): void => {
+    setPersonalError(undefined);
+    if (member) {
+      // Ya se creó: no reintentar la creación, sólo avanzar (retomamos el flujo).
+      setStepId('plan');
       return;
     }
-    // El botón queda `disabled` mientras isPending; este guardia extra evita
-    // que un doble Enter dispare dos altas antes de que React actualice el
-    // estado (la clave de idempotencia igual cubriría, pero preferimos evitar
-    // el ida-y-vuelta).
-    if (mutation.isPending) return;
+    if (!validatePersonal()) return;
+    if (!branchId) {
+      setPersonalError('Elegí una sede activa antes de crear el socio.');
+      return;
+    }
+    if (createMemberMutation.isPending) return;
 
-    setError(undefined);
     const payload: CreateMemberRequest = {
-      documentType: form.documentType,
-      documentNumber: form.documentNumber.trim(),
-      firstName: form.firstName.trim(),
-      lastName: form.lastName.trim(),
+      documentType: personalForm.documentType,
+      documentNumber: personalForm.documentNumber.trim(),
+      firstName: personalForm.firstName.trim(),
+      lastName: personalForm.lastName.trim(),
       branchId,
-      ...(form.email.trim() ? { email: form.email.trim() } : {}),
-      ...(form.phone.trim() ? { phone: form.phone.trim() } : {}),
-      ...(form.birthDate ? { birthDate: form.birthDate } : {}),
-      ...(form.gender ? { gender: form.gender as Gender } : {}),
-      ...(form.address.trim() ? { address: form.address.trim() } : {}),
-      ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
+      ...(personalForm.email.trim() ? { email: personalForm.email.trim() } : {}),
+      ...(personalForm.phone.trim() ? { phone: personalForm.phone.trim() } : {}),
+      ...(personalForm.birthDate ? { birthDate: personalForm.birthDate } : {}),
     };
-    mutation.mutate(payload);
+    createMemberMutation.mutate(payload);
   };
+
+  const onPlanChange = (planId: string) => {
+    const plan = activePlans.find((p) => p.id === planId);
+    setPlanForm((f) => ({ ...f, planId }));
+    setPriceOverride('');
+    setChargeAmount(plan?.price ?? '');
+  };
+
+  const handlePlanNext = (): void => {
+    setPlanError(undefined);
+    if (!planForm.planId) {
+      setPlanError('Elegí un plan o tocá "Omitir" para dar de alta sin membresía.');
+      return;
+    }
+    if (!planForm.branchId) {
+      setPlanError('Elegí una sede.');
+      return;
+    }
+    if (!planForm.startDate) {
+      setPlanError('Elegí una fecha de inicio.');
+      return;
+    }
+    setCompleted((c) => Array.from(new Set([...c, 'plan' as StepId])));
+    setStepId('payment');
+  };
+
+  const handleSkipPlan = (): void => {
+    setPlanForm((f) => ({ ...f, planId: '' }));
+    setCompleted((c) => Array.from(new Set([...c, 'plan' as StepId])));
+    // Sin plan no hay nada que cobrar: se salta directo al cierre.
+    finalizeWithoutMembership();
+  };
+
+  const finalizeWithoutMembership = (): void => {
+    if (member) setDone({ member, membership: null });
+  };
+
+  const submitMembership = (charge: MembershipCharge): void => {
+    if (createMembershipMutation.isPending) return;
+    setPaymentError(undefined);
+    const price = priceOverride.trim() || selectedPlan?.price || '';
+    if (!price) {
+      setPaymentError('El plan elegido no tiene precio.');
+      return;
+    }
+    const useOverride = selectedPlan && price !== selectedPlan.price;
+    const payload: CreateMembershipRequest = {
+      planId: planForm.planId,
+      branchId: planForm.branchId,
+      startDate: planForm.startDate,
+      ...(useOverride ? { priceOverride: price } : {}),
+      charge,
+    };
+    createMembershipMutation.mutate(payload);
+  };
+
+  const handleChargeNow = (): void => {
+    if (!paymentMethodId) {
+      setPaymentError('Elegí un método de pago.');
+      return;
+    }
+    const amount = chargeAmount.trim() || selectedPlan?.price || '';
+    if (!amount) {
+      setPaymentError('Ingresá el monto a cobrar.');
+      return;
+    }
+    submitMembership({ mode: 'NOW', paymentMethodId, amount });
+  };
+
+  const handleFinishWithoutCharge = (): void => {
+    submitMembership({ mode: 'DEBT' });
+  };
+
+  const hasCashSession = Boolean(cashSessionQuery.data);
+
+  if (done) {
+    return <DoneScreen summary={done} />;
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-(--text-2xl) font-semibold text-(--color-text)">Nuevo socio</h1>
-        <p className="text-(--text-sm) text-(--color-muted)">
-          Completá los tres pasos para dar de alta a una persona en el gimnasio.
-        </p>
-      </div>
+      <PageHeader
+        title="Nuevo socio"
+        description="Completá los pasos que necesites: los de plan y pago se pueden omitir."
+      />
 
       <Stepper steps={STEPS} currentStepId={stepId} completedStepIds={completed} />
 
-      {error ? (
+      <Card className="p-6">
+        {stepId === 'personal' ? (
+          <PersonalStep
+            form={personalForm}
+            errors={personalErrors}
+            onChange={setPersonalField}
+            locked={Boolean(member)}
+          />
+        ) : null}
+        {stepId === 'plan' ? (
+          <PlanStep
+            form={planForm}
+            onChange={(patch) =>
+              patch.planId !== undefined
+                ? onPlanChange(patch.planId)
+                : setPlanForm((f) => ({ ...f, ...patch }))
+            }
+            planOptions={planOptions}
+            branchOptions={branchOptions}
+            loading={plansQuery.isLoading || branchesQuery.isLoading}
+          />
+        ) : null}
+        {stepId === 'payment' ? (
+          <PaymentStep
+            selectedPlan={selectedPlan}
+            cashSessionLoading={cashSessionQuery.isLoading}
+            hasCashSession={hasCashSession}
+            paymentMethodOptions={paymentMethodOptions}
+            paymentMethodId={paymentMethodId}
+            onPaymentMethodChange={setPaymentMethodId}
+            chargeAmount={chargeAmount || selectedPlan?.price || ''}
+            onChargeAmountChange={(v) => {
+              setChargeAmount(v);
+              setPriceOverride(v);
+            }}
+          />
+        ) : null}
+      </Card>
+
+      {stepId === 'personal' && personalError ? (
         <Alert tone="danger" title="No pudimos crear el socio" live>
-          {error}
+          {personalError}
         </Alert>
       ) : null}
-
-      <Card className="p-6">
-        {stepId === 'identity' ? (
-          <IdentityStep form={form} errors={stepErrors} onChange={setField} />
-        ) : null}
-        {stepId === 'contact' ? (
-          <ContactStep form={form} errors={stepErrors} onChange={setField} />
-        ) : null}
-        {stepId === 'review' ? <ReviewStep form={form} /> : null}
-      </Card>
+      {stepId === 'plan' && planError ? (
+        <Alert tone="danger" title="Revisá el paso" live>
+          {planError}
+        </Alert>
+      ) : null}
+      {stepId === 'payment' && paymentError ? (
+        <Alert tone="danger" title="No pudimos registrar la membresía" live>
+          {paymentError}
+        </Alert>
+      ) : null}
 
       <div className="flex items-center justify-between">
         <Button variant="ghost" asChild>
           <Link href="/members">Cancelar</Link>
         </Button>
         <div className="flex gap-2">
-          {stepId !== 'identity' ? (
-            <Button
-              variant="outline"
-              onClick={() => goToStep(stepId === 'review' ? 'contact' : 'identity')}
-            >
+          {stepId === 'plan' ? (
+            <Button variant="outline" onClick={handleSkipPlan}>
+              Omitir plan y finalizar
+            </Button>
+          ) : null}
+          {stepId === 'payment' ? (
+            <Button variant="outline" onClick={() => setStepId('plan')}>
               Anterior
             </Button>
           ) : null}
-          {stepId !== 'review' ? (
-            <Button onClick={() => goToStep(stepId === 'identity' ? 'contact' : 'review')}>
-              Siguiente
+
+          {stepId === 'personal' ? (
+            <Button onClick={handlePersonalSubmit} loading={createMemberMutation.isPending} disabled={createMemberMutation.isPending}>
+              {member ? 'Continuar' : 'Crear socio y continuar'}
             </Button>
-          ) : (
-            <Button
-              onClick={handleSubmit}
-              loading={mutation.isPending}
-              disabled={mutation.isPending}
-            >
-              Crear socio
-            </Button>
-          )}
+          ) : null}
+          {stepId === 'plan' ? <Button onClick={handlePlanNext}>Siguiente</Button> : null}
+          {stepId === 'payment' && planForm.planId ? (
+            hasCashSession ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleFinishWithoutCharge}
+                  loading={createMembershipMutation.isPending}
+                  disabled={createMembershipMutation.isPending}
+                >
+                  Finalizar sin cobrar
+                </Button>
+                <Button
+                  onClick={handleChargeNow}
+                  loading={createMembershipMutation.isPending}
+                  disabled={createMembershipMutation.isPending}
+                >
+                  Confirmar y cobrar
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={handleFinishWithoutCharge}
+                loading={createMembershipMutation.isPending}
+                disabled={createMembershipMutation.isPending || cashSessionQuery.isLoading}
+              >
+                Confirmar
+              </Button>
+            )
+          ) : null}
         </div>
       </div>
     </div>
   );
 }
 
-interface StepProps {
-  form: FormState;
-  errors: Partial<Record<keyof FormState, string>>;
-  onChange: <K extends keyof FormState>(key: K, value: FormState[K]) => void;
+interface PersonalStepProps {
+  form: PersonalFormState;
+  errors: Partial<Record<keyof PersonalFormState, string>>;
+  onChange: <K extends keyof PersonalFormState>(key: K, value: PersonalFormState[K]) => void;
+  locked: boolean;
 }
 
-function IdentityStep({ form, errors, onChange }: StepProps) {
+function PersonalStep({ form, errors, onChange, locked }: PersonalStepProps) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {locked ? (
+        <Alert tone="info" className="md:col-span-2">
+          Este socio ya se creó. Para corregir estos datos, editalo desde su ficha.
+        </Alert>
+      ) : null}
       <FormField label="Tipo de documento" required>
         {(field) => (
           <Select
             {...field}
             options={DOCUMENT_OPTIONS}
             value={form.documentType}
+            disabled={locked}
             onValueChange={(v) => onChange('documentType', v as MemberDocumentType)}
           />
         )}
@@ -304,139 +470,177 @@ function IdentityStep({ form, errors, onChange }: StepProps) {
             value={form.documentNumber}
             onChange={(e) => onChange('documentNumber', e.target.value)}
             autoComplete="off"
+            disabled={locked}
             required
           />
         )}
       </FormField>
       <FormField label="Nombre" required error={errors.firstName}>
         {(field) => (
-          <Input
-            {...field}
-            value={form.firstName}
-            onChange={(e) => onChange('firstName', e.target.value)}
-            required
-          />
+          <Input {...field} value={form.firstName} onChange={(e) => onChange('firstName', e.target.value)} disabled={locked} required />
         )}
       </FormField>
       <FormField label="Apellido" required error={errors.lastName}>
         {(field) => (
-          <Input
-            {...field}
-            value={form.lastName}
-            onChange={(e) => onChange('lastName', e.target.value)}
-            required
-          />
-        )}
-      </FormField>
-      <FormField label="Fecha de nacimiento">
-        {(field) => (
-          <Input
-            {...field}
-            type="date"
-            value={form.birthDate}
-            onChange={(e) => onChange('birthDate', e.target.value)}
-          />
-        )}
-      </FormField>
-      <FormField label="Género">
-        {(field) => (
-          <Select
-            {...field}
-            options={GENDER_OPTIONS}
-            value={form.gender || undefined}
-            onValueChange={(v) => onChange('gender', v)}
-            placeholder="Sin especificar"
-          />
-        )}
-      </FormField>
-    </div>
-  );
-}
-
-function ContactStep({ form, errors, onChange }: StepProps) {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <FormField label="Email" error={errors.email}>
-        {(field) => (
-          <Input
-            {...field}
-            type="email"
-            value={form.email}
-            onChange={(e) => onChange('email', e.target.value)}
-            autoComplete="email"
-          />
+          <Input {...field} value={form.lastName} onChange={(e) => onChange('lastName', e.target.value)} disabled={locked} required />
         )}
       </FormField>
       <FormField label="Teléfono" hint="Se normaliza a formato internacional." error={errors.phone}>
         {(field) => (
-          <Input
-            {...field}
-            type="tel"
-            value={form.phone}
-            onChange={(e) => onChange('phone', e.target.value)}
-            autoComplete="tel"
-          />
+          <Input {...field} type="tel" value={form.phone} onChange={(e) => onChange('phone', e.target.value)} disabled={locked} autoComplete="tel" />
         )}
       </FormField>
-      <FormField label="Dirección" className="md:col-span-2">
+      <FormField label="Email" error={errors.email}>
         {(field) => (
-          <Input
-            {...field}
-            value={form.address}
-            onChange={(e) => onChange('address', e.target.value)}
-            autoComplete="street-address"
-          />
+          <Input {...field} type="email" value={form.email} onChange={(e) => onChange('email', e.target.value)} disabled={locked} autoComplete="email" />
         )}
       </FormField>
-      <FormField label="Notas internas" className="md:col-span-2">
+      <FormField label="Fecha de nacimiento">
         {(field) => (
-          <Textarea
-            {...field}
-            value={form.notes}
-            onChange={(e) => onChange('notes', e.target.value)}
-            placeholder="Cualquier observación relevante para el equipo del gimnasio."
-          />
+          <Input {...field} type="date" value={form.birthDate} onChange={(e) => onChange('birthDate', e.target.value)} disabled={locked} />
         )}
       </FormField>
     </div>
   );
 }
 
-function ReviewStep({ form }: { form: FormState }) {
-  return (
-    <dl className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <ReviewRow label="Nombre" value={`${form.firstName} ${form.lastName}`} />
-      <ReviewRow label="Documento" value={`${form.documentType} ${form.documentNumber}`} />
-      <ReviewRow label="Fecha de nacimiento" value={form.birthDate || '—'} />
-      <ReviewRow label="Género" value={form.gender ? GENDER_LABELS[form.gender as Gender] : '—'} />
-      <ReviewRow label="Email" value={form.email || '—'} />
-      <ReviewRow label="Teléfono" value={form.phone || '—'} />
-      <ReviewRow label="Dirección" value={form.address || '—'} className="md:col-span-2" />
-      <ReviewRow label="Notas" value={form.notes || '—'} className="md:col-span-2" />
-    </dl>
-  );
+interface PlanStepProps {
+  form: PlanFormState;
+  onChange: (patch: Partial<PlanFormState>) => void;
+  planOptions: Array<{ value: string; label: string }>;
+  branchOptions: Array<{ value: string; label: string }>;
+  loading: boolean;
 }
 
-function ReviewRow({ label, value, className }: { label: string; value: string; className?: string }) {
-  return (
-    <div className={className}>
-      <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">{label}</dt>
-      <dd className="mt-0.5 text-(--text-base) text-(--color-text)">{value}</dd>
-    </div>
-  );
-}
-
-function loadDraft(): Partial<DraftState> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.sessionStorage.getItem(DRAFT_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return {};
-    return parsed as Partial<DraftState>;
-  } catch {
-    return {};
+function PlanStep({ form, onChange, planOptions, branchOptions, loading }: PlanStepProps) {
+  if (loading) {
+    return <p className="text-(--text-sm) text-(--color-muted)">Cargando planes y sedes…</p>;
   }
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <FormField label="Plan" hint="Opcional: dejalo vacío y tocá 'Omitir plan y finalizar'.">
+        {(field) => (
+          <Select
+            {...field}
+            options={planOptions}
+            value={form.planId || undefined}
+            placeholder="Sin plan"
+            onValueChange={(v) => onChange({ planId: v })}
+          />
+        )}
+      </FormField>
+      <FormField label="Sede">
+        {(field) => (
+          <Select
+            {...field}
+            options={branchOptions}
+            value={form.branchId || undefined}
+            onValueChange={(v) => onChange({ branchId: v })}
+          />
+        )}
+      </FormField>
+      <FormField label="Fecha de inicio">
+        {(field) => <Input {...field} type="date" value={form.startDate} onChange={(e) => onChange({ startDate: e.target.value })} />}
+      </FormField>
+    </div>
+  );
+}
+
+interface PaymentStepProps {
+  selectedPlan: Plan | undefined;
+  cashSessionLoading: boolean;
+  hasCashSession: boolean;
+  paymentMethodOptions: Array<{ value: string; label: string }>;
+  paymentMethodId: string;
+  onPaymentMethodChange: (id: string) => void;
+  chargeAmount: string;
+  onChargeAmountChange: (value: string) => void;
+}
+
+/** Este paso sólo se muestra con un plan ya elegido (§handlePlanNext lo exige). */
+function PaymentStep({
+  selectedPlan,
+  cashSessionLoading,
+  hasCashSession,
+  paymentMethodOptions,
+  paymentMethodId,
+  onPaymentMethodChange,
+  chargeAmount,
+  onChargeAmountChange,
+}: PaymentStepProps) {
+  if (cashSessionLoading) {
+    return <p className="text-(--text-sm) text-(--color-muted)">Revisando si hay una caja abierta…</p>;
+  }
+  if (!hasCashSession) {
+    return (
+      <Alert tone="warning" title="No hay una caja abierta en esta sede">
+        Podés terminar el alta igual: el precio del plan{selectedPlan ? ` (${selectedPlan.name})` : ''} queda
+        como saldo pendiente del socio hasta que se cobre desde Caja.
+      </Alert>
+    );
+  }
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <FormField label="Método de pago" required>
+        {(field) => (
+          <Select {...field} options={paymentMethodOptions} value={paymentMethodId || undefined} onValueChange={onPaymentMethodChange} />
+        )}
+      </FormField>
+      <FormField label="Monto" required hint="Prellenado con el precio del plan; se puede ajustar.">
+        {(field) => <MoneyInput {...field} value={chargeAmount} onChange={onChargeAmountChange} />}
+      </FormField>
+    </div>
+  );
+}
+
+function DoneScreen({ summary }: { summary: DoneSummary }) {
+  const { member, membership } = summary;
+  const chargedNow = Boolean(membership?.cashMovement);
+  return (
+    <div className="flex flex-col gap-6">
+      <PageHeader title="Nuevo socio" description="Alta completada." />
+      <Alert tone="success" title="El socio quedó activo">
+        {member.firstName} {member.lastName} ya está dado de alta.
+      </Alert>
+      <Card className="flex flex-col gap-3 p-6">
+        <SummaryRow
+          label="Membresía"
+          value={membership ? `Sí — ${membership.membership.status === 'ACTIVE' ? 'activa' : membership.membership.status}` : 'No se asignó ninguna'}
+        />
+        {membership ? (
+          <SummaryRow
+            label="Pago"
+            value={
+              chargedNow && membership.cashMovement ? (
+                <>
+                  Sí — <MoneyDisplay value={membership.cashMovement.amount} />
+                </>
+              ) : (
+                'No — queda como saldo pendiente'
+              )
+            }
+          />
+        ) : null}
+      </Card>
+      <div className="flex gap-2">
+        <Button asChild>
+          <Link href={`/members/${member.id}`}>Ver ficha del socio</Link>
+        </Button>
+        <Button variant="outline" asChild>
+          <Link href="/members">Volver al listado</Link>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between border-b border-(--color-border) pb-2 last:border-0 last:pb-0">
+      <span className="text-(--text-sm) text-(--color-muted)">{label}</span>
+      <span className="text-(--text-sm) font-medium text-(--color-text)">{value}</span>
+    </div>
+  );
 }
 
 function errorMessage(error: unknown): string {

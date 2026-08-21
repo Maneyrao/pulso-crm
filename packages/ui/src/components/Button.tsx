@@ -4,19 +4,26 @@ import { type VariantProps, cva } from 'class-variance-authority';
 import { cn } from '../lib/cn.js';
 import { Spinner } from './Spinner.js';
 
+/**
+ * Variantes (LEODARROSAFIT_ALIGNMENT_PLAN.md §1 y D): `primary` es la acción
+ * sólida uppercase/extrabold tipo "REGISTRAR" de la referencia; `secondary`
+ * y `outline` son bordeadas sin relleno (`.btn-secondary` del sistema
+ * Modernist); `ghost` es texto color acento sin borde (`.btn-ghost`).
+ */
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-(--radius-md) font-medium ' +
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-(--radius-md) font-semibold ' +
     'transition-colors disabled:pointer-events-none disabled:opacity-50 ' +
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring)',
   {
     variants: {
       variant: {
-        primary: 'bg-(--color-primary) text-(--color-primary-foreground) hover:bg-(--color-primary-hover)',
+        primary:
+          'bg-(--color-primary) font-extrabold uppercase tracking-wide text-(--color-primary-foreground) hover:bg-(--color-primary-hover) active:bg-(--color-primary-active)',
         secondary:
-          'bg-(--color-muted-subtle) text-(--color-muted-subtle-foreground) hover:bg-(--color-border)',
+          'border-2 border-(--color-border-strong) bg-transparent text-(--color-text) hover:bg-(--color-muted-subtle)',
         outline:
-          'border border-(--color-border-strong) bg-transparent text-(--color-text) hover:bg-(--color-muted-subtle)',
-        ghost: 'bg-transparent text-(--color-text) hover:bg-(--color-muted-subtle)',
+          'border-2 border-(--color-border) bg-transparent text-(--color-text) hover:bg-(--color-muted-subtle)',
+        ghost: 'bg-transparent text-(--color-primary) hover:bg-(--color-primary-subtle)',
         danger: 'bg-(--color-danger) text-(--color-danger-foreground) hover:opacity-90',
       },
       size: {

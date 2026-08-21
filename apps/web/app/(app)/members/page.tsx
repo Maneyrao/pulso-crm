@@ -16,13 +16,15 @@ import {
   Pagination,
   StatusBadge,
   type DataTableColumn,
+  type StatusTone,
 } from '@pulso/ui';
-import { Download } from 'lucide-react';
+import { Download, Users } from 'lucide-react';
 import { useToast } from '@pulso/ui';
 import { listMembers } from '@/lib/api/members';
 import { ApiError } from '@/lib/api/errors';
 import { downloadCsv, toCsv } from '@/lib/csv';
 import { PermissionGate } from '@/lib/auth/permissions';
+import { PageHeader } from '@/components/shared/PageHeader';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
 import { useMemberFilters } from '@/lib/hooks/useMemberFilters';
@@ -43,6 +45,25 @@ export default function MembersPage() {
       <MembersScreen />
     </PermissionGate>
   );
+}
+
+/**
+ * Estado visible del socio (columna "Estado"): se deriva de campos reales de
+ * `MemberListItem` — nunca se inventa un dato que la API no manda.
+ *
+ * - "Vencido" sólo se muestra cuando el filtro activo es `membershipStatus=EXPIRED`:
+ *   la API no expone la membresía vencida en el ítem de listado (sólo trae
+ *   `activeMembership` cuando hay una membresía ACTIVE), pero el hecho de que
+ *   la fila esté en ese resultado ya lo garantiza por construcción del filtro.
+ * - "En deuda" usa el signo real del ledger: saldo NEGATIVO = deuda (el
+ *   backend filtra `hasDebt` con `balance < 0`; ver `members.service.ts`).
+ *   Ojo: esto corrige una inversión de signo que tenía esta pantalla antes.
+ */
+function memberStatusTag(member: MemberListItem, expiredSegmentActive: boolean): { tone: StatusTone; label: string } {
+  if (expiredSegmentActive) return { tone: 'danger', label: 'Vencido' };
+  if (Number(member.balance) < 0) return { tone: 'warning', label: 'En deuda' };
+  if (member.status === 'ACTIVE') return { tone: 'success', label: 'Activo' };
+  return { tone: 'neutral', label: 'Inactivo' };
 }
 
 function MembersScreen() {
@@ -80,15 +101,15 @@ function MembersScreen() {
         page += 1;
       }
       const csv = toCsv(
-        ['N°', 'Apellido', 'Nombre', 'Documento', 'Teléfono', 'Estado', 'Membresía', 'Saldo'],
+        ['N°', 'Apellido', 'Nombre', 'Documento', 'Plan', 'Vence', 'Estado', 'Deuda'],
         rows.slice(0, EXPORT_MAX_ROWS).map((m) => [
           String(m.memberNumber),
           m.lastName,
           m.firstName,
           m.documentMasked,
-          m.phone ?? '',
-          m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
           m.activeMembership?.planName ?? '',
+          m.activeMembership?.endDate ?? '',
+          m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
           m.balance,
         ]),
       );
@@ -128,13 +149,9 @@ function MembersScreen() {
 
   const total = query.data?.pageInfo.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const expiredSegmentActive = filters.membershipStatus === 'EXPIRED';
 
   const columns: DataTableColumn<MemberListItem>[] = [
-    {
-      id: 'memberNumber',
-      header: 'N°',
-      cell: (m) => <span className="font-mono tabular-nums text-(--color-muted)">#{m.memberNumber}</span>,
-    },
     {
       id: 'name',
       header: 'Socio',
@@ -146,53 +163,40 @@ function MembersScreen() {
           >
             {m.lastName}, {m.firstName}
           </Link>
+          <span className="text-(--text-xs) text-(--color-muted)">#{m.memberNumber}</span>
         </div>
       ),
     },
     {
       id: 'document',
-      header: 'Documento',
+      header: 'DNI',
       cell: (m) => <span className="tabular-nums text-(--color-muted)">{m.documentMasked}</span>,
     },
     {
-      id: 'phone',
-      header: 'Teléfono',
-      cell: (m) => <span className="text-(--color-muted)">{m.phone ?? '—'}</span>,
+      id: 'plan',
+      header: 'Plan',
+      cell: (m) => m.activeMembership?.planName ?? <span className="text-(--color-muted)">Sin plan</span>,
     },
     {
-      id: 'membership',
-      header: 'Membresía',
-      cell: (m) => {
-        if (!m.activeMembership) {
-          return <StatusBadge tone="neutral" label="Sin membresía" />;
-        }
-        return (
-          <div className="flex flex-col">
-            <StatusBadge tone="success" label={m.activeMembership.planName} />
-            {m.activeMembership.endDate ? (
-              <span className="mt-0.5 text-(--text-xs) text-(--color-muted)">
-                Vence {m.activeMembership.endDate}
-              </span>
-            ) : null}
-          </div>
-        );
-      },
+      id: 'endDate',
+      header: 'Vence',
+      cell: (m) => (
+        <span className="tabular-nums text-(--color-muted)">{m.activeMembership?.endDate ?? '—'}</span>
+      ),
     },
     {
       id: 'status',
       header: 'Estado',
-      cell: (m) =>
-        m.status === 'ACTIVE' ? (
-          <StatusBadge tone="success" label="Activo" />
-        ) : (
-          <StatusBadge tone="neutral" label="Inactivo" />
-        ),
+      cell: (m) => {
+        const tag = memberStatusTag(m, expiredSegmentActive);
+        return <StatusBadge tone={tag.tone} label={tag.label} />;
+      },
     },
     {
       id: 'balance',
       header: 'Deuda',
       cell: (m) =>
-        Number(m.balance) > 0 ? (
+        Number(m.balance) < 0 ? (
           <MoneyDisplay value={m.balance} emphasizeNegative />
         ) : (
           <span className="text-(--color-muted)">—</span>
@@ -200,42 +204,28 @@ function MembersScreen() {
       headerClassName: 'text-right',
       cellClassName: 'text-right',
     },
-    {
-      id: 'actions',
-      header: '',
-      cell: (m) => (
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/members/${m.id}`}>Ver ficha</Link>
-          </Button>
-        </div>
-      ),
-      headerClassName: 'text-right',
-      cellClassName: 'text-right',
-    },
   ];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-(--text-2xl) font-semibold text-(--color-text)">Socios</h1>
-          <p className="text-(--text-sm) text-(--color-muted)">
-            Personas que asisten al gimnasio con su ficha, membresías y cuenta corriente.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" loading={exporting} onClick={() => void handleExport()}>
-            <Download className="h-4 w-4" aria-hidden={true} />
-            Exportar
-          </Button>
-          <PermissionGate permission="member:write">
-            <Button asChild>
-              <Link href="/members/new">Nuevo socio</Link>
+      <PageHeader
+        icon={Users}
+        title="Socios"
+        description={query.data ? `${total} socio${total === 1 ? '' : 's'}` : 'Personas que asisten al gimnasio.'}
+        actions={
+          <>
+            <Button variant="outline" loading={exporting} onClick={() => void handleExport()}>
+              <Download className="h-4 w-4" aria-hidden={true} />
+              Exportar
             </Button>
-          </PermissionGate>
-        </div>
-      </div>
+            <PermissionGate permission="member:write">
+              <Button asChild>
+                <Link href="/members/new">Nuevo socio</Link>
+              </Button>
+            </PermissionGate>
+          </>
+        }
+      />
 
       <MemberFiltersBar filters={filters} onChange={(patch) => update(patch)} />
 

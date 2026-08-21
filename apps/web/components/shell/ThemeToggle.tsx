@@ -5,33 +5,36 @@ import { Moon, Sun } from 'lucide-react';
 
 const THEME_KEY = 'pulso-theme';
 
-/** Lee la preferencia guardada; sin preferencia, sigue al sistema. */
+/**
+ * Lee la preferencia guardada. Sin preferencia guardada el default de marca
+ * es OSCURO (dark-first, ver LEODARROSAFIT_ALIGNMENT_PLAN.md §1): no se sigue
+ * `prefers-color-scheme`, sólo `light` guardado explícitamente activa el
+ * tema claro.
+ */
 function resolveInitialDark(): boolean {
   try {
-    const stored = window.localStorage.getItem(THEME_KEY);
-    if (stored === 'dark') return true;
-    if (stored === 'light') return false;
+    return window.localStorage.getItem(THEME_KEY) !== 'light';
   } catch {
-    // sin storage: sólo preferencia del sistema
+    return true;
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
 /**
- * Alterna la clase `dark` en <html> (los tokens `.dark` de tokens.css hacen
- * el resto). El script anti-parpadeo del layout raíz aplica la clase antes
- * del primer paint; este componente sólo la mantiene en sincronía.
+ * Alterna la clase `light` en <html> (los tokens de tokens.css son oscuros
+ * por defecto; `.light` los sobreescribe). El script anti-parpadeo del
+ * layout raíz aplica la clase antes del primer paint; este componente sólo
+ * la mantiene en sincronía.
  */
 export function ThemeToggle() {
   const [dark, setDark] = React.useState<boolean | null>(null);
 
   React.useEffect(() => {
-    setDark(document.documentElement.classList.contains('dark') || resolveInitialDark());
+    setDark(!document.documentElement.classList.contains('light') && resolveInitialDark());
   }, []);
 
   React.useEffect(() => {
     if (dark === null) return;
-    document.documentElement.classList.toggle('dark', dark);
+    document.documentElement.classList.toggle('light', !dark);
     try {
       window.localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light');
     } catch {

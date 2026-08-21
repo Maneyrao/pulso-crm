@@ -6,7 +6,7 @@ import { Drawer, Spinner } from '@pulso/ui';
 import { useBootstrapSession } from '@/lib/hooks/useSession';
 import { AppFooter } from './AppFooter';
 import { Header } from './Header';
-import { BrandMark, Sidebar, SidebarAccount, SidebarNav } from './Sidebar';
+import { BrandMark, Sidebar, SidebarNav } from './Sidebar';
 
 /**
  * Sidebar + header + guards del área autenticada. La verificación fuerte de
@@ -44,16 +44,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-(--color-bg)">
       <Sidebar />
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen} title="Menú" hideTitle side="left" className="lg:hidden">
-        <div className="flex h-14 shrink-0 items-center border-b border-(--color-border)">
+      {/* El drawer mobile replica el sidebar: siempre oscuro, en ambos temas
+          (LEODARROSAFIT_ALIGNMENT_PLAN.md §2). Sobreescribe los tokens de
+          superficie/texto/borde localmente en vez de hardcodear cada clase
+          del Drawer genérico, así el componente sigue siendo theme-aware
+          para cualquier otro consumidor futuro. */}
+      <Drawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        title="Menú"
+        hideTitle
+        side="left"
+        className="[--color-border:#2e2b29] [--color-muted:#9a938c] [--color-surface:#151312] [--color-text:#ece9e6] lg:hidden"
+      >
+        <div className="flex min-h-[34px] shrink-0 items-center border-b-2 border-[#2e2b29] px-3.5 py-4">
           <BrandMark />
         </div>
         <SidebarNav onNavigate={() => setDrawerOpen(false)} />
-        <SidebarAccount onNavigate={() => setDrawerOpen(false)} />
       </Drawer>
       <div className="flex min-w-0 flex-1 flex-col">
         <Header onOpenMenu={() => setDrawerOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-[1440px] p-5">{children}</div>
+        </main>
         <AppFooter />
       </div>
     </div>
