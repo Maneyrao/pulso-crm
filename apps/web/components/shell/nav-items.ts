@@ -27,14 +27,9 @@ export interface NavGroup {
  * del build en la Fase 3 del plan (LEODARROSAFIT_ALIGNMENT_PLAN.md §3): si
  * un módulo de esos vuelve, entra con backend real desde el día uno.
  *
- * "Nuevo plan" (`#/activities/new` en la referencia) no tiene ruta propia en
- * Next todavía (no existe `/plans/new`) — se omite a propósito en vez de
- * apuntar a una ruta muerta; queda pendiente para cuando exista la página.
- *
- * Dispositivos (`/settings/devices`) tiene página propia y queda en el nav
- * aunque su backend real (gestión de agentes) llega en la Fase 4: por eso NO
- * se marca `mock` (no es un módulo demo genérico, es una integración con
- * fecha de llegada concreta).
+ * Dispositivos (`/settings/devices`) queda en el nav aunque su backend real
+ * (gestión de agentes) llega en la Fase 4: no es un módulo demo genérico,
+ * es una integración con fecha de llegada concreta.
  */
 export const NAV_GROUPS: readonly NavGroup[] = [
   {
@@ -61,6 +56,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Actividades',
     items: [
       { href: '/plans', label: 'Planes', permission: 'plan:read' },
+      { href: '/plans/new', label: 'Nuevo plan', permission: 'plan:write' },
       { href: '/activities', label: 'Actividades', permission: 'plan:read' },
     ],
   },
