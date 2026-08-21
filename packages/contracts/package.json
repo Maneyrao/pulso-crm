@@ -20,7 +20,8 @@
     "./access": "./src/access.ts",
     "./reporting": "./src/reporting.ts",
     "./messaging": "./src/messaging.ts",
-    "./agent-protocol": "./src/agent-protocol.ts"
+    "./agent-protocol": "./src/agent-protocol.ts",
+    "./biometrics": "./src/biometrics.ts"
   },
   "scripts": {
     "lint": "eslint src",
