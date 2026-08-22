@@ -51,7 +51,7 @@ import {
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
-import { BiometricsCard } from '@/components/biometrics/BiometricsCard';
+import { BiometricsTab } from '@/components/biometrics/BiometricsTab';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
 
@@ -237,13 +237,11 @@ function MemberDetailScreen() {
           <TabsTrigger value="summary">Resumen</TabsTrigger>
           <TabsTrigger value="memberships">Membresías</TabsTrigger>
           <TabsTrigger value="ledger">Cuenta corriente</TabsTrigger>
+          <TabsTrigger value="biometrics">Biometría</TabsTrigger>
         </TabsList>
 
         <TabsContent value="summary">
           <SummarySection member={member} />
-          <div className="mt-4">
-            <BiometricsCard memberName={`${member.firstName} ${member.lastName}`} />
-          </div>
         </TabsContent>
 
         <TabsContent value="memberships">
@@ -252,6 +250,10 @@ function MemberDetailScreen() {
 
         <TabsContent value="ledger">
           <LedgerSection memberId={id} gymId={gymId} />
+        </TabsContent>
+
+        <TabsContent value="biometrics">
+          <BiometricsTab memberId={id} memberName={`${member.firstName} ${member.lastName}`} />
         </TabsContent>
       </Tabs>
 

@@ -3,8 +3,9 @@
 import * as React from 'react';
 import { CheckCircle2, Fingerprint, XCircle } from 'lucide-react';
 import { Alert, Button, Modal, Select, cn } from '@pulso/ui';
-import { getAgentClient, type AgentEvent } from '@/lib/agent/fake-agent';
-import { useAgentStore } from '@/lib/agent/store';
+import { getAgentClient, useAgentStore, type AgentEvent } from '@/lib/agent';
+import { startEnrollment } from '@/lib/api/biometrics';
+import { ApiError } from '@/lib/api/errors';
 
 const FINGERS = [
   { value: 'RIGHT_INDEX', label: 'Índice derecho' },
@@ -13,37 +14,54 @@ const FINGERS = [
   { value: 'LEFT_THUMB', label: 'Pulgar izquierdo' },
 ] as const;
 
-type Phase = 'idle' | 'capturing' | 'done' | 'cancelled';
+const API_ERROR_LABEL: Record<string, string> = {
+  NO_BIOMETRIC_CONSENT: 'El socio no tiene consentimiento biométrico vigente. Registralo primero.',
+  FINGER_ALREADY_ENROLLED: 'Ese dedo ya tiene una credencial activa. Revocala antes de re-enrolar.',
+  AGENT_OFFLINE: 'El agente local no reporta señales de vida en el backend.',
+};
+
+type Phase = 'idle' | 'capturing' | 'done' | 'cancelled' | 'failed';
 
 interface Progress {
   captured: number;
   required: number;
   quality: number | null;
-  warning?: 'LOW_QUALITY';
+  warning?: string;
   prompt: string;
 }
 
 /**
- * Flujo de enrolamiento de huella contra el agente local (simulado hasta la
- * Etapa 7-8; el flujo real es idéntico: docs/biometrics/WEBSOCKET_PROTOCOL.md
- * §9.1). El nombre del socio es sólo informativo: el agente real nunca lo
- * recibe (regla "identifica candidatos, no personas").
+ * Enrolamiento real (docs/biometrics/WEBSOCKET_PROTOCOL.md §9.1):
+ * `POST /members/:id/biometrics/enrollments` emite un deviceToken de un solo
+ * uso que va DIRECTO al agente por el WS local (`enroll.start`) — nunca se
+ * guarda. El template viaja agente → backend; el navegador sólo ve progreso.
+ * El nombre del socio es informativo: el agente jamás lo recibe.
  */
 export function EnrollmentDialog({
   open,
   onOpenChange,
+  memberId,
   memberName,
+  localAgentId,
+  deviceId,
+  onEnrolled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  memberId: string;
   memberName?: string;
+  localAgentId: string;
+  deviceId: string;
+  onEnrolled?: () => void;
 }) {
   const agentStatus = useAgentStore((s) => s.status);
   const [finger, setFinger] = React.useState<string>('RIGHT_INDEX');
   const [phase, setPhase] = React.useState<Phase>('idle');
   const [progress, setProgress] = React.useState<Progress | null>(null);
   const [finalQuality, setFinalQuality] = React.useState<number | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
   const opIdRef = React.useRef<string | null>(null);
+  const startingRef = React.useRef(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -54,18 +72,24 @@ export function EnrollmentDialog({
         setFinalQuality(event.payload.finalQuality);
         setPhase('done');
         opIdRef.current = null;
+        onEnrolled?.();
+      } else if (event.type === 'enroll.failed' && event.payload.opId === opIdRef.current) {
+        setError(`La captura falló (${event.payload.code}).`);
+        setPhase('failed');
+        opIdRef.current = null;
       } else if (event.type === 'operation.cancelled' && event.payload.opId === opIdRef.current) {
         setPhase('cancelled');
         opIdRef.current = null;
       }
     });
     return unsubscribe;
-  }, [open]);
+  }, [open, onEnrolled]);
 
   const reset = React.useCallback(() => {
     setPhase('idle');
     setProgress(null);
     setFinalQuality(null);
+    setError(null);
   }, []);
 
   const handleClose = (next: boolean) => {
@@ -76,12 +100,41 @@ export function EnrollmentDialog({
     onOpenChange(next);
   };
 
-  const start = () => {
-    const opId = getAgentClient().enrollStart({ samplesRequired: 4 });
-    if (opId) {
+  const start = async () => {
+    if (startingRef.current) return;
+    startingRef.current = true;
+    setError(null);
+    try {
+      const session = await startEnrollment(
+        memberId,
+        { localAgentId, deviceId, fingerPosition: finger as 'RIGHT_INDEX' },
+        crypto.randomUUID(),
+      );
+      const opId = getAgentClient().enrollStart({
+        enrollmentId: session.enrollmentId,
+        deviceToken: session.deviceToken,
+        deviceId,
+        samplesRequired: session.samplesRequired,
+        minQuality: session.minQuality,
+        fingerPosition: finger,
+      });
+      if (!opId) {
+        setError('No se pudo iniciar la captura en el agente local.');
+        setPhase('failed');
+        return;
+      }
       opIdRef.current = opId;
       setPhase('capturing');
       setProgress(null);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? (API_ERROR_LABEL[err.code] ?? err.message)
+          : 'No se pudo iniciar el enrolamiento.',
+      );
+      setPhase('failed');
+    } finally {
+      startingRef.current = false;
     }
   };
 
@@ -97,8 +150,8 @@ export function EnrollmentDialog({
     >
       {!agentReady && phase === 'idle' ? (
         <Alert tone="warning" title="Agente local no conectado">
-          Conectá el agente desde Configuración → Dispositivos para usar el lector. La integración real llega con la
-          etapa de biometría; por ahora podés simularla.
+          El lector se opera a través del Pulso Agent instalado en esta PC. Verificá en Configuración → Dispositivos
+          que el agente esté conectado y aprobado.
         </Alert>
       ) : null}
 
@@ -116,8 +169,8 @@ export function EnrollmentDialog({
             />
           </div>
           <p className="text-(--text-sm) text-(--color-muted)">
-            Se capturan 4 muestras. Pedile al socio que apoye el dedo firme, lo levante y lo vuelva a apoyar en cada
-            paso.
+            Se capturan varias muestras. Pedile al socio que apoye el dedo firme, lo levante y lo vuelva a apoyar en
+            cada paso.
           </p>
         </div>
       ) : null}
@@ -163,9 +216,6 @@ export function EnrollmentDialog({
           <p className="text-(--text-sm) text-(--color-muted)">
             Calidad del template: {finalQuality}/100 · {FINGERS.find((f) => f.value === finger)?.label}
           </p>
-          <Alert tone="info" title="Demo">
-            El template no se guardó: el backend de biometría llega en la etapa 7-8.
-          </Alert>
         </div>
       ) : null}
 
@@ -174,6 +224,12 @@ export function EnrollmentDialog({
           <XCircle className="h-10 w-10 text-(--color-muted)" aria-hidden={true} />
           <p className="text-(--text-sm) text-(--color-muted)">Operación cancelada.</p>
         </div>
+      ) : null}
+
+      {phase === 'failed' && error ? (
+        <Alert tone="danger" title="No se pudo enrolar">
+          {error}
+        </Alert>
       ) : null}
 
       <div className="mt-6 flex justify-end gap-2">
@@ -186,8 +242,10 @@ export function EnrollmentDialog({
             Cerrar
           </Button>
         )}
-        {phase === 'idle' && agentReady ? <Button onClick={start}>Iniciar captura</Button> : null}
-        {phase === 'done' || phase === 'cancelled' ? <Button onClick={reset}>Enrolar otra</Button> : null}
+        {phase === 'idle' && agentReady ? <Button onClick={() => void start()}>Iniciar captura</Button> : null}
+        {phase === 'done' || phase === 'cancelled' || phase === 'failed' ? (
+          <Button onClick={reset}>Enrolar otra</Button>
+        ) : null}
       </div>
     </Modal>
   );

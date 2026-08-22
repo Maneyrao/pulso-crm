@@ -17,26 +17,9 @@ import { useAgentStore } from './store';
  * - cancelación explícita con `operation.cancelled`.
  */
 
-export type AgentEvent =
-  | { type: 'hello.ack'; payload: { agentVersion: string; deviceName: string | null } }
-  | { type: 'device.connected'; payload: { deviceName: string } }
-  | { type: 'device.disconnected'; payload: { reason: string } }
-  | { type: 'enroll.progress'; payload: { opId: string; captured: number; required: number; quality: number | null; warning?: 'LOW_QUALITY'; prompt: string } }
-  | { type: 'enroll.completed'; payload: { opId: string; finalQuality: number } }
-  | { type: 'enroll.failed'; payload: { opId: string; code: 'TIMEOUT' | 'DEVICE_DISCONNECTED' } }
-  | { type: 'identify.captured'; payload: { opId: string; quality: number } }
-  | { type: 'identify.sent'; payload: { opId: string } }
-  | { type: 'operation.cancelled'; payload: { opId: string; reason: string } }
-  | { type: 'error'; payload: { code: 'AGENT_BUSY' | 'NO_DEVICE'; opId: string | null } };
+import type { AgentClient, AgentEvent, EnrollStartOptions } from './client';
 
-export interface AgentClient {
-  connect(): void;
-  disconnect(): void;
-  enrollStart(opts: { samplesRequired?: number }): string | null;
-  cancel(opId: string): void;
-  subscribe(listener: (event: AgentEvent) => void): () => void;
-  readonly connected: boolean;
-}
+export type { AgentClient, AgentEvent } from './client';
 
 const DEVICE_NAME = 'U.are.U 4500';
 
@@ -86,7 +69,7 @@ class FakeAgentClient implements AgentClient {
     useAgentStore.getState().setStatus('no-agent', null);
   }
 
-  enrollStart({ samplesRequired = 4 }: { samplesRequired?: number }): string | null {
+  enrollStart({ samplesRequired = 4 }: EnrollStartOptions): string | null {
     if (!this.connected) {
       this.emit({ type: 'error', payload: { code: 'NO_DEVICE', opId: null } });
       return null;
