@@ -19,6 +19,7 @@ export function BrandLogo({
       width={size}
       height={size}
       priority={priority}
+      unoptimized
       className={cn('block shrink-0 object-cover', className)}
     />
   );
