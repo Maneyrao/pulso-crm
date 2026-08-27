@@ -368,6 +368,7 @@ El endpoint más caliente del producto. **Separa identificación de autorizació
 | Método | Ruta | Permiso |
 |---|---|---|
 | GET | `/access/attempts` | `access:read_history` — filtros por sede, decisión, método, rango |
+| GET | `/access/attempts/:id/result` | `access:read_history` — resultado seguro con la misma forma de `AccessCheckResponse` |
 | GET | `/attendances` | `attendance:read` |
 | GET | `/attendances/stats` | `stats:read` — total, por día de semana, por hora, ranking (documento enmascarado) |
 | POST | `/access/manual-attendance` | `access:operate` · Idem — registro manual con motivo obligatorio; audita |
@@ -393,6 +394,7 @@ Dos superficies distintas: la del **CRM** (usuarios) y la del **agente** (dispos
 | POST | `/members/:id/biometrics/enrollments` | `biometrics:enroll` · Idem | inicia sesión de enrolamiento |
 | GET | `/biometrics/enrollments/:id` | `biometrics:read` | estado, para que la UI muestre el progreso |
 | POST | `/biometrics/enrollments/:id/cancel` | `biometrics:enroll` | |
+| POST | `/biometrics/identifications` | `access:operate` · Idem | emite un `deviceToken` IDENTIFY para un agente/lector online de la sede |
 | GET | `/members/:id/biometrics/credentials` | `biometrics:read` | **nunca devuelve el template**, sólo metadatos |
 | DELETE | `/biometrics/credentials/:id` | `biometrics:revoke` | marca `REVOKED`; el borrado físico lo hace el job de retención |
 
@@ -405,6 +407,17 @@ Dos superficies distintas: la del **CRM** (usuarios) y la del **agente** (dispos
 | **Errores** | `409 NO_BIOMETRIC_CONSENT`, `409 FINGER_ALREADY_ENROLLED`, `409 AGENT_OFFLINE`, `403 FEATURE_NOT_ENABLED` |
 | **Reglas** | El `deviceToken` es de **un solo uso**, scope `ENROLL`, atado a `subjectMemberId` y con TTL corto. El frontend se lo pasa al agente por el WS local; nunca lo persiste. |
 | **Tests** | sin consentimiento → 409; dedo ya enrolado → 409; token no sirve para otro socio; token vencido → 401; token reutilizado → 401 |
+
+#### `POST /api/v1/biometrics/identifications`
+
+| | |
+|---|---|
+| **Input** | `{ branchId }` |
+| **Output** | `201 { deviceToken, deviceId, expiresAt, minQuality }` |
+| **Errores** | `404 NOT_FOUND` para sede ajena, `409 AGENT_OFFLINE` si no hay agente o lector online |
+| **Reglas** | El backend elige el agente y lector de la sede. El token tiene scope `IDENTIFY`, TTL corto y un solo uso; el frontend lo entrega inmediatamente al WS local y no lo persiste. |
+
+El resultado completo queda disponible para el CRM en `GET /access/attempts/:id/result` (`access:read_history`) con la misma forma de `AccessCheckResponse`. El agente conserva la respuesta mínima `{ resolved: true }`.
 
 ### Superficie agente (`Authorization: Bearer <deviceToken>`)
 
@@ -424,9 +437,9 @@ Dos superficies distintas: la del **CRM** (usuarios) y la del **agente** (dispos
 | **Input** | `{ branchId, deviceId, template: base64, templateFormat, quality: number, capturedAt }` |
 | **Output** | `200 { resolved: true }` — **y nada más.** El agente no recibe identidad. |
 | **Errores** | `401 INVALID_DEVICE_TOKEN`, `403 AGENT_REVOKED`, `422 TEMPLATE_QUALITY_TOO_LOW`, `429 RATE_LIMITED` |
-| **Reglas** | 1. Cargar candidatos `BiometricCredential ACTIVE` de esa sede (o del gimnasio si `branchId` es null en la credencial). 2. Descifrar en memoria. 3. Matching 1:N con umbral configurable. 4. Si hay match: aplicar **la misma cadena de autorización de `/access/check`**. 5. Registrar `AccessAttempt` con `method=FINGERPRINT` y `matchScore`. 6. Emitir WS `access.resolved` a la sede. |
+| **Reglas** | 1. Validar que `deviceId` pertenezca al agente autenticado. 2. Cargar candidatos `BiometricCredential ACTIVE` de esa sede (o del gimnasio si `branchId` es null en la credencial). 3. Descifrar en memoria. 4. Matching 1:N con umbral configurable. 5. Si hay match: aplicar **la misma cadena de autorización de `/access/check`**. 6. Registrar `AccessAttempt` con `method=FINGERPRINT` y `matchScore`. 7. El CRM consulta el intento; el agente no recibe el resultado. |
 | **Transacción** | sí, para asistencia y descuento de clase |
-| **Eventos** | WS `access.resolved` (con datos del socio) hacia el **navegador**, no hacia el agente |
+| **Resultado CRM** | `GET /access/attempts/:id/result`; el polling queda aislado del WebSocket local y no expone PII al agente |
 | **Tests** | match correcto autoriza; match correcto con membresía vencida **deniega**; sin match → `BIOMETRIC_NO_MATCH` registrado; credencial revocada **no matchea**; calidad baja → 422; token de otro agente → 401; **el agente nunca recibe PII**; latencia p95 medida con N=2.000 |
 
 Detalle de seguridad, claves y retención: `biometrics/BIOMETRIC_SECURITY.md`. Protocolo local: `biometrics/WEBSOCKET_PROTOCOL.md`.

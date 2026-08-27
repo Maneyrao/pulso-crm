@@ -370,6 +370,22 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
     },
     readRaw: (raw, id) => raw.biometricCredential.findUnique({ where: { id } }),
   },
+  'access/attempts': {
+    async createId(raw, gymId, branchId) {
+      const row = await raw.accessAttempt.create({
+        data: {
+          gymId,
+          branchId,
+          method: 'FINGERPRINT',
+          decision: 'DENIED',
+          reasonCode: 'BIOMETRIC_NO_MATCH',
+          detail: 'Fixture de aislamiento cross-tenant.',
+        },
+      });
+      return row.id;
+    },
+    readRaw: (raw, id) => raw.accessAttempt.findUnique({ where: { id } }),
+  },
   attendances: {
     async createId(raw, gymId, branchId) {
       const memberNumber = unique();
@@ -442,8 +458,8 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'query-based (from/to opcionales); sin id de recurso, resultado scoped por gymId + sede activa',
   'POST /api/v1/access/check':
     'body requerido (branchId, method, identifier); un branchId de otro gym se rechaza por TenantContextStore.requireBranch → 404. Cobertura funcional en apps/api/src/modules/access/access-decision.spec.ts (regla de decisión) y evidencia de que el service escribe scoped por gymId (extensión de Prisma).',
-  'GET /api/v1/access/attempts':
-    'list con paginación offset, scoped por gymId + branchId activo; sin id de recurso',
+  'POST /api/v1/biometrics/identifications':
+    'body requerido (branchId) + Idempotency-Key; un branchId ajeno se oculta con 404 mediante TenantContextStore.requireBranch. Cubierto explícitamente en test/biometrics/biometrics.spec.ts.',
   'GET /api/v1/reports/dashboard':
     'singleton scoped por gymId + sede activa (agrega socios/deuda/ingresos/asistencias); sin id de recurso',
   'POST /api/v1/agents/:id/revoke':

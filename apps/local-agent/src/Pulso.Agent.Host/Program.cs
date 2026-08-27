@@ -1,5 +1,9 @@
 using System.Net;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using Pulso.Agent.Backend;
+using Pulso.Agent.Backend.Http;
 using Pulso.Agent.Core;
 using Pulso.Agent.Core.Ports;
 using Pulso.Agent.Host.Ws;
@@ -49,12 +53,42 @@ if (!string.IsNullOrWhiteSpace(devCredential))
     await secretStore.StoreAsync(SecretKeys.AgentCredential, devCredential);
 }
 
+// Primer arranque real/simulado: intercambia el installationId + secreto de un solo uso que
+// muestra el CRM por la credencial de larga vida. Después del intercambio, el secreto no se
+// persiste y no vuelve a servir en el backend.
+var storedCredential = await secretStore.RetrieveAsync(SecretKeys.AgentCredential);
+var installationId = Environment.GetEnvironmentVariable("PULSO_AGENT_INSTALLATION_ID");
+var pairingSecret = Environment.GetEnvironmentVariable("PULSO_AGENT_PAIRING_SECRET");
+if (storedCredential is null &&
+    !string.IsNullOrWhiteSpace(installationId) &&
+    !string.IsNullOrWhiteSpace(pairingSecret))
+{
+    using var pairingHttp = new HttpClient
+    {
+        BaseAddress = new Uri(agentConfig.BackendBaseUrl),
+        Timeout = TimeSpan.FromSeconds(15),
+    };
+    var pairingClient = new BackendClient(pairingHttp);
+    var paired = await pairingClient.PairAsync(new PairRequest
+    {
+        InstallationId = installationId,
+        Secret = pairingSecret,
+        MachineFingerprint = BuildMachineFingerprint(),
+        AgentVersion = AgentVersionInfo.Current,
+        OsVersion = RuntimeInformation.OSDescription,
+    });
+    await secretStore.StoreAsync(SecretKeys.AgentCredential, paired.AgentCredential);
+    agentConfig.AgentId = paired.AgentId;
+    await configStore.SaveAsync(agentConfig);
+}
+
 var sensorKind = Environment.GetEnvironmentVariable("PULSO_AGENT_SENSOR") ?? "fake";
+var fakeIdentity = Environment.GetEnvironmentVariable("PULSO_AGENT_FAKE_IDENTITY") ?? "demo-finger-1";
 IFingerprintSensor sensor = sensorKind.ToLowerInvariant() switch
 {
     "hid" or "digitalpersona" => new Pulso.Agent.Sensors.HidDigitalPersonaSensor.HidDigitalPersonaSensor(),
     "wbf" or "fingerjet" => new Pulso.Agent.Sensors.WbfFingerJetSensor.WbfFingerJetSensor(),
-    _ => new FakeSensor(new FakeSensorOptions()),
+    _ => new FakeSensor(new FakeSensorOptions { Identity = fakeIdentity }),
 };
 
 var builder = WebApplication.CreateBuilder(args);
@@ -113,6 +147,12 @@ app.Logger.LogInformation(
     agentConfig.TlsEnabled ? "wss" : "ws", agentConfig.WsPort, sensorKind, agentConfig.TlsEnabled, agentConfig.Environment);
 
 app.Run();
+
+static string BuildMachineFingerprint()
+{
+    var material = $"{Environment.MachineName}|{Environment.UserName}|{RuntimeInformation.OSDescription}";
+    return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material))).ToLowerInvariant();
+}
 
 // Necesario para que Pulso.Agent.Integration.Tests pueda usar WebApplicationFactory<Program>.
 public partial class Program;

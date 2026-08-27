@@ -49,7 +49,12 @@ public sealed class HeartbeatService(
         {
             var response = await backendClient.HeartbeatAsync(
                 credential,
-                new HeartbeatRequest { AgentState = stateMachine.Current.ToString(), AgentVersion = AgentVersionInfo.Current },
+                new HeartbeatRequest
+                {
+                    AgentState = stateMachine.Current.ToString(),
+                    AgentVersion = AgentVersionInfo.Current,
+                    DeviceStatus = stateMachine.DeviceOnline ? "ONLINE" : "OFFLINE",
+                },
                 ct).ConfigureAwait(false);
 
             ApplyStatus(response.Status, response.Reason);

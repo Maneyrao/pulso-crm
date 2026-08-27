@@ -9,11 +9,15 @@ namespace Pulso.Agent.Core.Tests;
 
 public class OperationCoordinatorIdentifyTests
 {
-    private static IdentifyStartPayload Request(bool continuous = true, int? idleTimeoutMs = null, int? minQuality = null) => new()
+    private static IdentifyStartPayload Request(
+        bool continuous = true,
+        int? idleTimeoutMs = null,
+        int? minQuality = null,
+        string deviceId = "FAKE-0001") => new()
     {
         OpId = "op-identify-1",
         DeviceToken = "token-1",
-        DeviceId = "FAKE-0001",
+        DeviceId = deviceId,
         BranchId = "branch-1",
         Continuous = continuous,
         IdleTimeoutMs = idleTimeoutMs,
@@ -54,6 +58,21 @@ public class OperationCoordinatorIdentifyTests
         Assert.Single(backend.IdentifyRequests);
         Assert.Null(sessions.Current);
         Assert.Equal(AgentState.Ready, state.Current);
+    }
+
+    [Fact]
+    public async Task Backend_device_id_does_not_have_to_match_the_local_sensor_id()
+    {
+        var (coordinator, _, _, notifier, backend) = Build();
+        const string backendDeviceId = "018f80d4-c6b0-7e88-8ccd-6be96910bc11";
+
+        await coordinator.RunIdentifyAsync(
+            Request(continuous: false, deviceId: backendDeviceId),
+            CancellationToken.None);
+
+        Assert.Single(notifier.OfType<IdentifySentPayload>());
+        var submitted = Assert.Single(backend.IdentifyRequests);
+        Assert.Equal(backendDeviceId, submitted.DeviceId);
     }
 
     [Fact]

@@ -49,6 +49,7 @@ public sealed class OperationCoordinator(
 
         try
         {
+            var localSensorId = await ResolveLocalSensorIdAsync(linked.Token).ConfigureAwait(false);
             notifier.EnrollProgress(new EnrollProgressPayload
             {
                 OpId = request.OpId,
@@ -63,7 +64,7 @@ public sealed class OperationCoordinator(
                 CaptureResult sample;
                 try
                 {
-                    sample = await sensor.CaptureAsync(request.DeviceId, _timeouts.Capture, linked.Token)
+                    sample = await sensor.CaptureAsync(localSensorId, _timeouts.Capture, linked.Token)
                         .ConfigureAwait(false);
                 }
                 catch (SensorDisconnectedException)
@@ -191,8 +192,10 @@ public sealed class OperationCoordinator(
             }
 
             _cancelReasons.TryRemove(request.OpId, out _);
-            sessions.End(request.OpId);
             stateMachine.OperationEnded();
+            // El slot se libera al final: BeginAsync no puede observar una
+            // sesión libre mientras la máquina pública todavía sigue Busy.
+            sessions.End(request.OpId);
         }
     }
 
@@ -211,6 +214,7 @@ public sealed class OperationCoordinator(
 
         try
         {
+            var localSensorId = await ResolveLocalSensorIdAsync(linked.Token).ConfigureAwait(false);
             var keepListening = true;
             while (keepListening)
             {
@@ -220,7 +224,7 @@ public sealed class OperationCoordinator(
                 CaptureResult sample;
                 try
                 {
-                    sample = await sensor.CaptureAsync(request.DeviceId, _timeouts.Capture, combined.Token)
+                    sample = await sensor.CaptureAsync(localSensorId, _timeouts.Capture, combined.Token)
                         .ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (idleCts.IsCancellationRequested && !linked.IsCancellationRequested)
@@ -310,8 +314,8 @@ public sealed class OperationCoordinator(
         finally
         {
             _cancelReasons.TryRemove(request.OpId, out _);
-            sessions.End(request.OpId);
             stateMachine.OperationEnded();
+            sessions.End(request.OpId);
         }
     }
 
@@ -356,6 +360,18 @@ public sealed class OperationCoordinator(
         }
 
         // reason == null (identify.stop): fin silencioso, sin mensaje — comportamiento intencional.
+    }
+
+    private async Task<string> ResolveLocalSensorIdAsync(CancellationToken ct)
+    {
+        var devices = await sensor.EnumerateAsync(ct).ConfigureAwait(false);
+        var online = devices.FirstOrDefault(device => device.Status == SensorStatus.Online);
+        if (online is null)
+        {
+            throw new SensorDisconnectedException("NO_LOCAL_SENSOR");
+        }
+
+        return online.SensorId;
     }
 
     private static string MapBackendCode(string backendCode) => backendCode switch

@@ -141,33 +141,35 @@ async function enrollComplete(
   );
 }
 
-/** Pide un deviceToken IDENTIFY directo por Prisma raw (endpoint interno del flujo web pendiente hasta la fase web). */
-async function issueIdentifyToken(gymId: string, agentId: string): Promise<string> {
-  const { createHash, randomBytes } = await import('node:crypto');
-  const token = 'pdt_' + randomBytes(32).toString('base64url');
-  await ctx.db.raw.deviceToken.create({
-    data: {
-      gymId,
-      localAgentId: agentId,
-      tokenHash: createHash('sha256').update(token).digest('hex'),
-      scope: 'IDENTIFY',
-      expiresAt: new Date(Date.now() + 120_000),
-    },
-  });
-  return token;
+interface IdentificationSession {
+  deviceToken: string;
+  deviceId: string;
+  expiresAt: string;
+  minQuality: number;
+}
+
+async function issueIdentifyToken(client: TestClient, branchId: string): Promise<IdentificationSession> {
+  const response = await client.post(
+    '/api/v1/biometrics/identifications',
+    { branchId },
+    { 'idempotency-key': randomUUID() },
+  );
+  expect(response.status).toBe(201);
+  return response.body as IdentificationSession;
 }
 
 async function identify(
   deviceToken: string,
   branchId: string,
   template = TEMPLATE,
+  deviceId = randomUUID(),
 ): Promise<{ status: number; body: unknown }> {
   const client = new TestClient(ctx.baseUrl);
   return client.post(
     '/api/v1/agent/biometrics/identify',
     {
       branchId,
-      deviceId: randomUUID(),
+      deviceId,
       template,
       templateFormat: 'VENDOR_DIGITALPERSONA',
       quality: 80,
@@ -183,6 +185,29 @@ describe('biometría — flujo completo y controles de seguridad', () => {
   beforeAll(async () => {
     setupA = await setupAgent(crmA, gymA.branch.id);
   }, 60_000);
+
+  it('el CRM emite un token IDENTIFY real y el agente no puede reutilizarlo', async () => {
+    const session = await issueIdentifyToken(crmA, gymA.branch.id);
+    expect(session.deviceToken).toMatch(/^pdt_/);
+    expect(session.deviceId).toBe(setupA.deviceId);
+
+    const first = await identify(session.deviceToken, gymA.branch.id, OTHER_TEMPLATE, session.deviceId);
+    expect(first.status).toBe(200);
+
+    const replay = await identify(session.deviceToken, gymA.branch.id, OTHER_TEMPLATE, session.deviceId);
+    expect(replay.status).toBe(401);
+    expect((replay.body as { code: string }).code).toBe('INVALID_DEVICE_TOKEN');
+  });
+
+  it('no emite identificación para una sede fuera de la sesión', async () => {
+    const response = await crmB.post(
+      '/api/v1/biometrics/identifications',
+      { branchId: gymA.branch.id },
+      { 'idempotency-key': randomUUID() },
+    );
+    expect(response.status).toBe(404);
+    expect((response.body as { code: string }).code).toBe('NOT_FOUND');
+  });
 
   it('enroll-no-consent: sin consentimiento el enrolamiento responde 409 NO_BIOMETRIC_CONSENT', async () => {
     const memberId = await createMember(crmA, 'SinConsentimiento');
@@ -249,8 +274,8 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     expect((asIdentify.body as { code: string }).code).toBe('INVALID_DEVICE_TOKEN');
 
     // IDENTIFY usado en enroll-complete → 401.
-    const identifyToken = await issueIdentifyToken(gymA.gym.id, setupA.agentId);
-    const asEnroll = await enrollComplete(identifyToken, randomUUID());
+    const identifySession = await issueIdentifyToken(crmA, gymA.branch.id);
+    const asEnroll = await enrollComplete(identifySession.deviceToken, randomUUID());
     expect(asEnroll.status).toBe(401);
     expect((asEnroll.body as { code: string }).code).toBe('INVALID_DEVICE_TOKEN');
   });
@@ -291,15 +316,18 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     const template = Buffer.from(`sin-pii-${Date.now()}`).toString('base64');
     await enrollComplete(deviceToken, enrollmentId, template);
 
-    const withMatch = await identify(await issueIdentifyToken(gymA.gym.id, setupA.agentId), gymA.branch.id, template);
+    const matchSession = await issueIdentifyToken(crmA, gymA.branch.id);
+    const withMatch = await identify(matchSession.deviceToken, gymA.branch.id, template, matchSession.deviceId);
     expect(withMatch.status).toBe(200);
     expect(withMatch.body).toEqual({ resolved: true });
     expect(Object.keys(withMatch.body as object)).toEqual(['resolved']);
 
+    const noMatchSession = await issueIdentifyToken(crmA, gymA.branch.id);
     const noMatch = await identify(
-      await issueIdentifyToken(gymA.gym.id, setupA.agentId),
+      noMatchSession.deviceToken,
       gymA.branch.id,
       Buffer.from(`desconocida-${Date.now()}`).toString('base64'),
+      noMatchSession.deviceId,
     );
     expect(noMatch.status).toBe(200);
     expect(noMatch.body).toEqual({ resolved: true });
@@ -311,6 +339,17 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     });
     expect(attempt).not.toBeNull();
     expect(attempt!.memberId).toBeNull();
+
+    const result = await crmA.get(`/api/v1/access/attempts/${attempt!.id}/result`);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({
+      decision: 'DENIED',
+      reasonCode: 'BIOMETRIC_NO_MATCH',
+      member: null,
+      membership: null,
+      attendanceRegistered: false,
+      accessAttemptId: attempt!.id,
+    });
   });
 
   it('identify con match registra AccessAttempt con matchScore y método FINGERPRINT', async () => {
@@ -320,7 +359,8 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     const template = Buffer.from(`con-intento-${Date.now()}`).toString('base64');
     await enrollComplete(deviceToken, enrollmentId, template);
 
-    const res = await identify(await issueIdentifyToken(gymA.gym.id, setupA.agentId), gymA.branch.id, template);
+    const session = await issueIdentifyToken(crmA, gymA.branch.id);
+    const res = await identify(session.deviceToken, gymA.branch.id, template, session.deviceId);
     expect(res.status).toBe(200);
 
     const attempt = await ctx.db.raw.accessAttempt.findFirst({
@@ -332,6 +372,17 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     // Sin membresía activa: la MISMA cadena de autorización de /access/check deniega.
     expect(attempt!.decision).toBe('DENIED');
     expect(attempt!.reasonCode).toBe('NO_MEMBERSHIP');
+
+    const result = await crmA.get(`/api/v1/access/attempts/${attempt!.id}/result`);
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      decision: 'DENIED',
+      reasonCode: 'NO_MEMBERSHIP',
+      member: { id: memberId, firstName: 'ConIntento', status: 'ACTIVE' },
+      membership: null,
+      attendanceRegistered: false,
+      accessAttemptId: attempt!.id,
+    });
   });
 
   it('identify-revoked: una credencial revocada no matchea en la siguiente identificación', async () => {
@@ -345,7 +396,8 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     const revoked = await crmA.del(`/api/v1/biometrics/credentials/${credential!.id}`);
     expect(revoked.status).toBe(200);
 
-    const res = await identify(await issueIdentifyToken(gymA.gym.id, setupA.agentId), gymA.branch.id, template);
+    const session = await issueIdentifyToken(crmA, gymA.branch.id);
+    const res = await identify(session.deviceToken, gymA.branch.id, template, session.deviceId);
     expect(res.status).toBe(200);
 
     const attempt = await ctx.db.raw.accessAttempt.findFirst({
@@ -426,7 +478,8 @@ describe('biometría — flujo completo y controles de seguridad', () => {
 
     // El agente de B presenta la huella original: el ciphertext robado falla
     // la verificación GCM (AAD de gym A) y el resultado es no-match.
-    const res = await identify(await issueIdentifyToken(gymB.gym.id, setupB.agentId), gymB.branch.id, template);
+    const session = await issueIdentifyToken(crmB, gymB.branch.id);
+    const res = await identify(session.deviceToken, gymB.branch.id, template, session.deviceId);
     expect(res.status).toBe(200);
 
     const attempt = await ctx.db.raw.accessAttempt.findFirst({
@@ -452,7 +505,8 @@ describe('biometría — flujo completo y controles de seguridad', () => {
       data: { branchId: otherBranch.id },
     });
 
-    const res = await identify(await issueIdentifyToken(gymA.gym.id, setupA.agentId), gymA.branch.id, template);
+    const session = await issueIdentifyToken(crmA, gymA.branch.id);
+    const res = await identify(session.deviceToken, gymA.branch.id, template, session.deviceId);
     expect(res.status).toBe(200);
     const attempt = await ctx.db.raw.accessAttempt.findFirst({
       where: { gymId: gymA.gym.id, method: 'FINGERPRINT' },

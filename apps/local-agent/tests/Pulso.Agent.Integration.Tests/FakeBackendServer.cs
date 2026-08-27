@@ -24,6 +24,7 @@ public sealed class FakeBackendServer : IAsyncDisposable
     public ConcurrentBag<string> EnrollRequestBodies { get; } = [];
     public ConcurrentBag<string> IdentifyRequestBodies { get; } = [];
     public ConcurrentBag<string> HeartbeatRequestBodies { get; } = [];
+    public ConcurrentBag<string> PairRequestBodies { get; } = [];
 
     /// <summary>Si se setea, el próximo enroll-complete devuelve este status en vez de 201.</summary>
     public int? NextEnrollStatusCode { get; set; }
@@ -41,6 +42,8 @@ public sealed class FakeBackendServer : IAsyncDisposable
 
         app.MapPost("/api/v1/agent/pair", async context =>
         {
+            using var reader = new StreamReader(context.Request.Body);
+            PairRequestBodies.Add(await reader.ReadToEndAsync());
             context.Response.StatusCode = 200;
             await context.Response.WriteAsJsonAsync(new { agentCredential = "fake-agent-credential", agentId = "agent-1" });
         });

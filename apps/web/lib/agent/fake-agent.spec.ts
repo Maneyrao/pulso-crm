@@ -101,4 +101,43 @@ describe('FakeAgent', () => {
     expect(client.enrollStart({})).toBeNull();
     expect(noDevice).toBe(true);
   });
+
+  it('identificación simula captura y envío y vuelve a ready', async () => {
+    const { client, useAgentStore } = await freshClient();
+    client.connect();
+    vi.advanceTimersByTime(800);
+
+    const events: string[] = [];
+    client.subscribe((event) => events.push(event.type));
+    const opId = client.identifyStart({
+      deviceToken: 'pdt_fake',
+      deviceId: crypto.randomUUID(),
+      branchId: crypto.randomUUID(),
+    });
+
+    expect(opId).not.toBeNull();
+    expect(useAgentStore.getState().status).toBe('busy');
+    vi.advanceTimersByTime(2_000);
+    expect(events).toEqual(['identify.captured', 'identify.sent']);
+    expect(useAgentStore.getState().status).toBe('ready');
+  });
+
+  it('identifyStop detiene silenciosamente la lectura activa', async () => {
+    const { client, useAgentStore } = await freshClient();
+    client.connect();
+    vi.advanceTimersByTime(800);
+
+    const events: string[] = [];
+    client.subscribe((event) => events.push(event.type));
+    const opId = client.identifyStart({
+      deviceToken: 'pdt_fake',
+      deviceId: crypto.randomUUID(),
+      branchId: crypto.randomUUID(),
+    });
+    client.identifyStop(opId!);
+    vi.advanceTimersByTime(2_000);
+
+    expect(events).toEqual([]);
+    expect(useAgentStore.getState().status).toBe('ready');
+  });
 });

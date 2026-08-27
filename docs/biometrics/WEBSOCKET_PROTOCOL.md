@@ -49,10 +49,10 @@ Un certificado en `127.0.0.1` es un problema conocido: el navegador exige un cer
 El agente rechaza el upgrade si `Origin` no está en la allowlist configurada (`agent.json`, escrita por el instalador):
 
 ```json
-{ "allowedOrigins": ["https://app.pulso.app", "http://localhost:3000"] }
+{ "allowedOrigins": ["https://app.pulso.app", "http://localhost:4000"] }
 ```
 
-`http://localhost:3000` sólo se agrega en instalaciones marcadas como desarrollo.
+`http://localhost:4000` sólo se agrega en instalaciones marcadas como desarrollo.
 
 Rechazo: HTTP `403` en el upgrade, sin cuerpo. Se registra `AgentAuditEvent(AUTH_FAILED, "ORIGIN_REJECTED")`.
 

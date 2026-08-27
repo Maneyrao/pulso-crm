@@ -24,6 +24,8 @@ import type {
   RevokeCredentialResponse,
   StartEnrollmentRequest,
   StartEnrollmentResponse,
+  StartIdentificationRequest,
+  StartIdentificationResponse,
 } from '@pulso/contracts/biometrics';
 // Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
@@ -298,6 +300,56 @@ export class BiometricsService {
     return { enrollment: serializeEnrollment(updated) };
   }
 
+  // ── Identificación desde el CRM (access:operate) ─────────────────────
+
+  async startIdentification(input: StartIdentificationRequest): Promise<StartIdentificationResponse> {
+    const branchId = TenantContextStore.requireBranch(input.branchId);
+    const onlineCutoff = new Date(Date.now() - this.config.env.BIOMETRIC_AGENT_ONLINE_WINDOW * 1000);
+
+    const agent = await this.prisma.client.localAgent.findFirst({
+      where: {
+        branchId,
+        status: 'ACTIVE',
+        lastSeenAt: { gte: onlineCutoff },
+      },
+      orderBy: { lastSeenAt: 'desc' },
+    });
+    if (!agent) {
+      throw AppError.conflict(ErrorCode.AGENT_OFFLINE, 'No hay un agente biométrico online en la sede.');
+    }
+
+    const device = await this.prisma.client.accessDevice.findFirst({
+      where: {
+        branchId,
+        localAgentId: agent.id,
+        kind: 'FINGERPRINT_READER',
+        status: 'ONLINE',
+      },
+      orderBy: { lastSeenAt: 'desc' },
+    });
+    if (!device) {
+      throw AppError.conflict(ErrorCode.AGENT_OFFLINE, 'No hay un lector de huellas online en la sede.');
+    }
+
+    const deviceToken = generateToken(DEVICE_TOKEN_PREFIX);
+    const expiresAt = new Date(Date.now() + this.config.env.BIOMETRIC_DEVICE_TOKEN_TTL * 1000);
+    await this.prisma.client.deviceToken.create({
+      data: scoped({
+        localAgentId: agent.id,
+        tokenHash: hashToken(deviceToken),
+        scope: 'IDENTIFY',
+        expiresAt,
+      }),
+    });
+
+    return {
+      deviceToken,
+      deviceId: device.id,
+      expiresAt: expiresAt.toISOString(),
+      minQuality: this.config.env.BIOMETRIC_MIN_QUALITY,
+    };
+  }
+
   // ── Credenciales (biometrics:read / biometrics:revoke) ────────────────
 
   async listMemberCredentials(memberId: string): Promise<ListMemberCredentialsResponse> {
@@ -437,13 +489,26 @@ export class BiometricsService {
   async identify(auth: AgentAuthInfo, input: AgentIdentifyRequest): Promise<AgentIdentifyResponse> {
     this.requireActiveAgent(auth);
     const token = this.requireDeviceToken(auth, 'IDENTIFY');
-    await this.consumeDeviceToken(token.id);
 
     // La sede sale del AGENTE autenticado, nunca del payload: un agente de la
     // sede A no identifica contra el padrón de la B (BIOMETRIC_SECURITY.md §5.2).
     if (input.branchId !== auth.agent.branchId) {
       throw AppError.forbidden(ErrorCode.FORBIDDEN, 'El lector no pertenece a esa sede.');
     }
+
+    const device = await this.prisma.client.accessDevice.findFirst({
+      where: {
+        id: input.deviceId,
+        branchId: auth.agent.branchId,
+        localAgentId: auth.agent.id,
+        kind: 'FINGERPRINT_READER',
+      },
+    });
+    if (!device) {
+      throw AppError.forbidden(ErrorCode.FORBIDDEN, 'El lector no pertenece al agente autenticado.');
+    }
+
+    await this.consumeDeviceToken(token.id);
 
     if (input.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
       throw AppError.unprocessable(ErrorCode.TEMPLATE_QUALITY_TOO_LOW, 'La calidad de la captura no alcanza.');

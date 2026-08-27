@@ -17,6 +17,8 @@ public sealed class PulsoAgentTestFactory : WebApplicationFactory<Program>
         "PULSO_AGENT_BACKEND_BASE_URL",
         "PULSO_AGENT_SENSOR",
         "PULSO_AGENT_DEV_CREDENTIAL",
+        "PULSO_AGENT_INSTALLATION_ID",
+        "PULSO_AGENT_PAIRING_SECRET",
         "PULSO_AGENT_TLS_ENABLED",
         "PULSO_AGENT_HTTP_RETRY_BASE_MS",
     ];
@@ -28,7 +30,7 @@ public sealed class PulsoAgentTestFactory : WebApplicationFactory<Program>
     /// aplicación que gatea enroll/identify sobre ws sin TLS (WEBSOCKET_PROTOCOL.md §2). Default
     /// true para poder probar los flujos reales; los tests de gating lo ponen en false a propósito.
     /// </param>
-    public PulsoAgentTestFactory(string backendBaseUrl, bool tlsEnabled = true)
+    public PulsoAgentTestFactory(string backendBaseUrl, bool tlsEnabled = true, bool bootstrapPairing = false)
     {
         _homeDirectory = Path.Combine(Path.GetTempPath(), "pulso-agent-tests-" + Guid.NewGuid());
         Directory.CreateDirectory(_homeDirectory);
@@ -36,7 +38,11 @@ public sealed class PulsoAgentTestFactory : WebApplicationFactory<Program>
         Environment.SetEnvironmentVariable("PULSO_AGENT_HOME", _homeDirectory);
         Environment.SetEnvironmentVariable("PULSO_AGENT_BACKEND_BASE_URL", backendBaseUrl);
         Environment.SetEnvironmentVariable("PULSO_AGENT_SENSOR", "fake");
-        Environment.SetEnvironmentVariable("PULSO_AGENT_DEV_CREDENTIAL", "test-credential");
+        Environment.SetEnvironmentVariable("PULSO_AGENT_DEV_CREDENTIAL", bootstrapPairing ? null : "test-credential");
+        Environment.SetEnvironmentVariable(
+            "PULSO_AGENT_INSTALLATION_ID",
+            bootstrapPairing ? "00000000-0000-0000-0000-000000000123" : null);
+        Environment.SetEnvironmentVariable("PULSO_AGENT_PAIRING_SECRET", bootstrapPairing ? "pas_test-secret" : null);
         Environment.SetEnvironmentVariable("PULSO_AGENT_TLS_ENABLED", tlsEnabled ? "true" : "false");
         // Backoff HTTP en ms (25 → 50/100/200ms): los 3 reintentos de la spec se ejercitan igual,
         // pero BACKEND_UNREACHABLE llega en <1s en vez de ~14s (ver ServiceCollectionExtensions).

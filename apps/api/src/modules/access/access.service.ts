@@ -382,6 +382,61 @@ export class AccessService {
     };
   }
 
+  /**
+   * Devuelve al CRM el resultado completo de un intento ya resuelto. El
+   * agente local conoce sólo `{resolved:true}`; nombres y membresía nunca
+   * cruzan el WebSocket de localhost ni las credenciales del dispositivo.
+   */
+  async getAttemptResult(id: string): Promise<AccessCheckResponse> {
+    const ctx = TenantContextStore.require();
+    const attempt = await this.prisma.client.accessAttempt.findFirst({
+      where: { id, branchId: { in: ctx.branchIds } },
+      include: {
+        member: true,
+        attendance: {
+          include: { membership: { include: { plan: true } } },
+        },
+      },
+    });
+    if (!attempt) throw AppError.notFound('El intento de acceso');
+
+    const membership =
+      attempt.attendance?.membership ??
+      (attempt.memberId
+        ? await this.prisma.client.membership.findFirst({
+            where: {
+              memberId: attempt.memberId,
+              status: { in: ['ACTIVE', 'EXPIRED', 'SUSPENDED'] },
+            },
+            orderBy: { startDate: 'desc' },
+            include: { plan: true },
+          })
+        : null);
+
+    return {
+      decision: attempt.decision,
+      reasonCode: attempt.reasonCode,
+      member: attempt.member
+        ? {
+            id: attempt.member.id,
+            firstName: attempt.member.firstName,
+            lastName: attempt.member.lastName,
+            photoUrl: null,
+            status: attempt.member.status,
+          }
+        : null,
+      membership: membership
+        ? {
+            planName: membership.plan.name,
+            endDate: membership.endDate ? dbDateToBusinessDate(membership.endDate) : null,
+            classesRemaining: membership.classesRemaining,
+          }
+        : null,
+      attendanceRegistered: attempt.attendanceId !== null,
+      accessAttemptId: attempt.id,
+    };
+  }
+
   async listAttendances(query: ListAttendancesQuery): Promise<ListAttendancesResponse> {
     const branchFilter = query.branchId
       ? { branchId: TenantContextStore.requireBranch(query.branchId) }

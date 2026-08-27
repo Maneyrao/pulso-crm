@@ -24,13 +24,14 @@ public abstract class AgentIntegrationTestBase : IAsyncLifetime
     /// configurado). Los tests de gating de WEBSOCKET_PROTOCOL.md §2 lo overridean a false.
     /// </summary>
     protected virtual bool TlsEnabled => true;
+    protected virtual bool BootstrapPairing => false;
 
     public virtual async Task InitializeAsync()
     {
         Backend = new FakeBackendServer();
         await Backend.StartAsync().ConfigureAwait(false);
 
-        Factory = new PulsoAgentTestFactory(Backend.BaseUrl, TlsEnabled);
+        Factory = new PulsoAgentTestFactory(Backend.BaseUrl, TlsEnabled, BootstrapPairing);
 
         var wsClient = Factory.Server.CreateWebSocketClient();
         wsClient.ConfigureRequest = req => req.Headers["Origin"] = "http://localhost:3000";

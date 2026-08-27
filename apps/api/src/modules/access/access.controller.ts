@@ -7,8 +7,9 @@ import {
   type ListAccessAttemptsQuery,
   listAccessAttemptsQuerySchema,
 } from '@pulso/contracts/access';
+import { uuidSchema } from '@pulso/contracts/common';
 import { RequiresPermission } from '../../common/auth/decorators.js';
-import { ZodBody, ZodQuery } from '../../common/validation/zod.pipe.js';
+import { ZodBody, ZodParam, ZodQuery } from '../../common/validation/zod.pipe.js';
 // Import de VALOR: dependencia del constructor (ver infra/redis/redis.service.ts).
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { AccessService } from './access.service.js';
@@ -28,6 +29,12 @@ export class AccessController {
   @HttpCode(HttpStatus.OK)
   check(@ZodBody(accessCheckRequestSchema) body: AccessCheckRequest) {
     return this.access.check(body);
+  }
+
+  @RequiresPermission('access:read_history')
+  @Get('attempts/:id/result')
+  attemptResult(@ZodParam('id', uuidSchema) id: string) {
+    return this.access.getAttemptResult(id);
   }
 
   @RequiresPermission('access:read_history')

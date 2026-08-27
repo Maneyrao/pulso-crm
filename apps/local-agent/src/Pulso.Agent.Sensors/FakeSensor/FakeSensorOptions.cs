@@ -3,6 +3,12 @@ namespace Pulso.Agent.Sensors.FakeSensor;
 /// <summary>Configuración de <see cref="Pulso.Agent.Sensors.FakeSensor.FakeSensor"/> para tests y demos.</summary>
 public sealed class FakeSensorOptions
 {
+    /// <summary>
+    /// Perfil biométrico simulado. La misma identidad genera el mismo template
+    /// entre enrolamiento e identificación, aunque cada captura cruda sea distinta.
+    /// </summary>
+    public string Identity { get; set; } = "demo-finger-1";
+
     public string SensorId { get; set; } = "FAKE-0001";
     public string Vendor { get; set; } = "PULSO_FAKE";
     public string Model { get; set; } = "FakeReader";

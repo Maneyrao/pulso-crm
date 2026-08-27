@@ -40,6 +40,8 @@ import {
   grantConsentRequestSchema,
   revokeAgentRequestSchema,
   revokeConsentResponseSchema,
+  startIdentificationRequestSchema,
+  startIdentificationResponseSchema,
   startEnrollmentRequestSchema,
   startEnrollmentResponseSchema,
 } from './biometrics.js';
@@ -145,6 +147,28 @@ describe('biometrics — superficie CRM', () => {
         expiresAt: INSTANT,
         samplesRequired: 0,
         minQuality: 60,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('startIdentification emite un token efímero para una sede válida', () => {
+    expect(startIdentificationRequestSchema.safeParse({ branchId: UUID }).success).toBe(true);
+    expect(startIdentificationRequestSchema.safeParse({ branchId: 'no-uuid' }).success).toBe(false);
+
+    expect(
+      startIdentificationResponseSchema.safeParse({
+        deviceToken: 'pdt_abc',
+        deviceId: UUID,
+        expiresAt: INSTANT,
+        minQuality: 60,
+      }).success,
+    ).toBe(true);
+    expect(
+      startIdentificationResponseSchema.safeParse({
+        deviceToken: 'pdt_abc',
+        deviceId: UUID,
+        expiresAt: INSTANT,
+        minQuality: 101,
       }).success,
     ).toBe(false);
   });

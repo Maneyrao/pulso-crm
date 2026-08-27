@@ -136,6 +136,53 @@ describe('RealAgentClient', () => {
     });
   });
 
+  it('identifyStart envía una lectura de un solo uso, permite detenerla y mapea fallos', () => {
+    socket.open();
+    const events: AgentEvent[] = [];
+    client.subscribe((event) => events.push(event));
+
+    expect(client.identifyStart({} as never)).toBeNull();
+    expect(events.at(-1)).toEqual({ type: 'error', payload: { code: 'INVALID_OPERATION', opId: null } });
+
+    const deviceId = crypto.randomUUID();
+    const branchId = crypto.randomUUID();
+    const opId = client.identifyStart({
+      deviceToken: 'pdt_identify',
+      deviceId,
+      branchId,
+      minQuality: 65,
+    });
+    expect(opId).not.toBeNull();
+
+    const sentStart = JSON.parse(socket.sent.at(-1)!) as {
+      type: string;
+      payload: Record<string, unknown>;
+    };
+    expect(sentStart).toMatchObject({
+      type: 'identify.start',
+      payload: {
+        opId,
+        deviceToken: 'pdt_identify',
+        deviceId,
+        branchId,
+        minQuality: 65,
+        continuous: false,
+      },
+    });
+
+    socket.receive(envelope('identify.failed', { opId, code: 'QUALITY_TOO_LOW' }));
+    expect(events.at(-1)).toEqual({
+      type: 'identify.failed',
+      payload: { opId, code: 'QUALITY_TOO_LOW' },
+    });
+
+    client.identifyStop(opId!);
+    expect(JSON.parse(socket.sent.at(-1)!)).toMatchObject({
+      type: 'identify.stop',
+      payload: { opId },
+    });
+  });
+
   it('una versión mayor incompatible cierra la conexión (shouldClose)', () => {
     socket.open();
     socket.receive({ v: '2.0', id: 'x', type: 'ping', ts: new Date().toISOString() });

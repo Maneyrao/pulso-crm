@@ -17,6 +17,7 @@ export type AgentEvent =
   | { type: 'enroll.failed'; payload: { opId: string; code: string } }
   | { type: 'identify.captured'; payload: { opId: string; quality: number } }
   | { type: 'identify.sent'; payload: { opId: string } }
+  | { type: 'identify.failed'; payload: { opId: string; code: string } }
   | { type: 'operation.cancelled'; payload: { opId: string; reason: string } }
   | { type: 'error'; payload: { code: string; opId: string | null } };
 
@@ -31,10 +32,21 @@ export interface EnrollStartOptions {
   fingerPosition?: string;
 }
 
+export interface IdentifyStartOptions {
+  /** Token IDENTIFY de un solo uso emitido inmediatamente antes de capturar. */
+  deviceToken: string;
+  deviceId: string;
+  branchId: string;
+  minQuality?: number;
+  continuous?: boolean;
+}
+
 export interface AgentClient {
   connect(): void;
   disconnect(): void;
   enrollStart(opts: EnrollStartOptions): string | null;
+  identifyStart(opts: IdentifyStartOptions): string | null;
+  identifyStop(opId: string): void;
   cancel(opId: string): void;
   subscribe(listener: (event: AgentEvent) => void): () => void;
   readonly connected: boolean;

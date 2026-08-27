@@ -22,7 +22,7 @@ public sealed class AgentConfig
 
     /// <summary>Allowlist de Origin para el upgrade del WS local (§4.1).</summary>
     [JsonPropertyName("allowedOrigins")]
-    public List<string> AllowedOrigins { get; set; } = ["http://localhost:3000"];
+    public List<string> AllowedOrigins { get; set; } = ["http://localhost:4000", "http://localhost:3000"];
 
     [JsonPropertyName("wsPort")]
     public int WsPort { get; set; } = 21987;
@@ -37,7 +37,7 @@ public sealed class AgentConfig
     [JsonPropertyName("tlsCertPassword")]
     public string? TlsCertPassword { get; set; }
 
-    /// <summary>"development" habilita http://localhost:3000 en la allowlist y relaja TLS (§4.1).</summary>
+    /// <summary>"development" habilita los orígenes localhost de desarrollo y relaja TLS (§4.1).</summary>
     [JsonPropertyName("environment")]
     public string Environment { get; set; } = "development";
 }

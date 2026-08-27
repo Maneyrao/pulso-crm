@@ -15,6 +15,8 @@ import type {
   RevokeCredentialResponse,
   StartEnrollmentRequest,
   StartEnrollmentResponse,
+  StartIdentificationRequest,
+  StartIdentificationResponse,
 } from '@pulso/contracts/biometrics';
 import { apiFetch, toQueryString } from './client.js';
 
@@ -80,4 +82,15 @@ export function listMemberCredentials(memberId: string): Promise<ListMemberCrede
 
 export function revokeCredential(id: string): Promise<RevokeCredentialResponse> {
   return apiFetch<RevokeCredentialResponse>(`/biometrics/credentials/${id}`, { method: 'DELETE' });
+}
+
+export function startIdentification(
+  payload: StartIdentificationRequest,
+  idempotencyKey: string,
+): Promise<StartIdentificationResponse> {
+  return apiFetch<StartIdentificationResponse>('/biometrics/identifications', {
+    method: 'POST',
+    body: payload,
+    idempotencyKey,
+  });
 }

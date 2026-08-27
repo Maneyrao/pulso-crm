@@ -17,7 +17,7 @@ import { useAgentStore } from './store';
  * - cancelación explícita con `operation.cancelled`.
  */
 
-import type { AgentClient, AgentEvent, EnrollStartOptions } from './client';
+import type { AgentClient, AgentEvent, EnrollStartOptions, IdentifyStartOptions } from './client';
 
 export type { AgentClient, AgentEvent } from './client';
 
@@ -135,6 +135,38 @@ class FakeAgentClient implements AgentClient {
     });
     this.schedule(step, 1200);
     return opId;
+  }
+
+  identifyStart(_opts: IdentifyStartOptions): string | null {
+    if (!this.connected) {
+      this.emit({ type: 'error', payload: { code: 'NO_DEVICE', opId: null } });
+      return null;
+    }
+    if (this.activeOpId) {
+      this.emit({ type: 'error', payload: { code: 'AGENT_BUSY', opId: this.activeOpId } });
+      return null;
+    }
+
+    const opId = `op-${++this.opCounter}`;
+    this.activeOpId = opId;
+    useAgentStore.getState().setStatus('busy');
+    this.schedule(() => {
+      if (this.activeOpId !== opId) return;
+      this.emit({ type: 'identify.captured', payload: { opId, quality: 84 } });
+    }, 450);
+    this.schedule(() => {
+      if (this.activeOpId !== opId) return;
+      this.activeOpId = null;
+      useAgentStore.getState().setStatus('ready');
+      this.emit({ type: 'identify.sent', payload: { opId } });
+    }, 800);
+    return opId;
+  }
+
+  identifyStop(opId: string): void {
+    if (this.activeOpId !== opId) return;
+    this.activeOpId = null;
+    useAgentStore.getState().setStatus(this.connected ? 'ready' : 'no-agent');
   }
 
   cancel(opId: string): void {

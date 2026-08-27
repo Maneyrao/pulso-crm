@@ -20,7 +20,7 @@ En construcción. El plan completo está en [`docs/`](docs/); empezá por
 | `apps/web` | Next.js 15 App Router, React 19, Tailwind v4, TanStack Query, Zustand |
 | `apps/api` | NestJS 11 (monolito modular), REST `/api/v1`, Socket.IO |
 | `apps/worker` | BullMQ: outbox, mensajería, vencimientos |
-| `apps/local-agent` | C#/.NET 8 para el lector de huellas — Etapa 8, todavía no existe |
+| `apps/local-agent` | C#/.NET 8, puente biométrico local con `FakeSensor`; adaptadores de hardware pendientes de validación física |
 | Base | PostgreSQL 16 + Prisma |
 | Colas y caché | Redis |
 | Contratos | Zod compartido en `packages/contracts` |

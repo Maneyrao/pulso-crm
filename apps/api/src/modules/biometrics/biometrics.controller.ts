@@ -8,6 +8,8 @@ import {
   grantConsentRequestSchema,
   type StartEnrollmentRequest,
   startEnrollmentRequestSchema,
+  type StartIdentificationRequest,
+  startIdentificationRequestSchema,
 } from '@pulso/contracts/biometrics';
 import { uuidSchema } from '@pulso/contracts/common';
 import { AgentOnly, RequiresPermission } from '../../common/auth/decorators.js';
@@ -60,6 +62,13 @@ export class MemberBiometricsController {
 @Controller('biometrics')
 export class BiometricsController {
   constructor(private readonly biometrics: BiometricsService) {}
+
+  @RequiresPermission('access:operate')
+  @Idempotent()
+  @Post('identifications')
+  startIdentification(@ZodBody(startIdentificationRequestSchema) body: StartIdentificationRequest) {
+    return this.biometrics.startIdentification(body);
+  }
 
   @RequiresPermission('biometrics:read')
   @Get('enrollments/:id')

@@ -20,6 +20,17 @@ public sealed class AgentStateMachine
 
     public AgentState Current { get; private set; } = AgentState.NotConfigured;
 
+    public bool DeviceOnline
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _deviceOnline;
+            }
+        }
+    }
+
     /// <summary>Motivo legible sólo relevante en Disabled/PendingApproval/NotConfigured/BackendDown.</summary>
     public string? Reason { get; private set; }
 

@@ -44,7 +44,7 @@ verificado de cada módulo al cierre.
 | Estadísticas | `/stats` | 🟡 Demo | Charts CSS puros, sin dependencia externa. |
 | Configuración | `/config` (+ `/settings/branches`) | 🟡/✅ | General demo; sedes reales. |
 | Mi cuenta | `/account` | ✅ Real | Sólo lectura: no hay endpoint de cambio de contraseña self-service (no se inventó). |
-| Huella digital | ficha de socio + `/settings/devices` | 🟡 Demo | UI de enrolamiento completa sobre FakeAgent que habla el protocolo real de `docs/biometrics/WEBSOCKET_PROTOCOL.md`. Integración U.are.U real: Etapa 7-8, vía bridge local (nunca USB directo desde navegador). |
+| Huella digital | ficha de socio + `/access` + `/settings/devices` | ✅ Real con sensor simulado | Pareo, heartbeat, enrolamiento, identificación 1:N, decisión de acceso y UI usan API/PostgreSQL reales sobre `FakeSensor`. El U.are.U físico sigue pendiente de driver/SDK y validación en Windows. |
 | WhatsApp | — | ⛔ Fuera de alcance | Módulo de mensajería de la API vacío; ver auditoría §6. |
 | Asistente IA (extra, no existe en ControlFit) | `/ai` | 🟡 Demo | Chat con respuestas predefinidas. |
 
@@ -64,7 +64,7 @@ verificado de cada módulo al cierre.
 - [x] Export CSV de socios.
 - [x] Dark mode: `/access` y `/dashboard` verificados por captura; toggle persiste en `localStorage` sin FOUC.
 - [x] Mobile 375px: KPIs y listas apiladas, topbar compacto, drawer de navegación funcional.
-- [x] Enrolamiento de huella demo (6 muestras, 1 reintento por calidad baja, cancelación).
+- [x] Enrolamiento e identificación por huella simulada end-to-end, con token de un solo uso y resultado real de acceso.
 
 ## Bugs reales encontrados y corregidos durante la verificación
 
@@ -96,5 +96,4 @@ verificado de cada módulo al cierre.
 2. Pasos Actividad + Cobro en el wizard de alta (backend ya existe).
 3. ABM real de conceptos y métodos de pago (falta backend de escritura).
 4. Cambio de contraseña self-service en `/account` (falta endpoint).
-5. Huella real (Etapa 7-8): implementar Pulso Agent .NET según
-   `docs/biometrics/`; la UI ya habla el protocolo.
+5. Huella física: reemplazar `FakeSensor` por el adaptador DigitalPersona, instalar driver/SDK y validar el U.are.U en Windows. El circuito de software ya está integrado.

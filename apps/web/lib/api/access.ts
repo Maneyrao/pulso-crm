@@ -1,6 +1,7 @@
 import type {
   AccessCheckRequest,
   AccessCheckResponse,
+  AccessMethod,
   ListAccessAttemptsResponse,
   ListAttendancesQuery,
   ListAttendancesResponse,
@@ -11,8 +12,18 @@ export function checkAccess(payload: AccessCheckRequest): Promise<AccessCheckRes
   return apiFetch<AccessCheckResponse>('/access/check', { method: 'POST', body: payload });
 }
 
-export function listAccessAttempts(branchId: string | null, limit = 10): Promise<ListAccessAttemptsResponse> {
-  return apiFetch<ListAccessAttemptsResponse>(`/access/attempts${toQueryString({ branchId, limit })}`);
+export function listAccessAttempts(
+  branchId: string | null,
+  limit = 10,
+  filters: { method?: AccessMethod; from?: string; to?: string } = {},
+): Promise<ListAccessAttemptsResponse> {
+  return apiFetch<ListAccessAttemptsResponse>(
+    `/access/attempts${toQueryString({ branchId, limit, ...filters })}`,
+  );
+}
+
+export function getAccessAttemptResult(id: string): Promise<AccessCheckResponse> {
+  return apiFetch<AccessCheckResponse>(`/access/attempts/${id}/result`);
 }
 
 export function listAttendances(query: Partial<ListAttendancesQuery>): Promise<ListAttendancesResponse> {

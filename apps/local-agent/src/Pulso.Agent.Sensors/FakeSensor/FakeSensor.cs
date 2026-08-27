@@ -11,13 +11,22 @@ namespace Pulso.Agent.Sensors.FakeSensor;
 /// </summary>
 public sealed class FakeSensor : IFingerprintSensor
 {
+    private const int QualityBytes = 1;
+    private const int IdentityBytes = 32;
     private readonly FakeSensorOptions _options;
+    private readonly byte[] _identityHash;
     private int _captureCount;
     private volatile SensorStatus _status;
 
     public FakeSensor(FakeSensorOptions? options = null)
     {
         _options = options ?? new FakeSensorOptions();
+        if (string.IsNullOrWhiteSpace(_options.Identity))
+        {
+            throw new ArgumentException("La identidad simulada no puede estar vacía.", nameof(options));
+        }
+
+        _identityHash = SHA256.HashData(Encoding.UTF8.GetBytes(_options.Identity.Trim()));
         _status = _options.StartOffline ? SensorStatus.Offline : SensorStatus.Online;
     }
 
@@ -114,20 +123,21 @@ public sealed class FakeSensor : IFingerprintSensor
             throw new ArgumentException("Se requiere al menos una muestra para crear un template.", nameof(samples));
         }
 
-        using var sha = SHA256.Create();
-        using var stream = new MemoryStream();
-        foreach (var sample in samples)
+        var firstIdentity = ExtractIdentity(samples[0]);
+        foreach (var sample in samples.Skip(1))
         {
-            stream.Write(sample.ImageData);
+            if (!firstIdentity.AsSpan().SequenceEqual(ExtractIdentity(sample)))
+            {
+                throw new ArgumentException("Todas las muestras deben pertenecer a la misma identidad simulada.", nameof(samples));
+            }
         }
 
-        var digest = sha.ComputeHash(stream.ToArray());
         var qualities = samples.Select(s => (int)EvaluateQuality(s).Value).ToArray();
         var averageQuality = (int)Math.Round(qualities.Average());
 
         var template = new TemplateResult
         {
-            TemplateData = digest,
+            TemplateData = firstIdentity,
             Format = fmt,
             Quality = averageQuality,
         };
@@ -135,14 +145,25 @@ public sealed class FakeSensor : IFingerprintSensor
         return Task.FromResult(template);
     }
 
-    private static byte[] BuildDeterministicImage(string sensorId, int index, int quality)
+    private byte[] BuildDeterministicImage(string sensorId, int index, int quality)
     {
         var seed = Encoding.UTF8.GetBytes($"{sensorId}:{index}:{quality}");
-        var hash = SHA256.HashData(seed);
+        var captureHash = SHA256.HashData(seed);
 
-        var image = new byte[1 + hash.Length];
+        var image = new byte[QualityBytes + IdentityBytes + captureHash.Length];
         image[0] = (byte)quality;
-        hash.CopyTo(image, 1);
+        _identityHash.CopyTo(image, QualityBytes);
+        captureHash.CopyTo(image, QualityBytes + IdentityBytes);
         return image;
+    }
+
+    private static byte[] ExtractIdentity(CaptureResult sample)
+    {
+        if (sample.ImageData.Length < QualityBytes + IdentityBytes)
+        {
+            throw new ArgumentException("La muestra simulada no contiene una identidad válida.", nameof(sample));
+        }
+
+        return sample.ImageData.AsSpan(QualityBytes, IdentityBytes).ToArray();
     }
 }

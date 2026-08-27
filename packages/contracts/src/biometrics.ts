@@ -308,6 +308,27 @@ export const cancelEnrollmentResponseSchema = z.object({ enrollment: biometricEn
 export type CancelEnrollmentResponse = z.infer<typeof cancelEnrollmentResponseSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────
+// Superficie CRM — identificación (access:operate)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Inicia una única lectura 1:N. El backend elige un agente y lector online de
+ * la sede; el navegador entrega este token efímero al agente local por WS.
+ */
+export const startIdentificationRequestSchema = z.object({
+  branchId: uuidSchema,
+});
+export type StartIdentificationRequest = z.infer<typeof startIdentificationRequestSchema>;
+
+export const startIdentificationResponseSchema = z.object({
+  deviceToken: z.string(),
+  deviceId: uuidSchema,
+  expiresAt: isoInstantSchema,
+  minQuality: z.number().int().min(0).max(100),
+});
+export type StartIdentificationResponse = z.infer<typeof startIdentificationResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
 // Superficie CRM — credenciales (biometrics:read / biometrics:revoke)
 // ─────────────────────────────────────────────────────────────────────────
 

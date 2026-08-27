@@ -1,7 +1,13 @@
 'use client';
 
 import { parseAgentMessageJson, type AgentParsedMessage } from '@pulso/contracts/agent-protocol';
-import { registerAgentClientFactory, type AgentClient, type AgentEvent, type EnrollStartOptions } from './client';
+import {
+  registerAgentClientFactory,
+  type AgentClient,
+  type AgentEvent,
+  type EnrollStartOptions,
+  type IdentifyStartOptions,
+} from './client';
 import { useAgentStore, type AgentStatus } from './store';
 
 /**
@@ -118,6 +124,29 @@ export class RealAgentClient implements AgentClient {
     return opId;
   }
 
+  identifyStart(opts: IdentifyStartOptions): string | null {
+    if (!this.connected) return null;
+    if (!opts.deviceToken || !opts.deviceId || !opts.branchId) {
+      this.emit({ type: 'error', payload: { code: 'INVALID_OPERATION', opId: null } });
+      return null;
+    }
+    const opId = crypto.randomUUID();
+    this.send('identify.start', {
+      opId,
+      deviceToken: opts.deviceToken,
+      deviceId: opts.deviceId,
+      branchId: opts.branchId,
+      minQuality: opts.minQuality ?? 60,
+      continuous: opts.continuous ?? false,
+      idleTimeoutMs: 300_000,
+    });
+    return opId;
+  }
+
+  identifyStop(opId: string): void {
+    this.send('identify.stop', { opId });
+  }
+
   cancel(opId: string): void {
     this.send('operation.cancel', { opId, reason: 'user_cancelled' });
   }
@@ -184,6 +213,12 @@ export class RealAgentClient implements AgentClient {
         break;
       case 'identify.sent':
         this.emit({ type: 'identify.sent', payload: { opId: payload['opId'] as string } });
+        break;
+      case 'identify.failed':
+        this.emit({
+          type: 'identify.failed',
+          payload: { opId: payload['opId'] as string, code: (payload['code'] as string) ?? 'UNKNOWN' },
+        });
         break;
       case 'operation.cancelled':
         this.emit({
