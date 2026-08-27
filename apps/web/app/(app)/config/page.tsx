@@ -40,7 +40,10 @@ export default function ConfigPage() {
     <PermissionGate
       permission="config:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <ConfigScreen />
@@ -51,7 +54,11 @@ export default function ConfigPage() {
 function ConfigScreen() {
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader icon={Settings} title="Configuración" description="Datos del gimnasio y sus sedes." />
+      <PageHeader
+        icon={Settings}
+        title="Configuración"
+        description="Datos del gimnasio y sus sedes."
+      />
 
       <Tabs defaultValue="gimnasio">
         <TabsList>
@@ -153,7 +160,9 @@ function GymTab() {
   };
 
   if (query.isLoading || (!form && !query.isError)) {
-    return <EmptyState title="Cargando datos del gimnasio" description="Buscando la información..." />;
+    return (
+      <EmptyState title="Cargando datos del gimnasio" description="Buscando la información..." />
+    );
   }
 
   if (query.isError || !query.data) {
@@ -253,7 +262,10 @@ function GymTab() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <FormField label="Logo" hint="Key del archivo en storage (no hay carga de imagen todavía)">
+            <FormField
+              label="Logo"
+              hint="Key del archivo en storage (no hay carga de imagen todavía)"
+            >
               {(field) => (
                 <Input
                   {...field}
@@ -263,7 +275,7 @@ function GymTab() {
                 />
               )}
             </FormField>
-            <FormField label="Color primario" hint="Hex, ej. #f0a028">
+            <FormField label="Color primario" hint="Hex, ej. #c9a56c">
               {(field) => (
                 <Input
                   {...field}
@@ -288,11 +300,15 @@ function GymTab() {
       <AccordionSection title="Estado de la cuenta">
         <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
           <div>
-            <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Identificador</dt>
+            <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">
+              Identificador
+            </dt>
             <dd className="mt-0.5 text-(--text-sm) text-(--color-text)">{query.data.slug}</dd>
           </div>
           <div>
-            <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Estado</dt>
+            <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">
+              Estado
+            </dt>
             <dd className="mt-0.5">
               <StatusBadge
                 tone={query.data.status === 'ACTIVE' ? 'success' : 'danger'}
@@ -314,7 +330,11 @@ const GYM_STATUS_LABEL: Record<Gym['status'], string> = {
 
 function BranchesTab() {
   const gymId = useSessionStore((s) => s.gym?.id ?? '');
-  const query = useQuery({ queryKey: qk.branches(gymId), queryFn: listBranches, enabled: Boolean(gymId) });
+  const query = useQuery({
+    queryKey: qk.branches(gymId),
+    queryFn: listBranches,
+    enabled: Boolean(gymId),
+  });
   const branches = query.data?.data ?? [];
   const activeCount = branches.filter((b) => b.isActive).length;
 
@@ -340,10 +360,7 @@ function BranchesTab() {
           onRetry={() => query.refetch()}
         />
       ) : branches.length === 0 ? (
-        <EmptyState
-          title="Sin sedes"
-          description="Creá la primera sede desde “Gestionar sedes”."
-        />
+        <EmptyState title="Sin sedes" description="Creá la primera sede desde “Gestionar sedes”." />
       ) : (
         <ul className="flex flex-col gap-2">
           {branches.map((branch) => (
@@ -392,7 +409,9 @@ function AccordionSection({
           aria-hidden={true}
         />
       </summary>
-      <div className="flex flex-col gap-4 border-t border-(--color-border) px-4 py-4">{children}</div>
+      <div className="flex flex-col gap-4 border-t border-(--color-border) px-4 py-4">
+        {children}
+      </div>
     </details>
   );
 }

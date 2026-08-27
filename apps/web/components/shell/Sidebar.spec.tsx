@@ -66,6 +66,7 @@ describe('Sidebar — filtrado por permiso y feature', () => {
     await setSession([]);
     const { Sidebar } = await import('./Sidebar');
     render(<Sidebar />);
+    expect(screen.getByLabelText('El Templo')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Mi cuenta/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Socios$/i })).not.toBeInTheDocument();
@@ -108,7 +109,9 @@ describe('Sidebar — filtrado por permiso y feature', () => {
     for (const group of NAV_GROUPS) {
       expect(screen.getByText(group.label, { selector: 'div' })).toBeInTheDocument();
       for (const item of group.items) {
-        expect(screen.getByRole('link', { name: new RegExp(`^${item.label}$`, 'i') })).toBeInTheDocument();
+        expect(
+          screen.getByRole('link', { name: new RegExp(`^${item.label}$`, 'i') }),
+        ).toBeInTheDocument();
       }
     }
   });
@@ -134,7 +137,14 @@ describe('Sidebar — filtrado por permiso y feature', () => {
           {
             id: 'whatsapp',
             label: 'WhatsApp',
-            items: [{ href: '/whatsapp', label: 'WhatsApp', permission: 'message:send', feature: 'whatsapp_real' }],
+            items: [
+              {
+                href: '/whatsapp',
+                label: 'WhatsApp',
+                permission: 'message:send',
+                feature: 'whatsapp_real',
+              },
+            ],
           },
         ],
       };

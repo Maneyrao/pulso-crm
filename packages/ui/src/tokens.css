@@ -1,10 +1,10 @@
 /**
- * Tokens de diseño — Pulso CRM.
+ * Tokens de diseño de El Templo CRM.
  *
  * Portados 1:1 desde la referencia visual `LeoDarrosaFIT.html` (ver
  * docs/LEODARROSAFIT_ALIGNMENT_PLAN.md §1). Sistema dark-first, brutalista:
- * bordes rectos (radio 0 en todo), bordes gruesos (2px), acento ámbar en
- * oscuro / rojo-anaranjado en claro. El tema oscuro es el default de marca;
+ * bordes rectos (radio 0 en todo), bordes gruesos (2px) y acento bronce
+ * derivado del emblema de El Templo. El tema oscuro es el default de marca;
  * `.light` (aplicado en <html>, ver apps/web/app/layout.tsx y
  * components/shell/ThemeToggle.tsx) sobreescribe al tema claro.
  *
@@ -26,42 +26,63 @@
   --animate-lf-pulse: lfPulse 2.4s ease-in-out infinite;
 
   @keyframes lfShimmer {
-    0% { background-position: -400px 0; }
-    100% { background-position: 400px 0; }
+    0% {
+      background-position: -400px 0;
+    }
+    100% {
+      background-position: 400px 0;
+    }
   }
   @keyframes lfFadeIn {
-    from { opacity: 0; transform: translateY(4px); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
   @keyframes lfScaleIn {
-    from { opacity: 0; transform: scale(0.97); }
-    to { opacity: 1; transform: scale(1); }
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
   @keyframes lfPulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.35; }
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
   }
 
   /* ---- Color: base neutra (dark, default de marca) ---- */
-  --color-bg: #151312;
-  --color-surface: #1a1817;
-  --color-surface-foreground: #ece9e6;
-  --color-border: #2e2b29;
-  --color-border-strong: #3a3633;
-  --color-text: #ece9e6;
-  --color-text-foreground: #151312;
-  --color-muted: #9a938c;
-  --color-muted-foreground: #151312;
-  --color-muted-subtle: #242120;
-  --color-muted-subtle-foreground: #c9c3bd;
+  --color-bg: #0b0a08;
+  --color-surface: #15130f;
+  --color-surface-foreground: #f2ece1;
+  --color-border: #302a22;
+  --color-border-strong: #4b4032;
+  --color-text: #f2ece1;
+  --color-text-foreground: #171008;
+  --color-muted: #a79c8c;
+  --color-muted-foreground: #171008;
+  --color-muted-subtle: #211d17;
+  --color-muted-subtle-foreground: #d2c6b4;
 
-  /* ---- Color: acento primario (ámbar en oscuro) ---- */
-  --color-primary: #f0a028;
-  --color-primary-foreground: #151312;
-  --color-primary-subtle: rgba(240, 160, 40, 0.12);
-  --color-primary-subtle-foreground: #f6bb55;
-  --color-primary-hover: #f6bb55;
-  --color-primary-active: #d98f1f;
+  /* ---- Color: acento primario (bronce del emblema) ---- */
+  --color-primary: #c9a56c;
+  --color-primary-foreground: #171008;
+  --color-primary-subtle: rgba(201, 165, 108, 0.14);
+  --color-primary-subtle-foreground: #e2c28c;
+  --color-primary-hover: #d8b77e;
+  --color-primary-active: #af8953;
 
   /* ---- Color: estados semánticos ---- */
   --color-success: #5fbf77;
@@ -69,11 +90,10 @@
   --color-success-subtle: rgba(95, 191, 119, 0.12);
   --color-success-subtle-foreground: #7ed996;
 
-  /* Warning reutiliza el acento ámbar, igual que la referencia (tag "warn"). */
-  --color-warning: #f0a028;
-  --color-warning-foreground: #151312;
-  --color-warning-subtle: rgba(240, 160, 40, 0.12);
-  --color-warning-subtle-foreground: #f6bb55;
+  --color-warning: #d59a3a;
+  --color-warning-foreground: #171008;
+  --color-warning-subtle: rgba(213, 154, 58, 0.14);
+  --color-warning-subtle-foreground: #efbd69;
 
   --color-danger: #d43b29;
   --color-danger-foreground: #fdf0ee;
@@ -139,24 +159,24 @@
  * en un ancestro (normalmente <html>); sin esa clase el default es oscuro
  * (marca dark-first, ver ThemeToggle.tsx / THEME_BOOTSTRAP en layout.tsx). */
 .light {
-  --color-bg: #f3f2f2;
-  --color-surface: #eae9e9;
-  --color-surface-foreground: #201e1d;
-  --color-border: #d7d3d3;
-  --color-border-strong: #bab6b6;
-  --color-text: #201e1d;
-  --color-text-foreground: #f3f2f2;
-  --color-muted: #605d5d;
-  --color-muted-foreground: #f8f4f4;
-  --color-muted-subtle: #eae7e7;
-  --color-muted-subtle-foreground: #444141;
+  --color-bg: #f3efe7;
+  --color-surface: #fffcf7;
+  --color-surface-foreground: #211c15;
+  --color-border: #d8cebd;
+  --color-border-strong: #b7a991;
+  --color-text: #211c15;
+  --color-text-foreground: #fff9f0;
+  --color-muted: #665e52;
+  --color-muted-foreground: #fff9f0;
+  --color-muted-subtle: #eae3d7;
+  --color-muted-subtle-foreground: #4b4338;
 
-  --color-primary: #ec3013;
-  --color-primary-foreground: #fdf5f3;
-  --color-primary-subtle: #fff2ef;
-  --color-primary-subtle-foreground: #7c1405;
-  --color-primary-hover: #dd2b0f;
-  --color-primary-active: #ae1800;
+  --color-primary: #73512e;
+  --color-primary-foreground: #fff9f0;
+  --color-primary-subtle: #efe4d3;
+  --color-primary-subtle-foreground: #5a3d21;
+  --color-primary-hover: #5e4024;
+  --color-primary-active: #493019;
 
   --color-success: #1f7a3d;
   --color-success-foreground: #ffffff;
@@ -168,8 +188,6 @@
   --color-warning-subtle: #fbeed7;
   --color-warning-subtle-foreground: #7a4600;
 
-  /* El danger reutiliza el acento, igual que la referencia ("clasico" es un
-   * único acento rojo-anaranjado para marca y negativos). */
   --color-danger: #ec3013;
   --color-danger-foreground: #fdf5f3;
   --color-danger-subtle: #fff2ef;
@@ -205,15 +223,28 @@
  * weight 800, escala fija. Sólo aplica a headings sin tamaño explícito —
  * cualquier clase de Tailwind (`text-2xl`, etc.) tiene mayor especificidad
  * y sigue ganando, así que esto no rompe páginas que ya definen su tamaño. */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-family: var(--font-sans);
   font-weight: var(--font-heading-weight);
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
-h1 { font-size: 42px; }
-h2 { font-size: 32px; }
-h3 { font-size: 25px; }
-h4 { font-size: 20px; }
+h1 {
+  font-size: 42px;
+}
+h2 {
+  font-size: 32px;
+}
+h3 {
+  font-size: 25px;
+}
+h4 {
+  font-size: 20px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

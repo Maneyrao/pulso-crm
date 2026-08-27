@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { cn } from '@pulso/ui';
+import { BrandLogo } from '@/components/brand/BrandLogo';
 import { useSessionStore } from '@/lib/stores/session';
-import { computeAbbr, NAV_GROUPS, splitBrandWordmark, type NavGroup, type NavItem } from './nav-items';
+import { computeAbbr, NAV_GROUPS, type NavGroup, type NavItem } from './nav-items';
 
 /** Referencia estable: un `?? []` inline crea un array nuevo en cada render
  * y rompe `useSyncExternalStore` (getSnapshot debe devolver siempre la misma
@@ -30,7 +31,8 @@ function useVisibleGroups(): VisibleGroup[] {
 
   return React.useMemo(() => {
     const allowed = (p?: string, f?: string) =>
-      (!p || permissions.includes(p as (typeof permissions)[number])) && (!f || features.includes(f));
+      (!p || permissions.includes(p as (typeof permissions)[number])) &&
+      (!f || features.includes(f));
     const result: VisibleGroup[] = [];
     for (const group of NAV_GROUPS) {
       const items = group.items.filter((item) => allowed(item.permission, item.feature));
@@ -79,14 +81,14 @@ function SidebarLink({
         collapsed ? 'justify-center border-l-0 px-0' : 'px-3.5',
         active
           ? 'border-(--color-primary) bg-(--color-primary-subtle) font-bold text-(--color-primary)'
-          : 'border-transparent font-medium text-[#c9c3bd] hover:bg-(--color-primary-subtle) hover:text-(--color-primary)',
+          : 'border-transparent font-medium text-[#d2c6b4] hover:bg-(--color-primary-subtle) hover:text-(--color-primary)',
       )}
     >
       <span
         aria-hidden={true}
         className={cn(
           'w-[18px] shrink-0 text-center text-[9px] font-extrabold tracking-[0.03em]',
-          active ? 'text-(--color-primary)' : 'text-[#6d665f]',
+          active ? 'text-(--color-primary)' : 'text-[#776a58]',
         )}
       >
         {computeAbbr(item.label)}
@@ -113,9 +115,9 @@ export function SidebarNav({ onNavigate, collapsed = false }: SidebarNavProps) {
         <React.Fragment key={group.id}>
           <div className={cn('pt-3.5 pb-1', collapsed ? 'px-1' : 'px-3.5')}>
             {!collapsed ? (
-              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8a8079]">{group.label}</div>
+              <div className="text-[10px] font-bold uppercase text-[#a79c8c]">{group.label}</div>
             ) : (
-              <div aria-hidden={true} className="h-0.5 bg-[#2e2b29]" />
+              <div aria-hidden={true} className="h-0.5 bg-[#302a22]" />
             )}
           </div>
           {group.items.map((item) => (
@@ -133,27 +135,18 @@ export function SidebarNav({ onNavigate, collapsed = false }: SidebarNavProps) {
   );
 }
 
-/** Wordmark de marca: iniciales + nombre del gym con el tratamiento
- * tipográfico de la referencia (última racha de mayúsculas o última palabra
- * en acento, p. ej. "LeoDarrosa**FIT**"). El sidebar es siempre oscuro, así
- * que su chrome usa colores fijos en vez de tokens de tema (sólo el acento
- * sigue al tema activo). */
+/** Marca fija de esta instalación. El gimnasio de la sesión sigue disponible
+ * en la cuenta; el shell comunica la identidad comercial de El Templo. */
 export function BrandMark({ collapsed = false }: { collapsed?: boolean }) {
-  const gymName = useSessionStore((s) => s.gym?.name) ?? 'Pulso';
-  const { base, accent } = splitBrandWordmark(gymName);
-
   return (
-    <div className={cn('flex items-center gap-2.5', collapsed && 'justify-center')}>
-      <span
-        aria-hidden={true}
-        className="flex h-[26px] w-[26px] shrink-0 items-center justify-center bg-(--color-primary) text-[12px] font-extrabold text-(--color-primary-foreground)"
-      >
-        {computeAbbr(gymName)}
-      </span>
+    <div
+      className={cn('flex items-center gap-2.5', collapsed && 'justify-center')}
+      aria-label="El Templo"
+    >
+      <BrandLogo size={collapsed ? 36 : 40} decorative className="border border-[#4b4032]" />
       {!collapsed && (
-        <span className="truncate text-[14px] font-extrabold tracking-[0.01em] text-[#ece9e6]">
-          {base}
-          <span className="text-(--color-primary)">{accent}</span>
+        <span className="truncate text-[14px] font-extrabold uppercase text-[#f2ece1]">
+          El <span className="text-(--color-primary)">Templo</span>
         </span>
       )}
     </div>
@@ -179,7 +172,7 @@ function writeCollapsedPreference(next: boolean): void {
 
 /**
  * Sidebar fijo de desktop: colapsable a abreviaturas de 1-2 letras, oculto en
- * mobile (drawer aparte en AppShell). Fondo #151312 siempre, en ambos temas
+ * mobile (drawer aparte en AppShell). Fondo de marca siempre oscuro
  * (LEODARROSAFIT_ALIGNMENT_PLAN.md §2): la referencia es un shell dark-first
  * donde el sidebar no sigue el toggle claro/oscuro del resto de la app.
  */
@@ -198,11 +191,16 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'sticky top-0 hidden h-screen flex-col border-r-2 border-[#2e2b29] bg-[#151312] transition-[width] duration-200 motion-reduce:transition-none lg:flex',
+        'sticky top-0 hidden h-screen flex-col border-r-2 border-[#302a22] bg-[#0b0a08] transition-[width] duration-200 motion-reduce:transition-none lg:flex',
         collapsed ? 'w-[60px]' : 'w-60',
       )}
     >
-      <div className={cn('flex min-h-[34px] items-center border-b-2 border-[#2e2b29] py-4', collapsed ? 'px-2' : 'px-3.5')}>
+      <div
+        className={cn(
+          'flex min-h-[34px] items-center border-b-2 border-[#302a22] py-3',
+          collapsed ? 'px-2' : 'px-3.5',
+        )}
+      >
         <BrandMark collapsed={collapsed} />
       </div>
       <SidebarNav collapsed={collapsed} />
@@ -211,7 +209,7 @@ export function Sidebar() {
         onClick={() => toggle(!collapsed)}
         aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
         className={cn(
-          'flex items-center gap-2 border-0 border-t-2 border-[#2e2b29] bg-transparent py-3 text-[12px] font-semibold text-[#9a938c] transition-colors hover:bg-(--color-primary-subtle) hover:text-[#ece9e6]',
+          'flex items-center gap-2 border-0 border-t-2 border-[#302a22] bg-transparent py-3 text-[12px] font-semibold text-[#a79c8c] transition-colors hover:bg-(--color-primary-subtle) hover:text-[#f2ece1]',
           collapsed ? 'justify-center px-0' : 'px-3.5',
         )}
       >

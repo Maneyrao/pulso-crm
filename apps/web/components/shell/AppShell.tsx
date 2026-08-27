@@ -55,9 +55,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         title="Menú"
         hideTitle
         side="left"
-        className="[--color-border:#2e2b29] [--color-muted:#9a938c] [--color-surface:#151312] [--color-text:#ece9e6] lg:hidden"
+        className="[--color-border:#302a22] [--color-muted:#a79c8c] [--color-surface:#0b0a08] [--color-text:#f2ece1] lg:hidden"
       >
-        <div className="flex min-h-[34px] shrink-0 items-center border-b-2 border-[#2e2b29] px-3.5 py-4">
+        <div className="flex min-h-[34px] shrink-0 items-center border-b-2 border-[#302a22] px-3.5 py-3">
           <BrandMark />
         </div>
         <SidebarNav onNavigate={() => setDrawerOpen(false)} />

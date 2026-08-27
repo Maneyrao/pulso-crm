@@ -30,12 +30,14 @@ export function AppFooter() {
 
   return (
     <footer className="flex h-10 shrink-0 items-center justify-between gap-4 border-t border-(--color-border) bg-(--color-surface) px-4 text-(--text-xs) text-(--color-muted)">
-      <span>© {new Date().getFullYear()} Pulso</span>
+      <span>© {new Date().getFullYear()} El Templo</span>
       {showHardware ? (
         <span className="flex items-center gap-1.5">
           <Fingerprint className="h-3.5 w-3.5" aria-hidden={true} />
           <span>{deviceName ?? 'Lector de huella'}:</span>
-          <span className={cn('font-medium', STATUS_TONE[status])}>{AGENT_STATUS_LABEL[status]}</span>
+          <span className={cn('font-medium', STATUS_TONE[status])}>
+            {AGENT_STATUS_LABEL[status]}
+          </span>
         </span>
       ) : null}
     </footer>

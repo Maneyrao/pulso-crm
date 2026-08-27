@@ -5,8 +5,11 @@ import { QueryProvider } from '@/lib/query/provider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Pulso CRM',
-  description: 'Gestión operativa de gimnasios',
+  title: {
+    default: 'El Templo CRM',
+    template: '%s | El Templo CRM',
+  },
+  description: 'Gestión de socios, caja y accesos de El Templo',
 };
 
 /**
