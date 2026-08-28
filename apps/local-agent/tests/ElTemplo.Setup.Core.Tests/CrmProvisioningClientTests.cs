@@ -31,7 +31,7 @@ public sealed class CrmProvisioningClientTests
             ("Set-Cookie", "pulso_csrf=csrf-token; Path=/")));
         using var client = new CrmProvisioningClient(BaseUri, handler);
 
-        var session = await client.LoginAsync("admin@example.test", "Simal123", CancellationToken.None);
+        var session = await client.LoginAsync("admin@example.test", "test-password-123", CancellationToken.None);
 
         Assert.Equal("admin@example.test", session.Email);
         Assert.Equal("El Templo", session.GymName);
@@ -53,7 +53,7 @@ public sealed class CrmProvisioningClientTests
                 """{"agent":{"id":"agent-1","installationId":"installation-1"},"pairingSecret":"pps_once"}"""),
             Response(HttpStatusCode.OK, """{"id":"agent-1","status":"ACTIVE"}"""));
         using var client = new CrmProvisioningClient(BaseUri, handler);
-        await client.LoginAsync("admin@example.test", "Simal123", CancellationToken.None);
+        await client.LoginAsync("admin@example.test", "test-password-123", CancellationToken.None);
 
         var provisioned = await client.CreateAgentAsync("branch-1", "Recepción Windows", CancellationToken.None);
         await client.ApproveAgentAsync(provisioned.AgentId, CancellationToken.None);

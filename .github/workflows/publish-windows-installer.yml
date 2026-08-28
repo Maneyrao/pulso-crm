@@ -1,0 +1,51 @@
+name: Publish Windows installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Windows installer workflow run ID
+        required: true
+        type: string
+      tag:
+        description: Release tag
+        required: true
+        default: v0.2.0
+        type: string
+      target_sha:
+        description: Commit represented by the installer
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download verified Windows artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name ElTemploCRM-Windows-x64 --dir release
+
+      - name: Verify checksum
+        working-directory: release
+        run: sha256sum --check ElTemploCRM-Setup.exe.sha256
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          gh release create "$TAG" \
+            release/ElTemploCRM-Setup.exe \
+            release/ElTemploCRM-Setup.exe.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$TARGET_SHA" \
+            --title "El Templo CRM para Windows v0.2.0" \
+            --notes "Instalador visual todo-en-uno para Windows 10/11 x64. Incluye El Templo CRM, servicio biométrico, configuración automática, WebView2 y accesos directos. Requiere una cuenta del CRM con permiso para administrar dispositivos. El lector físico HID U.are.U 4500 debe completar la lista de aceptación incluida en el repositorio. Este binario todavía no tiene firma Authenticode comercial, por lo que Windows puede mostrar SmartScreen."
