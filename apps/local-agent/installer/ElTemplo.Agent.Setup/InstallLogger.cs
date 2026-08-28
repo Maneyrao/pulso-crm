@@ -17,7 +17,7 @@ internal sealed class InstallLogger
         _path = Path.Combine(directory, "install.log");
     }
 
-    public string Path => _path;
+    public string LogPath => _path;
 
     public void Info(string code) => Write("INFO", code, null);
 

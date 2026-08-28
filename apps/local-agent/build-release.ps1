@@ -1,4 +1,5 @@
 $ErrorActionPreference = "Stop"
+$PSNativeCommandUseErrorActionPreference = $true
 
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 $AgentRoot = Join-Path $Root "apps/local-agent"

@@ -199,10 +199,7 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
             File.WriteAllBytes(certificatePath, created.Export(X509ContentType.Pfx, string.Empty));
         }
 
-        using var certificate = new X509Certificate2(
-            certificatePath,
-            string.Empty,
-            X509KeyStorageFlags.EphemeralKeySet);
+        using var certificate = new X509Certificate2(File.ReadAllBytes(certificatePath));
         using var trustedRoot = new X509Store(StoreName.Root, StoreLocation.LocalMachine);
         trustedRoot.Open(OpenFlags.ReadWrite);
         if (!trustedRoot.Certificates.Any(existing => existing.Thumbprint == certificate.Thumbprint))
@@ -217,10 +214,7 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         if (!File.Exists(certificatePath)) return;
         try
         {
-            using var certificate = new X509Certificate2(
-                certificatePath,
-                string.Empty,
-                X509KeyStorageFlags.EphemeralKeySet);
+            using var certificate = new X509Certificate2(File.ReadAllBytes(certificatePath));
             using var trustedRoot = new X509Store(StoreName.Root, StoreLocation.LocalMachine);
             trustedRoot.Open(OpenFlags.ReadWrite);
             foreach (var match in trustedRoot.Certificates.Find(
