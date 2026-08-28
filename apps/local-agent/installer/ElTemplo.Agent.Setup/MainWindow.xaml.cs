@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private int _page;
     private bool _busy;
     private bool _paired;
+    private string? _pendingApprovalAgentId;
 
     public MainWindow()
     {
@@ -118,7 +119,17 @@ public partial class MainWindow : Window
         SetBusy(true);
         try
         {
-            _paired = await _pairer.IsPairedAsync(CancellationToken.None);
+            var link = await _pairer.GetLinkStateAsync(CancellationToken.None);
+            _paired = link.IsPaired;
+            if (_paired && link.Status is "REVOKED" or "BLOCKED")
+            {
+                await _pairer.ClearPairingAsync(CancellationToken.None);
+                _paired = false;
+            }
+            else if (_paired && !string.Equals(link.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase))
+            {
+                _pendingApprovalAgentId = link.AgentId;
+            }
         }
         catch
         {
@@ -129,7 +140,7 @@ public partial class MainWindow : Window
             SetBusy(false);
         }
 
-        if (_paired)
+        if (_paired && _pendingApprovalAgentId is null)
         {
             ShowPage(4);
             await InstallAsync();
@@ -157,6 +168,12 @@ public partial class MainWindow : Window
             _crm = new CrmProvisioningClient(new Uri(InstallerConstants.CrmApiUrl));
             _session = await _crm.LoginAsync(EmailInput.Text, PasswordInput.Password, CancellationToken.None);
             PasswordInput.Clear();
+            if (_pendingApprovalAgentId is not null)
+            {
+                ShowPage(4);
+                await InstallAsync();
+                return;
+            }
             BranchInput.ItemsSource = _session.Branches;
             BranchInput.SelectedValue = _session.ActiveBranchId;
             if (BranchInput.SelectedIndex < 0 && _session.Branches.Count > 0) BranchInput.SelectedIndex = 0;
@@ -196,6 +213,14 @@ public partial class MainWindow : Window
         try
         {
             _crm ??= new CrmProvisioningClient(new Uri(InstallerConstants.CrmApiUrl));
+            if (_pendingApprovalAgentId is not null)
+            {
+                InstallProgress.Value = 50;
+                InstallPercent.Text = "50%";
+                InstallMessage.Text = "Retomamos la autorización de esta computadora.";
+                await _crm.ApproveAgentAsync(_pendingApprovalAgentId, _operation.Token);
+                _pendingApprovalAgentId = null;
+            }
             var workflow = new SetupWorkflow(
                 new WindowsInstallerPlatform(_logger),
                 _crm,
@@ -226,6 +251,12 @@ public partial class MainWindow : Window
             InstallError.Text = error.Message + " Pulsá Reintentar; no necesitás empezar de cero.";
             InstallErrorPanel.Visibility = Visibility.Visible;
             _logger.Error(error.DiagnosticCode, error.DiagnosticType);
+        }
+        catch (CrmProvisioningException error)
+        {
+            InstallError.Text = error.Message + " Pulsá Reintentar para retomar desde este punto.";
+            InstallErrorPanel.Visibility = Visibility.Visible;
+            _logger.Error(error.Code, error.GetType().Name);
         }
         catch
         {

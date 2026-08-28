@@ -7,6 +7,8 @@ using Pulso.Agent.Backend.Http;
 
 namespace ElTemplo.Agent.Setup;
 
+internal sealed record AgentLinkState(bool IsPaired, string? AgentId, string? Status);
+
 internal sealed class AgentPairer : IAgentPairer
 {
     private readonly ConfigStore _configStore = new();
@@ -44,9 +46,55 @@ internal sealed class AgentPairer : IAgentPairer
             OsVersion = RuntimeInformation.OSDescription,
         }, cancellationToken);
 
+        if (string.IsNullOrWhiteSpace(paired.AgentId))
+        {
+            throw new InvalidOperationException("El CRM no devolvió la identidad de esta computadora.");
+        }
         await _secretStore.StoreAsync(SecretKeys.AgentCredential, paired.AgentCredential);
         config.AgentId = paired.AgentId;
         await _configStore.SaveAsync(config);
+    }
+
+    public async Task<AgentLinkState> GetLinkStateAsync(CancellationToken cancellationToken)
+    {
+        var credential = await _secretStore.RetrieveAsync(SecretKeys.AgentCredential, cancellationToken);
+        var config = await _configStore.LoadAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(credential) || string.IsNullOrWhiteSpace(config.AgentId))
+        {
+            return new AgentLinkState(false, null, null);
+        }
+
+        try
+        {
+            Configure(config);
+            using var http = new HttpClient
+            {
+                BaseAddress = new Uri(config.BackendBaseUrl),
+                Timeout = TimeSpan.FromSeconds(15),
+            };
+            var heartbeat = await new BackendClient(http).HeartbeatAsync(
+                credential,
+                new HeartbeatRequest
+                {
+                    AgentState = "ONLINE",
+                    AgentVersion = AgentVersionInfo.Current,
+                    DeviceStatus = "UNKNOWN",
+                },
+                cancellationToken);
+            return new AgentLinkState(true, config.AgentId, heartbeat.Status);
+        }
+        catch
+        {
+            return new AgentLinkState(true, config.AgentId, null);
+        }
+    }
+
+    public async Task ClearPairingAsync(CancellationToken cancellationToken)
+    {
+        await _secretStore.DeleteAsync(SecretKeys.AgentCredential, cancellationToken);
+        var config = await _configStore.LoadAsync(cancellationToken);
+        config.AgentId = null;
+        await _configStore.SaveAsync(config, cancellationToken);
     }
 
     public static async Task EnsureConfigurationAsync()
