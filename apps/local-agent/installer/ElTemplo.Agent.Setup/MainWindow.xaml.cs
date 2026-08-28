@@ -52,7 +52,7 @@ public partial class MainWindow : Window
                 ShowPage(6);
                 break;
             case 6:
-                WindowsInstallerPlatform.LaunchDesktop();
+                WindowsInstallerPlatform.LaunchWebCrm();
                 Close();
                 break;
         }
@@ -278,7 +278,7 @@ public partial class MainWindow : Window
     {
         nameof(IOException) => "Windows todavía está usando un archivo anterior. Cerramos el agente y esperamos a que quede libre.",
         nameof(UnauthorizedAccessException) => "Windows no concedió permisos suficientes. Cerrá y abrí el instalador como administrador.",
-        nameof(HttpRequestException) => "No pudimos descargar un componente de Microsoft. Revisá la conexión a Internet.",
+        nameof(HttpRequestException) => "No pudimos conectar con el CRM. Revisá la conexión a Internet.",
         "CryptographicException" => "Windows no pudo preparar el certificado local del lector.",
         _ => error.Message,
     };
@@ -353,16 +353,16 @@ public partial class MainWindow : Window
             ReaderTitle.Text = "Lector encontrado";
             ReaderMessage.Text = $"{reader.Manufacturer} {reader.Model} está conectado y listo para enrolar huellas.";
             ReaderHelp.Visibility = Visibility.Collapsed;
-            FinishMessage.Text = "Creamos un acceso directo en el escritorio. El lector se iniciará automáticamente con Windows.";
+            FinishMessage.Text = "El agente se iniciará automáticamente con Windows. Ahora abriremos el CRM en tu navegador.";
         }
         else
         {
             ReaderSymbol.Text = "!";
             ReaderSymbol.Foreground = new SolidColorBrush(Color.FromRgb(227, 174, 85));
-            ReaderTitle.Text = "El CRM está instalado; falta el lector";
+            ReaderTitle.Text = "El agente está instalado; falta el lector";
             ReaderMessage.Text = reader.UserMessage;
             ReaderHelp.Visibility = Visibility.Visible;
-            FinishMessage.Text = "El CRM quedó instalado. Para usar huellas, conectá el lector e instalá el controlador oficial desde el acceso de reparación.";
+            FinishMessage.Text = "El agente quedó instalado. Para usar huellas, conectá el lector e instalá el controlador oficial desde el acceso de reparación.";
         }
         UpdateButtons();
     }
@@ -398,7 +398,7 @@ public partial class MainWindow : Window
             2 => "Ingresar",
             3 => "Instalar",
             5 => "Continuar",
-            6 => "Abrir el CRM",
+            6 => "Abrir CRM web",
             _ => "Continuar",
         };
         if (_page == 1) RetryButton.Visibility = !_busy && _preflight is not null && !_preflight.CanContinue

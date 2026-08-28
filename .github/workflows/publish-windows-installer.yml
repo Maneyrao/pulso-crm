@@ -10,7 +10,7 @@ on:
       tag:
         description: Release tag
         required: true
-        default: v0.2.1
+        default: v0.3.0
         type: string
       target_sha:
         description: Commit represented by the installer
@@ -30,11 +30,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ inputs.run_id }}
-        run: gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name ElTemploCRM-Windows-x64 --dir release
+        run: gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name ElTemploHuella-Windows-x64 --dir release
 
       - name: Verify checksum
         working-directory: release
-        run: sha256sum --check ElTemploCRM-Setup.exe.sha256
+        run: sha256sum --check ElTemploHuella-Setup.exe.sha256
 
       - name: Publish GitHub release
         env:
@@ -43,9 +43,9 @@ jobs:
           TARGET_SHA: ${{ inputs.target_sha }}
         run: |
           gh release create "$TAG" \
-            release/ElTemploCRM-Setup.exe \
-            release/ElTemploCRM-Setup.exe.sha256 \
+            release/ElTemploHuella-Setup.exe \
+            release/ElTemploHuella-Setup.exe.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET_SHA" \
-            --title "El Templo CRM para Windows $TAG" \
-            --notes "Instalador visual todo-en-uno para Windows 10/11 x64. Incluye El Templo CRM, servicio biométrico, configuración automática, WebView2 y accesos directos. Requiere una cuenta del CRM con permiso para administrar dispositivos. El lector físico HID U.are.U 4500 debe completar la lista de aceptación incluida en el repositorio. Este binario todavía no tiene firma Authenticode comercial, por lo que Windows puede mostrar SmartScreen."
+            --title "El Templo Huella para Windows $TAG" \
+            --notes "Conector biométrico visual para usar el CRM web desde Windows 10/11 x64. Instala únicamente el servicio del lector, el certificado local y la vinculación automática con la sede; no instala una copia del CRM ni WebView2. Requiere una cuenta con permiso para administrar dispositivos. El lector físico HID U.are.U 4500 debe completar la lista de aceptación incluida en el repositorio. Este binario todavía no tiene firma Authenticode comercial, por lo que Windows puede mostrar SmartScreen."

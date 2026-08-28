@@ -90,6 +90,18 @@ describe('DevicesPage', () => {
     expect(screen.getByText('Sin agente')).toBeInTheDocument();
   });
 
+  it('ofrece instalar el conector biometrico para usar el CRM web', async () => {
+    await setSession(['device:manage']);
+    const { default: Page } = await import('./page');
+    render(withProviders(<Page />));
+
+    const download = screen.getByRole('link', { name: /Instalar lector en esta PC/i });
+    expect(download).toHaveAttribute(
+      'href',
+      'https://github.com/Maneyrao/pulso-crm/releases/latest/download/ElTemploHuella-Setup.exe',
+    );
+  });
+
   it('crear un agente muestra el secreto de pareo una sola vez', async () => {
     createAgentMock.mockResolvedValue({
       agent: { ...AGENT, id: 'nuevo', installationId: 'inst-nueva' },

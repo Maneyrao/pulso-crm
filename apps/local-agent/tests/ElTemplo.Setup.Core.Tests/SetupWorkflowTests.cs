@@ -70,6 +70,26 @@ public sealed class SetupWorkflowTests
     }
 
     [Fact]
+    public async Task Progress_DescribesTheWebConnectorInsteadOfInstallingTheCrm()
+    {
+        var updates = new List<SetupProgress>();
+        var trace = new List<string>();
+        var workflow = new SetupWorkflow(
+            new RecordingPlatform(trace),
+            new RecordingCrm(trace),
+            new RecordingPairer(trace, isPaired: false),
+            new RecordingReader(trace, ReaderCheck.Found("HID", "U.are.U 4500")));
+
+        await workflow.RunAsync(
+            new SetupRequest("branch-1", "Recepcion Windows"),
+            new InlineProgress<SetupProgress>(updates.Add),
+            CancellationToken.None);
+
+        Assert.Contains(updates, update => update.Message == "El Templo Huella esta listo para el CRM web.");
+        Assert.DoesNotContain(updates, update => update.Message.Contains("Preparamos El Templo CRM", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Failure_IsSanitizedAndDoesNotExposePairingSecret()
     {
         var trace = new List<string>();

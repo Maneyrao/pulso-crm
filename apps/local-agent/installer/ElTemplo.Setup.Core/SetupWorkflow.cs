@@ -16,7 +16,7 @@ public sealed class SetupWorkflow(
             "SETUP_PAYLOADS_FAILED",
             "No pudimos preparar los archivos de El Templo.",
             () => platform.InstallPayloadsAsync(cancellationToken));
-        Report(progress, SetupStage.PreparingFiles, 15, "Preparamos El Templo CRM y el lector.");
+        Report(progress, SetupStage.PreparingFiles, 15, "Preparamos la conexion segura del lector.");
 
         var wasRepair = await RunStageAsync(
             SetupStage.PreparingFiles,
@@ -82,10 +82,10 @@ public sealed class SetupWorkflow(
         await RunStageAsync(
             SetupStage.CreatingShortcuts,
             "SETUP_SHORTCUT_FAILED",
-            "El CRM quedó instalado, pero no pudimos crear el acceso directo.",
+            "El agente quedó instalado, pero no pudimos crear el acceso directo.",
             () => platform.CreateShortcutsAsync(cancellationToken));
 
-        Report(progress, SetupStage.Completed, 100, "El Templo CRM está listo.");
+        Report(progress, SetupStage.Completed, 100, "El Templo Huella esta listo para el CRM web.");
         return new SetupResult(wasRepair, readerCheck);
     }
 

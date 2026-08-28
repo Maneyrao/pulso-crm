@@ -13,7 +13,7 @@ internal static class SelfTestRunner
             ["windows"] = OperatingSystem.IsWindowsVersionAtLeast(10),
             ["x64"] = Environment.Is64BitOperatingSystem,
             ["agentPayload"] = resources.Contains("ElTemploAgent.exe", StringComparer.Ordinal),
-            ["desktopPayload"] = resources.Contains("ElTemploCRM.exe", StringComparer.Ordinal),
+            ["desktopPayloadExcluded"] = !resources.Contains("ElTemploCRM.exe", StringComparer.Ordinal),
             ["crmUrl"] = Uri.TryCreate(InstallerConstants.CrmUrl, UriKind.Absolute, out var crm) && crm.Scheme == Uri.UriSchemeHttps,
             ["apiUrl"] = Uri.TryCreate(InstallerConstants.CrmApiUrl, UriKind.Absolute, out var api) && api.Scheme == Uri.UriSchemeHttps,
         };

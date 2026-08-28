@@ -5,7 +5,6 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using ElTemplo.Setup.Core;
 using Microsoft.Win32;
-using Microsoft.Web.WebView2.Core;
 using Pulso.Agent.Backend;
 
 namespace ElTemplo.Agent.Setup;
@@ -19,24 +18,22 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         await StopServiceIfPresentAsync(cancellationToken);
 
         Directory.CreateDirectory(InstallerConstants.AgentDirectory);
-        Directory.CreateDirectory(InstallerConstants.DesktopDirectory);
         Directory.CreateDirectory(InstallerConstants.InstallerDirectory);
         Directory.CreateDirectory(AgentPaths.DefaultConfigDirectory());
         logger.Info("INSTALL_DIRECTORIES_READY");
 
         await ExtractResourceAsync("ElTemploAgent.exe", InstallerConstants.AgentExecutable, cancellationToken);
         logger.Info("AGENT_PAYLOAD_READY");
-        await ExtractResourceAsync("ElTemploCRM.exe", InstallerConstants.DesktopExecutable, cancellationToken);
-        logger.Info("DESKTOP_PAYLOAD_READY");
         await CopyInstallerForRepairAsync(cancellationToken);
         logger.Info("REPAIR_PAYLOAD_READY");
+        logger.Info(TryRemoveLegacyDesktopPayload()
+            ? "LEGACY_DESKTOP_REMOVED"
+            : "LEGACY_DESKTOP_CLEANUP_DEFERRED");
         EnsureLocalCertificate();
         logger.Info("LOCAL_CERTIFICATE_READY");
         await AgentPairer.EnsureConfigurationAsync();
         RestrictConfigDirectory();
         logger.Info("AGENT_CONFIGURATION_READY");
-        await EnsureWebViewRuntimeAsync(cancellationToken);
-        logger.Info("WEBVIEW_RUNTIME_READY");
         RegisterUninstaller();
         logger.Info("PAYLOAD_INSTALL_COMPLETED");
     }
@@ -81,19 +78,13 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         logger.Info("SHORTCUTS_STARTED");
         var commonDesktop = Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory);
         var commonPrograms = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
-        var startMenuDirectory = Path.Combine(commonPrograms, "El Templo CRM");
+        var startMenuDirectory = Path.Combine(commonPrograms, "El Templo Huella");
         Directory.CreateDirectory(startMenuDirectory);
 
-        await CreateShortcutAsync(
-            Path.Combine(commonDesktop, "El Templo CRM.lnk"),
-            InstallerConstants.DesktopExecutable,
-            InstallerConstants.DesktopDirectory,
-            cancellationToken);
-        await CreateShortcutAsync(
-            Path.Combine(startMenuDirectory, "El Templo CRM.lnk"),
-            InstallerConstants.DesktopExecutable,
-            InstallerConstants.DesktopDirectory,
-            cancellationToken);
+        DeleteIfPresent(Path.Combine(commonDesktop, "El Templo CRM.lnk"));
+        DeleteDirectoryIfPresent(Path.Combine(commonPrograms, "El Templo CRM"));
+        await CreateInternetShortcutAsync(Path.Combine(commonDesktop, "El Templo CRM.url"), cancellationToken);
+        await CreateInternetShortcutAsync(Path.Combine(startMenuDirectory, "Abrir El Templo CRM.url"), cancellationToken);
         await CreateShortcutAsync(
             Path.Combine(startMenuDirectory, "Reparar o desinstalar.lnk"),
             InstallerConstants.InstalledSetupExecutable,
@@ -102,9 +93,9 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         logger.Info("SHORTCUTS_COMPLETED");
     }
 
-    public static void LaunchDesktop()
+    public static void LaunchWebCrm()
     {
-        Process.Start(new ProcessStartInfo(InstallerConstants.DesktopExecutable) { UseShellExecute = true });
+        Process.Start(new ProcessStartInfo(InstallerConstants.CrmUrl) { UseShellExecute = true });
     }
 
     public static async Task UninstallAsync(CancellationToken cancellationToken)
@@ -116,22 +107,29 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         DeleteIfPresent(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
             "El Templo CRM.lnk"));
+        DeleteIfPresent(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonDesktopDirectory),
+            "El Templo CRM.url"));
         var menuDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
-            "El Templo CRM");
-        if (Directory.Exists(menuDirectory)) Directory.Delete(menuDirectory, recursive: true);
+            "El Templo Huella");
+        DeleteDirectoryIfPresent(menuDirectory);
+        DeleteDirectoryIfPresent(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms),
+            "El Templo CRM"));
 
         using (var uninstall = Registry.LocalMachine.OpenSubKey(
                    @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
                    writable: true))
         {
+            uninstall?.DeleteSubKeyTree("ElTemploHuella", throwOnMissingSubKey: false);
             uninstall?.DeleteSubKeyTree("ElTemploCRM", throwOnMissingSubKey: false);
         }
 
         var configDirectory = AgentPaths.DefaultConfigDirectory();
         if (Directory.Exists(configDirectory)) Directory.Delete(configDirectory, recursive: true);
         DeleteDirectoryIfPresent(InstallerConstants.AgentDirectory);
-        DeleteDirectoryIfPresent(InstallerConstants.DesktopDirectory);
+        DeleteDirectoryIfPresent(InstallerConstants.LegacyDesktopDirectory);
 
         var self = InstallerConstants.InstalledSetupExecutable;
         if (File.Exists(self))
@@ -150,7 +148,7 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
     {
         if (!OperatingSystem.IsWindowsVersionAtLeast(10) || !Environment.Is64BitOperatingSystem)
         {
-            throw new PlatformNotSupportedException("El Templo CRM requiere Windows 10 u 11 de 64 bits.");
+            throw new PlatformNotSupportedException("El Templo Huella requiere Windows 10 u 11 de 64 bits.");
         }
     }
 
@@ -264,44 +262,17 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
             .GetResult();
     }
 
-    private static async Task EnsureWebViewRuntimeAsync(CancellationToken cancellationToken)
+    private static async Task CreateInternetShortcutAsync(
+        string shortcutPath,
+        CancellationToken cancellationToken)
     {
-        if (HasWebView2()) return;
-        var bootstrapper = Path.Combine(Path.GetTempPath(), "ElTemplo-WebView2Setup.exe");
-        using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(3) })
-        await using (var file = new FileStream(bootstrapper, FileMode.Create, FileAccess.Write, FileShare.None))
-        await using (var responseStream = await http.GetStreamAsync(
-                         InstallerConstants.WebViewBootstrapperUrl,
-                         cancellationToken))
-        {
-            await responseStream.CopyToAsync(file, cancellationToken);
-        }
-
-        try
-        {
-            await RunProcessAsync(bootstrapper, ["/silent", "/install"], true, cancellationToken);
-        }
-        finally
-        {
-            DeleteIfPresent(bootstrapper);
-        }
-
-        if (!HasWebView2())
-        {
-            throw new InvalidOperationException("Microsoft WebView2 no quedó disponible después de instalarlo.");
-        }
-    }
-
-    private static bool HasWebView2()
-    {
-        try
-        {
-            return !string.IsNullOrWhiteSpace(CoreWebView2Environment.GetAvailableBrowserVersionString());
-        }
-        catch
-        {
-            return false;
-        }
+        var contents = string.Join(
+            Environment.NewLine,
+            "[InternetShortcut]",
+            $"URL={InstallerConstants.CrmUrl}",
+            $"IconFile={InstallerConstants.AgentExecutable}",
+            "IconIndex=0");
+        await File.WriteAllTextAsync(shortcutPath, contents, cancellationToken);
     }
 
     private static async Task CreateShortcutAsync(
@@ -326,17 +297,42 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
 
     private static void RegisterUninstaller()
     {
+        using (var uninstall = Registry.LocalMachine.OpenSubKey(
+                   @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+                   writable: true))
+        {
+            uninstall?.DeleteSubKeyTree("ElTemploCRM", throwOnMissingSubKey: false);
+        }
+
         using var key = Registry.LocalMachine.CreateSubKey(
-            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ElTemploCRM",
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ElTemploHuella",
             writable: true);
         key.SetValue("DisplayName", InstallerConstants.ProductName);
         key.SetValue("DisplayVersion", InstallerConstants.ProductVersion);
         key.SetValue("Publisher", "El Templo");
         key.SetValue("InstallLocation", InstallerConstants.ProductDirectory);
-        key.SetValue("DisplayIcon", InstallerConstants.DesktopExecutable);
+        key.SetValue("DisplayIcon", InstallerConstants.AgentExecutable);
         key.SetValue("UninstallString", $"\"{InstallerConstants.InstalledSetupExecutable}\" --uninstall");
         key.SetValue("NoModify", 1, RegistryValueKind.DWord);
         key.SetValue("NoRepair", 0, RegistryValueKind.DWord);
+    }
+
+    private static bool TryRemoveLegacyDesktopPayload()
+    {
+        try
+        {
+            DeleteDirectoryIfPresent(InstallerConstants.LegacyDesktopDirectory);
+            DeleteIfPresent(InstallerConstants.LegacySetupExecutable);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     private static async Task StopServiceIfPresentAsync(CancellationToken cancellationToken)

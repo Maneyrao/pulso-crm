@@ -19,8 +19,8 @@ public partial class App : Application
         if (TryReadOption(e.Args, "--uninstall", out _))
         {
             var confirmation = MessageBox.Show(
-                "¿Querés desinstalar El Templo CRM y el servicio del lector de esta computadora?",
-                "Desinstalar El Templo CRM",
+                "¿Querés desinstalar El Templo Huella y el servicio del lector de esta computadora?",
+                "Desinstalar El Templo Huella",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
             if (confirmation != MessageBoxResult.Yes)
@@ -33,8 +33,8 @@ public partial class App : Application
             {
                 await WindowsInstallerPlatform.UninstallAsync(CancellationToken.None);
                 MessageBox.Show(
-                    "El Templo CRM fue desinstalado correctamente.",
-                    "El Templo CRM",
+                    "El Templo Huella fue desinstalado correctamente.",
+                    "El Templo Huella",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
                 Shutdown(0);
@@ -43,7 +43,7 @@ public partial class App : Application
             {
                 MessageBox.Show(
                     "No pudimos completar la desinstalación. Reiniciá Windows y volvé a intentarlo.",
-                    "El Templo CRM",
+                    "El Templo Huella",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
                 Shutdown(1);
@@ -55,7 +55,7 @@ public partial class App : Application
         {
             MessageBox.Show(
                 "Ocurrió un problema inesperado. Cerrá el instalador y volvé a abrirlo.",
-                "El Templo CRM",
+                "El Templo Huella",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
             args.Handled = true;

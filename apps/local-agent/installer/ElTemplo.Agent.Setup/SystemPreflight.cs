@@ -1,7 +1,6 @@
 using System.Net;
 using System.Security.Principal;
 using ElTemplo.Setup.Core;
-using Microsoft.Web.WebView2.Core;
 
 namespace ElTemplo.Agent.Setup;
 
@@ -19,7 +18,7 @@ internal static class SystemPreflight
         var checks = new List<PreflightCheck>
         {
             new("Windows compatible", OperatingSystem.IsWindowsVersionAtLeast(10), "Windows 10 u 11 de 64 bits", true),
-            new("Sistema de 64 bits", Environment.Is64BitOperatingSystem, "Compatible con El Templo CRM", true),
+            new("Sistema de 64 bits", Environment.Is64BitOperatingSystem, "Compatible con El Templo Huella", true),
             new("Permisos de instalación", IsAdministrator(), "Permisos para instalar el lector", true),
         };
 
@@ -28,12 +27,6 @@ internal static class SystemPreflight
             await HasInternetAsync(cancellationToken),
             "Acceso al CRM y las actualizaciones",
             true));
-        checks.Add(new PreflightCheck(
-            "Motor de la aplicación",
-            HasWebView2(),
-            HasWebView2() ? "WebView2 está disponible" : "Se instalará automáticamente",
-            false));
-
         var reader = await new ReaderProbe().CheckAsync(cancellationToken);
         checks.Add(new PreflightCheck(
             "Lector de huellas",
@@ -48,18 +41,6 @@ internal static class SystemPreflight
     {
         using var identity = WindowsIdentity.GetCurrent();
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
-    }
-
-    private static bool HasWebView2()
-    {
-        try
-        {
-            return !string.IsNullOrWhiteSpace(CoreWebView2Environment.GetAvailableBrowserVersionString());
-        }
-        catch
-        {
-            return false;
-        }
     }
 
     private static async Task<bool> HasInternetAsync(CancellationToken cancellationToken)

@@ -1,40 +1,39 @@
-# El Templo CRM Desktop Installer
+# El Templo Huella Windows Connector
 
 ## Goal
 
-Deliver one branded Windows installer that a non-technical receptionist can use without a terminal, installation ID, pairing secret, certificate work, or separate agent download.
+Deliver one branded Windows installer that connects the USB fingerprint reader to the web CRM without a terminal, installation ID, pairing secret, certificate work, or desktop CRM copy.
 
 ## Supported environment
 
 - Windows 10 or Windows 11, x64.
 - Administrator approval during installation.
-- Internet access to the production CRM and Microsoft WebView2 bootstrapper.
+- Internet access to the production CRM and API.
 - HID DigitalPersona U.are.U 4500 connected through USB-A.
 - Official HID WBF driver. The legacy/non-WBF driver is unsupported.
 
-The cloud API and PostgreSQL database remain the source of truth. The desktop app is a Windows shell for the production CRM and the native biometric integration.
+The cloud API and PostgreSQL database remain the source of truth. The CRM runs in the user's browser; only the native biometric bridge runs locally.
 
 ## Distribution
 
-The user downloads one file named `ElTemploCRM-Setup.exe`. It is a self-contained graphical installer, not a console application or a compressed archive. The installer contains:
+The user downloads one file named `ElTemploHuella-Setup.exe`. It is a self-contained graphical installer, not a console application or a compressed archive. The installer contains:
 
-- The El Templo CRM desktop application.
 - The El Templo Agent Windows service.
-- Local TLS certificate setup for the browser-compatible fallback.
+- Local TLS certificate setup for the browser-to-agent connection.
 - Repair and uninstall support.
-- WebView2 detection and guided installation when missing.
+- A shortcut that opens the production web CRM in the default browser.
 
 Commercial releases must be Authenticode-signed. Unsigned release candidates may still trigger Microsoft SmartScreen and cannot be described as frictionless production installers.
 
 ## First-run journey
 
-1. Welcome: identify El Templo and explain that CRM and fingerprint reader will be configured together.
-2. Check this PC: Windows version, x64 architecture, administrator rights, internet, WebView2, and connected reader.
+1. Welcome: identify El Templo and explain that the fingerprint reader will be connected to the web CRM.
+2. Check this PC: Windows version, x64 architecture, administrator rights, internet, and connected reader.
 3. Sign in: CRM email and password. Password stays in memory only for the request and is never logged or persisted.
 4. Choose branch: show human-readable branch names. Default to the active branch.
-5. Install: copy desktop and agent payloads, provision and approve the agent automatically, protect its credential with DPAPI, install/start the Windows service, create shortcuts, and register uninstall metadata.
+5. Install: copy the agent payload, provision and approve it automatically, protect its credential with DPAPI, install/start the Windows service, create the web shortcut, and register uninstall metadata.
 6. Reader test: show detected manufacturer/model and a clear driver action when WBF cannot see the reader.
-7. Finish: provide `Open El Templo CRM` as the primary action.
+7. Finish: provide `Open web CRM` as the primary action.
 
 Existing paired installations skip sign-in/provisioning and run as a repair/update.
 
@@ -56,25 +55,23 @@ Existing paired installations skip sign-in/provisioning and run as a repair/upda
 - Pairing secret is exchanged once, cleared from memory references, and never shown in the UI.
 - Long-lived agent credential is stored with Windows DPAPI.
 - Agent configuration is restricted to LocalSystem and Administrators.
-- Fingerprint images are never persisted by setup or desktop.
+- Fingerprint images are never persisted by setup or the local agent.
 - API errors shown to users are sanitized; diagnostics contain codes but no credentials.
 - The local service binds only to loopback.
 
-## Desktop application
+## Web integration
 
-- WPF desktop shell using the Evergreen WebView2 Runtime.
-- Loads `https://pulso-crm-omega.vercel.app/login`.
-- Uses a dedicated WebView2 profile under LocalAppData.
-- Opens external links in the system browser.
-- Shows a native retry screen when CRM connectivity fails.
+- The CRM loads from `https://pulso-crm-omega.vercel.app/` in the default browser.
 - The installed agent service starts automatically with Windows.
+- The browser connects to the loopback-only endpoint at `wss://127.0.0.1:21987`.
+- The installer places the local certificate in the Windows trust store.
 
 ## Acceptance gates
 
 - Core provisioning and orchestration tests pass on macOS/Linux and Windows.
-- Desktop and setup projects compile for `win-x64` from a clean checkout.
-- Published setup is a PE32+ Windows x64 executable and contains both payload resources.
-- Windows CI launches `ElTemploCRM-Setup.exe --self-test` successfully.
+- Agent and setup projects compile for `win-x64` from a clean checkout.
+- Published setup is a PE32+ Windows x64 executable, contains the agent payload, and excludes the retired desktop payload.
+- Windows CI launches `ElTemploHuella-Setup.exe --self-test` successfully.
 - Production API, CRM URL, and installer download respond successfully.
 - Final hardware acceptance on the reception PC: install, reader detection, enrollment of four samples, identification, attendance registration, repair, reboot persistence, and uninstall.
 

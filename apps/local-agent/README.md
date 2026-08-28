@@ -1,12 +1,10 @@
-# El Templo CRM para Windows
+# El Templo Huella para Windows
 
-El instalador visual `ElTemploCRM-Setup.exe` deja en una sola operación:
+El instalador visual `ElTemploHuella-Setup.exe` conecta el lector con el CRM web en una sola operación:
 
-- la aplicación de escritorio de El Templo CRM;
 - el servicio local que conecta el navegador con el lector HID U.are.U 4500;
 - el certificado local y sus permisos;
-- Microsoft WebView2 cuando Windows todavía no lo tiene;
-- accesos directos en el escritorio y el menú Inicio;
+- un acceso directo al CRM web;
 - la computadora creada, vinculada y aprobada en el CRM.
 
 No solicita Installation ID, secreto de pareo, comandos ni configuración manual de certificados. El usuario inicia sesión en el asistente, elige la sede y sigue las indicaciones en pantalla. La contraseña no se guarda.
@@ -15,7 +13,7 @@ No solicita Installation ID, secreto de pareo, comandos ni configuración manual
 
 Requisitos: Windows 10/11 x64, conexión a Internet, una cuenta del CRM con permiso para administrar dispositivos y el lector conectado por USB-A.
 
-1. Descargar `ElTemploCRM-Setup.exe` desde la última release de GitHub.
+1. Desde **Configuración > Dispositivos**, pulsar **Instalar lector en esta PC**.
 2. Abrirlo y aceptar el permiso de Windows.
 3. Pulsar **Comenzar**, ingresar al CRM y elegir la sede.
 4. Esperar la comprobación final del lector.
@@ -23,7 +21,7 @@ Requisitos: Windows 10/11 x64, conexión a Internet, una cuenta del CRM con perm
 
 Si Windows todavía no reconoce el U.are.U 4500, el asistente abre el [controlador WBF oficial de HID](https://www.hidglobal.com/drivers/39477) y permite probar nuevamente sin repetir la instalación. En una reparación conserva la vinculación existente.
 
-La app queda disponible como **El Templo CRM** en el escritorio y el menú Inicio. El servicio `ElTemploAgent` arranca automáticamente con Windows. La desinstalación está disponible en **Configuración de Windows > Aplicaciones instaladas**.
+El CRM se usa desde el navegador. El servicio `ElTemploAgent` arranca automáticamente con Windows y el escritorio recibe un acceso directo a la web. La desinstalación está disponible en **Configuración de Windows > Aplicaciones instaladas**.
 
 ## Seguridad biométrica
 
@@ -35,7 +33,7 @@ El agente captura mediante Windows Biometric Framework, transforma la muestra en
 ./apps/local-agent/build-release.ps1
 ```
 
-El resultado queda en `apps/local-agent/artifacts/ElTemploCRM-Setup.exe`, junto con su SHA-256. El workflow `windows-installer.yml` prueba el motor, el agente y los payloads embebidos en `windows-latest`.
+El resultado queda en `apps/local-agent/artifacts/ElTemploHuella-Setup.exe`, junto con su SHA-256. El workflow `windows-installer.yml` prueba el motor, el agente y el payload embebido en `windows-latest`.
 
 ## Demo local sin lector
 

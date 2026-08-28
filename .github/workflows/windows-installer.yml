@@ -39,7 +39,7 @@ jobs:
       - name: Validate installer payload
         shell: pwsh
         run: |
-          $installer = Resolve-Path "apps/local-agent/artifacts/ElTemploCRM-Setup.exe"
+          $installer = Resolve-Path "apps/local-agent/artifacts/ElTemploHuella-Setup.exe"
           $report = Join-Path $env:RUNNER_TEMP "installer-self-test.json"
           $process = Start-Process $installer -ArgumentList "--self-test", "--self-test-report", $report -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Installer self-test failed with code $($process.ExitCode)" }
@@ -48,9 +48,9 @@ jobs:
       - name: Upload release candidate
         uses: actions/upload-artifact@v4
         with:
-          name: ElTemploCRM-Windows-x64
+          name: ElTemploHuella-Windows-x64
           path: |
-            apps/local-agent/artifacts/ElTemploCRM-Setup.exe
-            apps/local-agent/artifacts/ElTemploCRM-Setup.exe.sha256
+            apps/local-agent/artifacts/ElTemploHuella-Setup.exe
+            apps/local-agent/artifacts/ElTemploHuella-Setup.exe.sha256
           if-no-files-found: error
           retention-days: 30

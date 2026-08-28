@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { MonitorSmartphone, Plus } from 'lucide-react';
+import { Download, MonitorSmartphone, Plus } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AccessDevice, LocalAgent } from '@pulso/contracts/biometrics';
 import {
@@ -26,6 +26,9 @@ import { approveAgent, createAgent, listAgents, listDevices, revokeAgent } from 
 import { ApiError } from '@/lib/api/errors';
 import { useSessionStore } from '@/lib/stores/session';
 import { PageHeader } from '@/components/shared/PageHeader';
+
+const WINDOWS_CONNECTOR_URL =
+  'https://github.com/Maneyrao/pulso-crm/releases/latest/download/ElTemploHuella-Setup.exe';
 
 const AGENT_STATUS_BADGE: Record<LocalAgent['status'], { label: string; tone: 'success' | 'warning' | 'neutral' | 'danger' }> = {
   ACTIVE: { label: 'Activo', tone: 'success' },
@@ -165,9 +168,16 @@ function DevicesScreen() {
         title="Dispositivos"
         description="Agentes locales de biometría y lectores de huella por sede."
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" aria-hidden={true} /> Nuevo agente
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button asChild variant="outline">
+              <a href={WINDOWS_CONNECTOR_URL}>
+                <Download className="h-4 w-4" aria-hidden={true} /> Instalar lector en esta PC
+              </a>
+            </Button>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" aria-hidden={true} /> Nuevo agente
+            </Button>
+          </div>
         }
       />
 

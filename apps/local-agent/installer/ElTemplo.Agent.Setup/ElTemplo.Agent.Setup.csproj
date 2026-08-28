@@ -6,9 +6,9 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>ElTemploCRM-Setup</AssemblyName>
+    <AssemblyName>ElTemploHuella-Setup</AssemblyName>
     <RootNamespace>ElTemplo.Agent.Setup</RootNamespace>
-    <Version>0.2.1</Version>
+    <Version>0.3.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PublishSingleFile>true</PublishSingleFile>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
@@ -21,15 +21,9 @@
     <ProjectReference Include="../../src/Pulso.Agent.Sensors/Pulso.Agent.Sensors.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
-  </ItemGroup>
-  <ItemGroup>
     <Resource Include="Assets/el-templo-logo.png" />
   </ItemGroup>
   <ItemGroup Condition="'$(AgentPayloadPath)' != ''">
     <EmbeddedResource Include="$(AgentPayloadPath)" LogicalName="ElTemploAgent.exe" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(DesktopPayloadPath)' != ''">
-    <EmbeddedResource Include="$(DesktopPayloadPath)" LogicalName="ElTemploCRM.exe" />
   </ItemGroup>
 </Project>
