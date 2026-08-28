@@ -149,10 +149,18 @@ export function EnrollmentDialog({
       size="md"
     >
       {!agentReady && phase === 'idle' ? (
-        <Alert tone="warning" title="Agente local no conectado">
-          El lector se opera a través de El Templo Agent instalado en esta PC. Verificá en Configuración → Dispositivos
-          que el agente esté conectado y aprobado.
-        </Alert>
+        <div className="space-y-3">
+          <Alert tone="warning" title="Agente local no conectado">
+            El navegador todavía no pudo conectarse con El Templo Agent de esta PC. Verificá que el agente esté
+            instalado y aprobado, y reintentá la conexión.
+          </Alert>
+          <Button
+            loading={agentStatus === 'connecting'}
+            onClick={() => getAgentClient().connect()}
+          >
+            Conectar agente
+          </Button>
+        </div>
       ) : null}
 
       {phase === 'idle' && agentReady ? (

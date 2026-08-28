@@ -5,7 +5,7 @@ import { Fingerprint } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BiometricCredential } from '@pulso/contracts/biometrics';
 import { Alert, Button, DataTable, StatusBadge, useToast, type DataTableColumn } from '@pulso/ui';
-import { useAgentStore } from '@/lib/agent';
+import { getAgentClient, useAgentStore } from '@/lib/agent';
 import {
   grantConsent,
   listAgents,
@@ -52,6 +52,10 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
 
   const [enrollOpen, setEnrollOpen] = React.useState(false);
   const [consentOpen, setConsentOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    getAgentClient().connect();
+  }, []);
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['biometrics', 'credentials', memberId] });
