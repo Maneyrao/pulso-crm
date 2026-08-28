@@ -10,6 +10,7 @@
     <RootNamespace>ElTemplo.Desktop</RootNamespace>
     <Version>0.2.0</Version>
     <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <SelfContained>true</SelfContained>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
