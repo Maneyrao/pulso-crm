@@ -251,6 +251,37 @@ describe('NewMemberPage', () => {
     expect(routerPush).not.toHaveBeenCalled();
   });
 
+  it('despues de corregir un rechazo del backend usa una Idempotency-Key nueva', async () => {
+    const { ApiError } = await import('@/lib/api/errors');
+    createMemberMock
+      .mockRejectedValueOnce(
+        new ApiError({
+          type: 'about:blank',
+          code: 'VALIDATION_ERROR',
+          title: 'Datos invalidos',
+          status: 422,
+          detail: 'Revisa los datos ingresados.',
+        }),
+      )
+      .mockResolvedValueOnce(CREATED_MEMBER);
+    const { default: NewMemberPage } = await import('./page');
+    render(withQuery(<NewMemberPage />));
+
+    await fillPersonalStep();
+    fireEvent.click(screen.getByRole('button', { name: /Crear socio y continuar/i }));
+    await screen.findByText(/Revisa los datos ingresados/i);
+
+    fireEvent.change(screen.getByLabelText(/Número de documento/i), {
+      target: { value: '30123456' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Crear socio y continuar/i }));
+
+    await waitFor(() => expect(createMemberMock).toHaveBeenCalledTimes(2));
+    const firstKey = createMemberMock.mock.calls[0]?.[1] as string;
+    const secondKey = createMemberMock.mock.calls[1]?.[1] as string;
+    expect(secondKey).not.toBe(firstKey);
+  });
+
   it('omitir el plan cierra el alta sin crear membresía', async () => {
     createMemberMock.mockResolvedValueOnce(CREATED_MEMBER);
     const { default: NewMemberPage } = await import('./page');

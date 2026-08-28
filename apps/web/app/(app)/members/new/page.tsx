@@ -172,7 +172,10 @@ function NewMemberScreen() {
       setCompleted((c) => Array.from(new Set([...c, 'personal' as StepId])));
       setStepId('plan');
     },
-    onError: (err: unknown) => setPersonalError(errorMessage(err)),
+    onError: (err: unknown) => {
+      renewAfterServerRejection(err, memberIdempotency.renew);
+      setPersonalError(errorMessage(err));
+    },
   });
 
   const createMembershipMutation = useMutation({
@@ -183,7 +186,10 @@ function NewMemberScreen() {
     onSuccess: (result) => {
       if (member) setDone({ member, membership: result });
     },
-    onError: (err: unknown) => setPaymentError(errorMessage(err)),
+    onError: (err: unknown) => {
+      renewAfterServerRejection(err, membershipIdempotency.renew);
+      setPaymentError(errorMessage(err));
+    },
   });
 
   const validatePersonal = (): boolean => {
@@ -646,4 +652,8 @@ function SummaryRow({ label, value }: { label: string; value: React.ReactNode })
 function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.detail ?? error.message;
   return 'Ocurrió un error inesperado.';
+}
+
+function renewAfterServerRejection(error: unknown, renew: () => string): void {
+  if (error instanceof ApiError && !error.isNetworkError) renew();
 }

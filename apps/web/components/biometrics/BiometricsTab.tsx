@@ -16,6 +16,8 @@ import {
 } from '@/lib/api/biometrics';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
+import { useSessionStore } from '@/lib/stores/session';
+import { selectOnlineBiometricEndpoint } from './agent-selection';
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { ConsentConfirmationDialog } from './ConsentConfirmationDialog';
 
@@ -42,13 +44,22 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const agentStatus = useAgentStore((s) => s.status);
+  const activeBranchId = useSessionStore((s) => s.activeBranchId);
 
   const credentialsQuery = useQuery({
     queryKey: ['biometrics', 'credentials', memberId],
     queryFn: () => listMemberCredentials(memberId),
   });
-  const agentsQuery = useQuery({ queryKey: ['agents'], queryFn: () => listAgents() });
-  const devicesQuery = useQuery({ queryKey: ['devices'], queryFn: () => listDevices() });
+  const agentsQuery = useQuery({
+    queryKey: ['agents', activeBranchId],
+    queryFn: () => listAgents(activeBranchId),
+    enabled: Boolean(activeBranchId),
+  });
+  const devicesQuery = useQuery({
+    queryKey: ['devices', activeBranchId],
+    queryFn: () => listDevices(activeBranchId),
+    enabled: Boolean(activeBranchId),
+  });
 
   const [enrollOpen, setEnrollOpen] = React.useState(false);
   const [consentOpen, setConsentOpen] = React.useState(false);
@@ -108,11 +119,16 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
     onError: () => toast({ title: 'No se pudo revocar la credencial', tone: 'danger' }),
   });
 
-  // Agente ACTIVO de la sede con su lector: el enrolamiento necesita ambos.
-  const agent = agentsQuery.data?.data.find((a) => a.status === 'ACTIVE');
-  const device = agent
-    ? devicesQuery.data?.data.find((d) => d.localAgentId === agent.id)
-    : undefined;
+  const endpoint = React.useMemo(
+    () =>
+      selectOnlineBiometricEndpoint(
+        agentsQuery.data?.data ?? [],
+        devicesQuery.data?.data ?? [],
+        activeBranchId,
+      ),
+    [activeBranchId, agentsQuery.data, devicesQuery.data],
+  );
+  const agentReady = agentStatus === 'ready' || agentStatus === 'busy';
 
   const columns: DataTableColumn<BiometricCredential>[] = [
     {
@@ -178,8 +194,14 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
           </Button>
           <Button
             onClick={() => setEnrollOpen(true)}
-            disabled={!agent || !device}
-            title={!agent ? 'No hay un agente activo en la sede' : undefined}
+            disabled={!endpoint || !agentReady}
+            title={
+              !endpoint
+                ? 'No hay un lector online en la sede'
+                : !agentReady
+                  ? 'El navegador no está conectado al agente de esta PC'
+                  : undefined
+            }
           >
             <Fingerprint className="h-4 w-4" aria-hidden={true} /> Enrolar huella
           </Button>
@@ -211,14 +233,14 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         emptyDescription="Registrá el consentimiento y enrolá un dedo con el lector de la recepción."
       />
 
-      {agent && device ? (
+      {endpoint ? (
         <EnrollmentDialog
           open={enrollOpen}
           onOpenChange={setEnrollOpen}
           memberId={memberId}
           {...(memberName ? { memberName } : {})}
-          localAgentId={agent.id}
-          deviceId={device.id}
+          localAgentId={endpoint.agent.id}
+          deviceId={endpoint.device.id}
           onEnrolled={invalidate}
         />
       ) : null}
