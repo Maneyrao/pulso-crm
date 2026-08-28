@@ -23,7 +23,7 @@ public sealed class CrmProvisioningClientTests
                 {"id":"branch-1","name":"Sede Principal"},
                 {"id":"branch-2","name":"Anexo"}
               ],
-              "activeBranchId":"branch-1",
+              "defaultBranchId":"branch-1",
               "permissions":["device:manage"]
             }
             """,
@@ -45,7 +45,7 @@ public sealed class CrmProvisioningClientTests
         var handler = new QueueHandler(
             Response(
                 HttpStatusCode.OK,
-                """{"user":{"email":"admin@example.test"},"gym":{"name":"El Templo"},"branches":[{"id":"branch-1","name":"Sede Principal"}],"activeBranchId":"branch-1","permissions":["device:manage"]}""",
+                """{"user":{"email":"admin@example.test"},"gym":{"name":"El Templo"},"branches":[{"id":"branch-1","name":"Sede Principal"}],"defaultBranchId":"branch-1","permissions":["device:manage"]}""",
                 ("Set-Cookie", "pulso_access=access-token; Path=/; HttpOnly"),
                 ("Set-Cookie", "pulso_csrf=csrf-token; Path=/")),
             Response(

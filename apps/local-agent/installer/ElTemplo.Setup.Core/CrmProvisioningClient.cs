@@ -42,7 +42,7 @@ public sealed class CrmProvisioningClient : ICrmAuthenticator, ICrmProvisioner, 
             body.User.Email,
             body.Gym.Name,
             body.Branches.Select(branch => new CrmBranch(branch.Id, branch.Name)).ToArray(),
-            body.ActiveBranchId);
+            body.DefaultBranchId);
     }
 
     public async Task<ProvisionedAgent> CreateAgentAsync(
@@ -145,7 +145,7 @@ public sealed class CrmProvisioningClient : ICrmAuthenticator, ICrmProvisioner, 
         LoginUser User,
         LoginGym Gym,
         IReadOnlyList<LoginBranch> Branches,
-        string? ActiveBranchId,
+        string? DefaultBranchId,
         IReadOnlyList<string> Permissions);
 
     private sealed record LoginUser(string Email);

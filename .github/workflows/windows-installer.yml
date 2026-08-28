@@ -1,0 +1,56 @@
+name: Windows installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - codex/**
+    paths:
+      - "apps/local-agent/**"
+      - ".github/workflows/windows-installer.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test setup workflow
+        run: dotnet test apps/local-agent/tests/ElTemplo.Setup.Core.Tests/ElTemplo.Setup.Core.Tests.csproj --configuration Release --nologo
+
+      - name: Test local agent
+        run: dotnet test apps/local-agent/Pulso.Agent.sln --configuration Release --nologo
+
+      - name: Build visual installer
+        shell: pwsh
+        run: ./apps/local-agent/build-release.ps1
+
+      - name: Validate installer payload
+        shell: pwsh
+        run: |
+          $installer = Resolve-Path "apps/local-agent/artifacts/ElTemploCRM-Setup.exe"
+          $report = Join-Path $env:RUNNER_TEMP "installer-self-test.json"
+          $process = Start-Process $installer -ArgumentList "--self-test", "--self-test-report", $report -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer self-test failed with code $($process.ExitCode)" }
+          Get-Content $report
+
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: ElTemploCRM-Windows-x64
+          path: |
+            apps/local-agent/artifacts/ElTemploCRM-Setup.exe
+            apps/local-agent/artifacts/ElTemploCRM-Setup.exe.sha256
+          if-no-files-found: error
+          retention-days: 30
