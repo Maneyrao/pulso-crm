@@ -39,6 +39,13 @@ function localizeEnrollPrompt(prompt: unknown): string {
 
 /** AgentState del agente (Pulso.Agent.Core) → estado de la UI. */
 const STATE_MAP: Record<string, AgentStatus> = {
+  READY: 'ready',
+  NO_DEVICE: 'no-device',
+  BUSY: 'busy',
+  BACKEND_DOWN: 'backend-down',
+  NOT_CONFIGURED: 'no-agent',
+  PENDING_APPROVAL: 'no-agent',
+  DISABLED: 'no-agent',
   Ready: 'ready',
   NoDevice: 'no-device',
   Busy: 'busy',

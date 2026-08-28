@@ -100,7 +100,7 @@ describe('RealAgentClient', () => {
       envelope('hello.ack', {
         protocolVersion: '1.0',
         agentVersion: '1.2.0',
-        agentState: 'Ready',
+        agentState: 'READY',
         tls: true,
         devices: [
           {
