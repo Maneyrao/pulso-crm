@@ -248,7 +248,7 @@ public partial class MainWindow : Window
         }
         catch (SetupFailureException error)
         {
-            InstallError.Text = error.Message + " Pulsá Reintentar; no necesitás empezar de cero.";
+            InstallError.Text = FriendlySetupError(error) + " Pulsá Reintentar; no necesitás empezar de cero.";
             InstallErrorPanel.Visibility = Visibility.Visible;
             _logger.Error(error.DiagnosticCode, error.DiagnosticType);
         }
@@ -273,6 +273,15 @@ public partial class MainWindow : Window
             }
         }
     }
+
+    private static string FriendlySetupError(SetupFailureException error) => error.DiagnosticType switch
+    {
+        nameof(IOException) => "Windows todavía está usando un archivo anterior. Cerramos el agente y esperamos a que quede libre.",
+        nameof(UnauthorizedAccessException) => "Windows no concedió permisos suficientes. Cerrá y abrí el instalador como administrador.",
+        nameof(HttpRequestException) => "No pudimos descargar un componente de Microsoft. Revisá la conexión a Internet.",
+        "CryptographicException" => "Windows no pudo preparar el certificado local del lector.",
+        _ => error.Message,
+    };
 
     private async Task CheckReaderAgainAsync()
     {

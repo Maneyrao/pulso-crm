@@ -10,7 +10,7 @@ on:
       tag:
         description: Release tag
         required: true
-        default: v0.2.0
+        default: v0.2.1
         type: string
       target_sha:
         description: Commit represented by the installer
@@ -47,5 +47,5 @@ jobs:
             release/ElTemploCRM-Setup.exe.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --target "$TARGET_SHA" \
-            --title "El Templo CRM para Windows v0.2.0" \
+            --title "El Templo CRM para Windows $TAG" \
             --notes "Instalador visual todo-en-uno para Windows 10/11 x64. Incluye El Templo CRM, servicio biométrico, configuración automática, WebView2 y accesos directos. Requiere una cuenta del CRM con permiso para administrar dispositivos. El lector físico HID U.are.U 4500 debe completar la lista de aceptación incluida en el repositorio. Este binario todavía no tiene firma Authenticode comercial, por lo que Windows puede mostrar SmartScreen."

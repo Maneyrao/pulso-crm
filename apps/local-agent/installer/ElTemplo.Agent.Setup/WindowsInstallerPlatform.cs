@@ -22,14 +22,21 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         Directory.CreateDirectory(InstallerConstants.DesktopDirectory);
         Directory.CreateDirectory(InstallerConstants.InstallerDirectory);
         Directory.CreateDirectory(AgentPaths.DefaultConfigDirectory());
+        logger.Info("INSTALL_DIRECTORIES_READY");
 
         await ExtractResourceAsync("ElTemploAgent.exe", InstallerConstants.AgentExecutable, cancellationToken);
+        logger.Info("AGENT_PAYLOAD_READY");
         await ExtractResourceAsync("ElTemploCRM.exe", InstallerConstants.DesktopExecutable, cancellationToken);
-        CopyInstallerForRepair();
+        logger.Info("DESKTOP_PAYLOAD_READY");
+        await CopyInstallerForRepairAsync(cancellationToken);
+        logger.Info("REPAIR_PAYLOAD_READY");
         EnsureLocalCertificate();
+        logger.Info("LOCAL_CERTIFICATE_READY");
         await AgentPairer.EnsureConfigurationAsync();
         RestrictConfigDirectory();
+        logger.Info("AGENT_CONFIGURATION_READY");
         await EnsureWebViewRuntimeAsync(cancellationToken);
+        logger.Info("WEBVIEW_RUNTIME_READY");
         RegisterUninstaller();
         logger.Info("PAYLOAD_INSTALL_COMPLETED");
     }
@@ -152,25 +159,40 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         string destinationPath,
         CancellationToken cancellationToken)
     {
-        await using var payload = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException($"Falta el componente {resourceName} dentro del instalador.");
-        await using var destination = new FileStream(
-            destinationPath,
-            FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            bufferSize: 81920,
-            useAsync: true);
-        await payload.CopyToAsync(destination, cancellationToken);
+        await OperationRetrier.RunAsync(
+            async () =>
+            {
+                await using var payload = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName)
+                    ?? throw new InvalidOperationException($"Falta el componente {resourceName} dentro del instalador.");
+                await using var destination = new FileStream(
+                    destinationPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.None,
+                    bufferSize: 81920,
+                    useAsync: true);
+                await payload.CopyToAsync(destination, cancellationToken);
+            },
+            attempts: 12,
+            delay: TimeSpan.FromMilliseconds(500),
+            cancellationToken);
     }
 
-    private static void CopyInstallerForRepair()
+    private static async Task CopyInstallerForRepairAsync(CancellationToken cancellationToken)
     {
         var current = Environment.ProcessPath
             ?? throw new InvalidOperationException("No pudimos localizar el instalador actual.");
         if (!string.Equals(current, InstallerConstants.InstalledSetupExecutable, StringComparison.OrdinalIgnoreCase))
         {
-            File.Copy(current, InstallerConstants.InstalledSetupExecutable, overwrite: true);
+            await OperationRetrier.RunAsync(
+                () =>
+                {
+                    File.Copy(current, InstallerConstants.InstalledSetupExecutable, overwrite: true);
+                    return Task.CompletedTask;
+                },
+                attempts: 12,
+                delay: TimeSpan.FromMilliseconds(500),
+                cancellationToken);
         }
     }
 
@@ -308,7 +330,7 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
             @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\ElTemploCRM",
             writable: true);
         key.SetValue("DisplayName", InstallerConstants.ProductName);
-        key.SetValue("DisplayVersion", "0.2.0");
+        key.SetValue("DisplayVersion", InstallerConstants.ProductVersion);
         key.SetValue("Publisher", "El Templo");
         key.SetValue("InstallLocation", InstallerConstants.ProductDirectory);
         key.SetValue("DisplayIcon", InstallerConstants.DesktopExecutable);
@@ -319,9 +341,54 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
 
     private static async Task StopServiceIfPresentAsync(CancellationToken cancellationToken)
     {
-        if (await RunProcessAsync("sc.exe", ["query", InstallerConstants.ServiceName], false, cancellationToken) != 0) return;
+        var initialState = await QueryServiceStateAsync(cancellationToken);
+        if (initialState is null or "STOPPED") return;
         await RunProcessAsync("sc.exe", ["stop", InstallerConstants.ServiceName], false, cancellationToken);
-        await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            if (await QueryServiceStateAsync(cancellationToken) == "STOPPED") return;
+            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+        }
+
+        await RunProcessAsync(
+            "taskkill.exe",
+            ["/F", "/FI", $"SERVICES eq {InstallerConstants.ServiceName}"],
+            false,
+            cancellationToken);
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            if (await QueryServiceStateAsync(cancellationToken) == "STOPPED") return;
+            await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+        }
+        throw new IOException("El servicio anterior no liberó los archivos de instalación.");
+    }
+
+    private static async Task<string?> QueryServiceStateAsync(CancellationToken cancellationToken)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "sc.exe",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            },
+        };
+        process.StartInfo.ArgumentList.Add("query");
+        process.StartInfo.ArgumentList.Add(InstallerConstants.ServiceName);
+        process.Start();
+        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken);
+        var output = await outputTask;
+        _ = await errorTask;
+        if (process.ExitCode != 0) return null;
+        if (output.Contains("STOPPED", StringComparison.OrdinalIgnoreCase)) return "STOPPED";
+        if (output.Contains("STOP_PENDING", StringComparison.OrdinalIgnoreCase)) return "STOP_PENDING";
+        if (output.Contains("RUNNING", StringComparison.OrdinalIgnoreCase)) return "RUNNING";
+        return "UNKNOWN";
     }
 
     private static async Task<int> RunProcessAsync(

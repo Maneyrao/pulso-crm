@@ -3,6 +3,7 @@ namespace ElTemplo.Agent.Setup;
 internal static class InstallerConstants
 {
     public const string ProductName = "El Templo CRM";
+    public const string ProductVersion = "0.2.1";
     public const string ServiceName = "ElTemploAgent";
     public const string CrmUrl = "https://pulso-crm-omega.vercel.app/login";
     public const string CrmApiUrl = "https://pulso-crm-omega.vercel.app/api/v1/";
