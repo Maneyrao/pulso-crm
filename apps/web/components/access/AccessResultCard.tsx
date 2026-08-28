@@ -6,11 +6,15 @@ import { usePermission } from '@/lib/auth/permissions';
 import { ACCESS_REASON_CONFIG } from './reason-config';
 
 const TONE_CLASS: Record<string, string> = {
-  success: 'border-(--color-access-allowed) bg-(--color-access-allowed-subtle) text-(--color-access-allowed-subtle-foreground)',
+  success:
+    'border-(--color-access-allowed) bg-(--color-access-allowed-subtle) text-(--color-access-allowed-subtle-foreground)',
   info: 'border-(--color-info) bg-(--color-info-subtle) text-(--color-info-subtle-foreground)',
-  warning: 'border-(--color-warning) bg-(--color-warning-subtle) text-(--color-warning-subtle-foreground)',
-  danger: 'border-(--color-access-denied) bg-(--color-access-denied-subtle) text-(--color-access-denied-subtle-foreground)',
-  neutral: 'border-(--color-border-strong) bg-(--color-muted-subtle) text-(--color-muted-subtle-foreground)',
+  warning:
+    'border-(--color-warning) bg-(--color-warning-subtle) text-(--color-warning-subtle-foreground)',
+  danger:
+    'border-(--color-access-denied) bg-(--color-access-denied-subtle) text-(--color-access-denied-subtle-foreground)',
+  neutral:
+    'border-(--color-border-strong) bg-(--color-muted-subtle) text-(--color-muted-subtle-foreground)',
 };
 
 const TONE_ICON: Record<string, typeof CheckCircle2> = {
@@ -67,7 +71,9 @@ export function AccessResultCard({ result }: AccessResultCardProps) {
             />
           ) : null}
           <div>
-            <p className="text-(--text-access-result) font-semibold text-(--color-text)">{fullName}</p>
+            <p className="text-(--text-access-result) font-semibold text-(--color-text)">
+              {fullName}
+            </p>
             {result.membership ? (
               <p className="text-(--text-sm) text-(--color-muted)">
                 {result.membership.planName}
@@ -79,6 +85,10 @@ export function AccessResultCard({ result }: AccessResultCardProps) {
             ) : null}
           </div>
         </div>
+      ) : null}
+
+      {result.attendanceRegistered ? (
+        <p className="text-(--text-sm) font-semibold">Asistencia registrada</p>
       ) : null}
 
       {config.action ? (

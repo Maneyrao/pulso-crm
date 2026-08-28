@@ -12,6 +12,9 @@ public sealed record OperationTimeouts
     public TimeSpan EnrollSession { get; init; } = ProtocolConstants.EnrollSessionTimeout;
     public TimeSpan IdentifyIdle { get; init; } = ProtocolConstants.IdentifyIdleTimeout;
 
+    /// <summary>Tiempo mínimo para retirar el dedo antes de solicitar otra muestra de enrolamiento.</summary>
+    public TimeSpan BetweenEnrollmentSamples { get; init; } = TimeSpan.FromMilliseconds(900);
+
     /// <summary>
     /// Cuánto espera un start nuevo a que termine el teardown de una operación ya cancelada antes
     /// de responder AGENT_BUSY (ver SessionManager.BeginAsync). No está en la tabla de §7: es una

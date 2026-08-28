@@ -44,7 +44,7 @@ verificado de cada módulo al cierre.
 | Estadísticas | `/stats` | 🟡 Demo | Charts CSS puros, sin dependencia externa. |
 | Configuración | `/config` (+ `/settings/branches`) | 🟡/✅ | General demo; sedes reales. |
 | Mi cuenta | `/account` | ✅ Real | Sólo lectura: no hay endpoint de cambio de contraseña self-service (no se inventó). |
-| Huella digital | ficha de socio + `/access` + `/settings/devices` | ✅ Real con sensor simulado | Pareo, heartbeat, enrolamiento, identificación 1:N, decisión de acceso y UI usan API/PostgreSQL reales sobre `FakeSensor`. El U.are.U físico sigue pendiente de driver/SDK y validación en Windows. |
+| Huella digital | ficha de socio + `/access` + `/settings/devices` | ✅ Software productivo; validación física pendiente | Pareo, heartbeat, WBF, ANSI-381, SourceAFIS, enrolamiento, identificación 1:N, decisión de acceso y UI usan API/PostgreSQL reales. Falta ejecutar la matriz final sobre el U.are.U 4500 físico en Windows. |
 | WhatsApp | — | ⛔ Fuera de alcance | Módulo de mensajería de la API vacío; ver auditoría §6. |
 | Asistente IA (extra, no existe en ControlFit) | `/ai` | 🟡 Demo | Chat con respuestas predefinidas. |
 

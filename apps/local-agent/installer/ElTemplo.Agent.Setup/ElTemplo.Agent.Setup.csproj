@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ElTemploAgentSetup</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Pulso.Agent.Backend/Pulso.Agent.Backend.csproj" />
+    <ProjectReference Include="../../src/Pulso.Agent.Sensors/Pulso.Agent.Sensors.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(AgentPayloadPath)' != ''">
+    <EmbeddedResource Include="$(AgentPayloadPath)" LogicalName="ElTemploAgent.exe" />
+  </ItemGroup>
+</Project>

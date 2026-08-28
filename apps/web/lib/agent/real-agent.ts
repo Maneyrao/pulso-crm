@@ -26,6 +26,17 @@ const WS_URL = process.env['NEXT_PUBLIC_AGENT_WS_URL'] ?? 'wss://127.0.0.1:21987
 const PING_INTERVAL_MS = 15_000;
 const RECONNECT_MAX_MS = 30_000;
 
+const ENROLL_PROMPT_LABEL: Record<string, string> = {
+  PLACE_FINGER: 'Apoyá el dedo firme sobre el lector.',
+  LIFT_FINGER: 'Retirá el dedo antes de volver a apoyarlo.',
+  CLEAN_SENSOR: 'Limpiá el lector y apoyá el dedo nuevamente.',
+};
+
+function localizeEnrollPrompt(prompt: unknown): string {
+  if (typeof prompt !== 'string') return 'Apoyá el dedo en el lector.';
+  return ENROLL_PROMPT_LABEL[prompt] ?? prompt;
+}
+
 /** AgentState del agente (Pulso.Agent.Core) → estado de la UI. */
 const STATE_MAP: Record<string, AgentStatus> = {
   Ready: 'ready',
@@ -56,7 +67,11 @@ export class RealAgentClient implements AgentClient {
   }
 
   connect(): void {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    )
+      return;
     this.manualClose = false;
     useAgentStore.getState().setStatus('connecting');
 
@@ -165,7 +180,9 @@ export class RealAgentClient implements AgentClient {
       case 'status': {
         const status = payload as StatusLike;
         const deviceName = status.devices?.[0]?.model ?? null;
-        useAgentStore.getState().setStatus(STATE_MAP[status.agentState ?? ''] ?? 'connecting', deviceName);
+        useAgentStore
+          .getState()
+          .setStatus(STATE_MAP[status.agentState ?? ''] ?? 'connecting', deviceName);
         this.emit({
           type: 'hello.ack',
           payload: { agentVersion: status.agentVersion ?? '', deviceName },
@@ -174,11 +191,17 @@ export class RealAgentClient implements AgentClient {
       }
       case 'device.connected':
         useAgentStore.getState().setStatus('ready', (payload['model'] as string | null) ?? null);
-        this.emit({ type: 'device.connected', payload: { deviceName: (payload['model'] as string) ?? 'Lector' } });
+        this.emit({
+          type: 'device.connected',
+          payload: { deviceName: (payload['model'] as string) ?? 'Lector' },
+        });
         break;
       case 'device.disconnected':
         useAgentStore.getState().setStatus('no-device');
-        this.emit({ type: 'device.disconnected', payload: { reason: (payload['reason'] as string) ?? '' } });
+        this.emit({
+          type: 'device.disconnected',
+          payload: { reason: (payload['reason'] as string) ?? '' },
+        });
         break;
       case 'enroll.progress':
         this.emit({
@@ -189,26 +212,35 @@ export class RealAgentClient implements AgentClient {
             required: payload['required'] as number,
             quality: (payload['lastQuality'] as number | null) ?? null,
             ...(payload['warning'] ? { warning: payload['warning'] as string } : {}),
-            prompt: (payload['prompt'] as string) ?? 'Apoyá el dedo en el lector',
+            prompt: localizeEnrollPrompt(payload['prompt']),
           },
         });
         break;
       case 'enroll.completed':
         this.emit({
           type: 'enroll.completed',
-          payload: { opId: payload['opId'] as string, finalQuality: payload['finalQuality'] as number },
+          payload: {
+            opId: payload['opId'] as string,
+            finalQuality: payload['finalQuality'] as number,
+          },
         });
         break;
       case 'enroll.failed':
         this.emit({
           type: 'enroll.failed',
-          payload: { opId: payload['opId'] as string, code: (payload['code'] as string) ?? 'UNKNOWN' },
+          payload: {
+            opId: payload['opId'] as string,
+            code: (payload['code'] as string) ?? 'UNKNOWN',
+          },
         });
         break;
       case 'identify.captured':
         this.emit({
           type: 'identify.captured',
-          payload: { opId: payload['opId'] as string, quality: (payload['quality'] as number) ?? 0 },
+          payload: {
+            opId: payload['opId'] as string,
+            quality: (payload['quality'] as number) ?? 0,
+          },
         });
         break;
       case 'identify.sent':
@@ -217,7 +249,10 @@ export class RealAgentClient implements AgentClient {
       case 'identify.failed':
         this.emit({
           type: 'identify.failed',
-          payload: { opId: payload['opId'] as string, code: (payload['code'] as string) ?? 'UNKNOWN' },
+          payload: {
+            opId: payload['opId'] as string,
+            code: (payload['code'] as string) ?? 'UNKNOWN',
+          },
         });
         break;
       case 'operation.cancelled':
@@ -229,7 +264,10 @@ export class RealAgentClient implements AgentClient {
       case 'error':
         this.emit({
           type: 'error',
-          payload: { code: (payload['code'] as string) ?? 'UNKNOWN', opId: (payload['opId'] as string | null) ?? null },
+          payload: {
+            code: (payload['code'] as string) ?? 'UNKNOWN',
+            opId: (payload['opId'] as string | null) ?? null,
+          },
         });
         break;
       default:

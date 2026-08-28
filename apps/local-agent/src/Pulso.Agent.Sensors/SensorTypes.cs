@@ -14,6 +14,7 @@ public enum TemplateFormat
     Iso19794_2,
     Ansi378,
     VendorProprietary,
+    SourceAfisNative,
 }
 
 /// <summary>Descripción de un lector enumerado, sin nada del socio.</summary>

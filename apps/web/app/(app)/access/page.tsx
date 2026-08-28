@@ -1,17 +1,26 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DoorOpen } from 'lucide-react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { AccessCheckResponse, AccessMethod } from '@pulso/contracts/access';
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, EmptyState, Skeleton } from '@pulso/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  Skeleton,
+} from '@pulso/ui';
 import { checkAccess, listAccessAttempts } from '@/lib/api/access';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
 import { useDelayedFlag } from '@/lib/hooks/useDelayedFlag';
 import { useSessionStore } from '@/lib/stores/session';
 import { ACCESS_REASON_CONFIG } from '@/components/access/reason-config';
-import { AccessResultCard } from '@/components/access/AccessResultCard';
+import { AccessResultOverlay } from '@/components/access/AccessResultOverlay';
 import { FingerprintAccessPanel } from '@/components/access/FingerprintAccessPanel';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { qk } from '@/lib/query/keys';
@@ -37,7 +46,10 @@ export default function AccessPage() {
     <PermissionGate
       permission="access:operate"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para operar esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para operar esta pantalla."
+        />
       }
     >
       <AccessScreen />
@@ -53,6 +65,7 @@ function AccessScreen() {
   const [lastResult, setLastResult] = useState<AccessCheckResponse | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissResult = useCallback(() => setLastResult(null), []);
 
   const mutation = useMutation({
     mutationFn: (identifier: string) =>
@@ -72,7 +85,8 @@ function AccessScreen() {
     },
   });
 
-  const isNetworkError = mutation.isError && mutation.error instanceof ApiError && mutation.error.isNetworkError;
+  const isNetworkError =
+    mutation.isError && mutation.error instanceof ApiError && mutation.error.isNetworkError;
 
   // Reintento automático ante un corte de red: el resultado anterior no se
   // borra mientras tanto (FRONTEND_PLAN §6.3 "Error de red").
@@ -120,7 +134,10 @@ function AccessScreen() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <label htmlFor="access-input" className="mb-1.5 block text-(--text-sm) font-medium text-(--color-text)">
+          <label
+            htmlFor="access-input"
+            className="mb-1.5 block text-(--text-sm) font-medium text-(--color-text)"
+          >
             Documento o tarjeta
           </label>
           <input
@@ -139,7 +156,13 @@ function AccessScreen() {
             placeholder="Ingresá DNI o pasá tarjeta…"
           />
         </div>
-        <Button type="submit" size="lg" disabled={mutation.isPending} loading={mutation.isPending} className="sm:w-auto">
+        <Button
+          type="submit"
+          size="lg"
+          disabled={mutation.isPending}
+          loading={mutation.isPending}
+          className="sm:w-auto"
+        >
           Registrar
         </Button>
       </form>
@@ -161,14 +184,14 @@ function AccessScreen() {
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-16 w-full max-w-sm" />
         </div>
-      ) : lastResult ? (
-        <AccessResultCard result={lastResult} />
       ) : (
         <EmptyState
           title="Esperando una lectura"
-          description="Escaneá una tarjeta o tipeá el documento del socio y presioná Enter."
+          description="Apoyá una huella, escaneá una tarjeta o tipeá el documento del socio."
         />
       )}
+
+      {lastResult ? <AccessResultOverlay result={lastResult} onDismiss={dismissResult} /> : null}
 
       {canReadHistory ? (
         <Card>

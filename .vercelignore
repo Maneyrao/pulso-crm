@@ -1,0 +1,16 @@
+.git
+.turbo
+**/.next
+**/bin
+**/obj
+**/TestResults
+**/coverage
+
+# Native Windows and backend artifacts are not part of the Next.js deployment.
+apps/local-agent
+apps/biometric-matcher
+apps/api
+apps/worker
+
+docs
+e2e

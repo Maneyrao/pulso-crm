@@ -150,7 +150,7 @@ export function EnrollmentDialog({
     >
       {!agentReady && phase === 'idle' ? (
         <Alert tone="warning" title="Agente local no conectado">
-          El lector se opera a través del Pulso Agent instalado en esta PC. Verificá en Configuración → Dispositivos
+          El lector se opera a través de El Templo Agent instalado en esta PC. Verificá en Configuración → Dispositivos
           que el agente esté conectado y aprobado.
         </Alert>
       ) : null}

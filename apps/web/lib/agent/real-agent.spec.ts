@@ -48,7 +48,13 @@ class FakeWebSocket {
 }
 
 function envelope(type: string, payload?: object): object {
-  return { v: '1.0', id: crypto.randomUUID(), type, ts: new Date().toISOString(), ...(payload ? { payload } : {}) };
+  return {
+    v: '1.0',
+    id: crypto.randomUUID(),
+    type,
+    ts: new Date().toISOString(),
+    ...(payload ? { payload } : {}),
+  };
 }
 
 let client: RealAgentClient;
@@ -74,7 +80,11 @@ describe('RealAgentClient', () => {
   it('al abrir manda hello con envelope v1.0 y luego ping cada 15 s', () => {
     expect(useAgentStore.getState().status).toBe('connecting');
     socket.open();
-    const hello = JSON.parse(socket.sent[0]!) as { v: string; type: string; payload: { clientVersion: string } };
+    const hello = JSON.parse(socket.sent[0]!) as {
+      v: string;
+      type: string;
+      payload: { clientVersion: string };
+    };
     expect(hello.v).toBe('1.0');
     expect(hello.type).toBe('hello');
     expect(hello.payload.clientVersion).toContain('pulso-web');
@@ -125,14 +135,65 @@ describe('RealAgentClient', () => {
       fingerPosition: 'RIGHT_INDEX',
     });
     expect(opId).not.toBeNull();
-    const sentStart = JSON.parse(socket.sent.at(-1)!) as { type: string; payload: { deviceToken: string } };
+    const sentStart = JSON.parse(socket.sent.at(-1)!) as {
+      type: string;
+      payload: { deviceToken: string };
+    };
     expect(sentStart.type).toBe('enroll.start');
     expect(sentStart.payload.deviceToken).toBe('pdt_x');
 
-    socket.receive(envelope('enroll.progress', { opId, captured: 2, required: 4, lastQuality: 81, prompt: 'Otra vez' }));
+    socket.receive(
+      envelope('enroll.progress', {
+        opId,
+        captured: 2,
+        required: 4,
+        lastQuality: 81,
+        prompt: 'Otra vez',
+      }),
+    );
     expect(events.at(-1)).toEqual({
       type: 'enroll.progress',
       payload: { opId, captured: 2, required: 4, quality: 81, prompt: 'Otra vez' },
+    });
+
+    socket.receive(
+      envelope('enroll.progress', {
+        opId,
+        captured: 2,
+        required: 4,
+        lastQuality: 81,
+        prompt: 'LIFT_FINGER',
+      }),
+    );
+    expect(events.at(-1)).toEqual({
+      type: 'enroll.progress',
+      payload: {
+        opId,
+        captured: 2,
+        required: 4,
+        quality: 81,
+        prompt: 'Retirá el dedo antes de volver a apoyarlo.',
+      },
+    });
+
+    socket.receive(
+      envelope('enroll.progress', {
+        opId,
+        captured: 2,
+        required: 4,
+        lastQuality: 35,
+        prompt: 'CLEAN_SENSOR',
+      }),
+    );
+    expect(events.at(-1)).toEqual({
+      type: 'enroll.progress',
+      payload: {
+        opId,
+        captured: 2,
+        required: 4,
+        quality: 35,
+        prompt: 'Limpiá el lector y apoyá el dedo nuevamente.',
+      },
     });
   });
 
@@ -142,7 +203,10 @@ describe('RealAgentClient', () => {
     client.subscribe((event) => events.push(event));
 
     expect(client.identifyStart({} as never)).toBeNull();
-    expect(events.at(-1)).toEqual({ type: 'error', payload: { code: 'INVALID_OPERATION', opId: null } });
+    expect(events.at(-1)).toEqual({
+      type: 'error',
+      payload: { code: 'INVALID_OPERATION', opId: null },
+    });
 
     const deviceId = crypto.randomUUID();
     const branchId = crypto.randomUUID();

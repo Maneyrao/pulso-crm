@@ -17,6 +17,7 @@ import {
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
 import { EnrollmentDialog } from './EnrollmentDialog';
+import { ConsentConfirmationDialog } from './ConsentConfirmationDialog';
 
 const FINGER_LABEL: Record<string, string> = {
   RIGHT_THUMB: 'Pulgar derecho',
@@ -50,14 +51,27 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
   const devicesQuery = useQuery({ queryKey: ['devices'], queryFn: () => listDevices() });
 
   const [enrollOpen, setEnrollOpen] = React.useState(false);
+  const [consentOpen, setConsentOpen] = React.useState(false);
 
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: ['biometrics', 'credentials', memberId] });
+  const invalidate = () =>
+    void queryClient.invalidateQueries({ queryKey: ['biometrics', 'credentials', memberId] });
 
   const consentMutation = useMutation({
     mutationFn: () => grantConsent(memberId, { version: 'v1', grantedMethod: 'IN_PERSON_SIGNED' }),
-    onSuccess: () => toast({ title: 'Consentimiento registrado', tone: 'success' }),
+    onSuccess: () => {
+      setConsentOpen(false);
+      toast({
+        title: 'Consentimiento registrado',
+        description: 'Quedaron registrados usuario, fecha y versión.',
+        tone: 'success',
+      });
+    },
     onError: (err) =>
-      toast({ title: 'No se pudo registrar', description: err instanceof ApiError ? err.message : undefined, tone: 'danger' }),
+      toast({
+        title: 'No se pudo registrar',
+        description: err instanceof ApiError ? err.message : undefined,
+        tone: 'danger',
+      }),
   });
 
   const revokeConsentMutation = useMutation({
@@ -73,7 +87,10 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
     onError: (err) =>
       toast({
         title: 'No se pudo revocar',
-        description: err instanceof ApiError && err.code === 'NOT_FOUND' ? 'El socio no tiene consentimiento vigente.' : undefined,
+        description:
+          err instanceof ApiError && err.code === 'NOT_FOUND'
+            ? 'El socio no tiene consentimiento vigente.'
+            : undefined,
         tone: 'danger',
       }),
   });
@@ -89,21 +106,35 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
 
   // Agente ACTIVO de la sede con su lector: el enrolamiento necesita ambos.
   const agent = agentsQuery.data?.data.find((a) => a.status === 'ACTIVE');
-  const device = agent ? devicesQuery.data?.data.find((d) => d.localAgentId === agent.id) : undefined;
+  const device = agent
+    ? devicesQuery.data?.data.find((d) => d.localAgentId === agent.id)
+    : undefined;
 
   const columns: DataTableColumn<BiometricCredential>[] = [
     {
       id: 'finger',
       header: 'Dedo',
-      cell: (c) => <span className="font-medium text-(--color-text)">{FINGER_LABEL[c.fingerPosition] ?? c.fingerPosition}</span>,
+      cell: (c) => (
+        <span className="font-medium text-(--color-text)">
+          {FINGER_LABEL[c.fingerPosition] ?? c.fingerPosition}
+        </span>
+      ),
     },
     { id: 'quality', header: 'Calidad', cell: (c) => `${c.quality}/100` },
-    { id: 'created', header: 'Enrolada', cell: (c) => new Date(c.createdAt).toLocaleDateString('es-AR') },
+    {
+      id: 'created',
+      header: 'Enrolada',
+      cell: (c) => new Date(c.createdAt).toLocaleDateString('es-AR'),
+    },
     {
       id: 'status',
       header: 'Estado',
       cell: (c) =>
-        c.status === 'ACTIVE' ? <StatusBadge tone="success" label="Activa" /> : <StatusBadge tone="neutral" label="Revocada" />,
+        c.status === 'ACTIVE' ? (
+          <StatusBadge tone="success" label="Activa" />
+        ) : (
+          <StatusBadge tone="neutral" label="Revocada" />
+        ),
     },
     {
       id: 'actions',
@@ -112,7 +143,11 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         c.status === 'ACTIVE' ? (
           <PermissionGate permission="biometrics:revoke" fallback={null}>
             <div className="flex justify-end">
-              <Button size="sm" variant="outline" onClick={() => revokeCredentialMutation.mutate(c.id)}>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => revokeCredentialMutation.mutate(c.id)}
+              >
                 Revocar
               </Button>
             </div>
@@ -124,13 +159,17 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
   return (
     <div className="space-y-4">
       <Alert tone="info" title="Privacidad">
-        Sólo se guarda un template de minucias cifrado, nunca la imagen de la huella. El acceso por documento sigue
-        disponible siempre.
+        Sólo se guarda un template de minucias cifrado, nunca la imagen de la huella. El acceso por
+        documento sigue disponible siempre.
       </Alert>
 
       <div className="flex flex-wrap gap-2">
         <PermissionGate permission="biometrics:enroll" fallback={null}>
-          <Button loading={consentMutation.isPending} variant="outline" onClick={() => consentMutation.mutate()}>
+          <Button
+            loading={consentMutation.isPending}
+            variant="outline"
+            onClick={() => setConsentOpen(true)}
+          >
             Registrar consentimiento
           </Button>
           <Button
@@ -154,7 +193,7 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
 
       {agentStatus !== 'ready' && agentStatus !== 'busy' ? (
         <p className="text-(--text-sm) text-(--color-muted)">
-          Para enrolar, conectá el Pulso Agent de esta PC desde Configuración → Dispositivos.
+          Para enrolar, conectá El Templo Agent de esta PC desde Configuración → Dispositivos.
         </p>
       ) : null}
 
@@ -179,6 +218,14 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
           onEnrolled={invalidate}
         />
       ) : null}
+
+      <ConsentConfirmationDialog
+        open={consentOpen}
+        onOpenChange={setConsentOpen}
+        {...(memberName ? { memberName } : {})}
+        onConfirm={() => consentMutation.mutate()}
+        loading={consentMutation.isPending}
+      />
     </div>
   );
 }

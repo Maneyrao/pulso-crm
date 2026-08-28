@@ -31,12 +31,33 @@ const ERROR_LABEL: Record<string, string> = {
 const NEXT_SCAN_DELAY_MS = 900;
 const RESULT_POLL_DELAY_MS = 250;
 const RESULT_POLL_ATTEMPTS = 8;
+const MODE_STORAGE_KEY = 'el-templo:fingerprint-mode';
+
+function readModePreference(): 'enabled' | 'disabled' | null {
+  try {
+    const value = window.localStorage.getItem(MODE_STORAGE_KEY);
+    return value === 'enabled' || value === 'disabled' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeModePreference(value: 'enabled' | 'disabled'): void {
+  try {
+    window.localStorage.setItem(MODE_STORAGE_KEY, value);
+  } catch {
+    // El modo sigue funcionando durante la sesión aunque el navegador bloquee storage.
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-async function resolveLatestFingerprint(branchId: string, from: string): Promise<AccessCheckResponse> {
+async function resolveLatestFingerprint(
+  branchId: string,
+  from: string,
+): Promise<AccessCheckResponse> {
   for (let attempt = 0; attempt < RESULT_POLL_ATTEMPTS; attempt += 1) {
     const response = await listAccessAttempts(branchId, 3, { method: 'FINGERPRINT', from });
     const latest = response.data[0];
@@ -83,9 +104,10 @@ export function FingerprintAccessPanel({
     }, delay);
   }, []);
 
-  const stop = React.useCallback(() => {
+  const stop = React.useCallback((remember = true) => {
     enabledRef.current = false;
     setEnabled(false);
+    if (remember) writeModePreference('disabled');
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     retryTimerRef.current = null;
     if (opIdRef.current) getAgentClient().identifyStop(opIdRef.current);
@@ -97,8 +119,15 @@ export function FingerprintAccessPanel({
 
   React.useEffect(() => {
     getAgentClient().connect();
-    return stop;
+    return () => stop(false);
   }, [stop]);
+
+  React.useEffect(() => {
+    if (!branchId || readModePreference() === 'disabled') return;
+    enabledRef.current = true;
+    setEnabled(true);
+    setCycle((value) => value + 1);
+  }, [branchId]);
 
   React.useEffect(() => {
     const unsubscribe = getAgentClient().subscribe((event: AgentEvent) => {
@@ -142,7 +171,10 @@ export function FingerprintAccessPanel({
         setError(ERROR_LABEL[event.payload.code] ?? `La lectura falló (${event.payload.code}).`);
         setPhase('error');
         scheduleNext(1_200);
-      } else if (event.type === 'error' && (!event.payload.opId || event.payload.opId === opIdRef.current)) {
+      } else if (
+        event.type === 'error' &&
+        (!event.payload.opId || event.payload.opId === opIdRef.current)
+      ) {
         opIdRef.current = null;
         setError(ERROR_LABEL[event.payload.code] ?? `El agente informó ${event.payload.code}.`);
         setPhase('error');
@@ -153,7 +185,8 @@ export function FingerprintAccessPanel({
   }, [branchId, scheduleNext]);
 
   React.useEffect(() => {
-    if (!enabled || !branchId || agentStatus !== 'ready' || startingRef.current || opIdRef.current) return;
+    if (!enabled || !branchId || agentStatus !== 'ready' || startingRef.current || opIdRef.current)
+      return;
     let cancelled = false;
     startingRef.current = true;
     setPhase('arming');
@@ -201,12 +234,14 @@ export function FingerprintAccessPanel({
     if (!branchId) return;
     enabledRef.current = true;
     setEnabled(true);
+    writeModePreference('enabled');
     setError(null);
     setCycle((value) => value + 1);
   };
 
   const ready = agentStatus === 'ready';
-  const statusTone = enabled && phase !== 'error' ? 'success' : phase === 'error' ? 'warning' : 'neutral';
+  const statusTone =
+    enabled && phase !== 'error' ? 'success' : phase === 'error' ? 'warning' : 'neutral';
 
   return (
     <section className="grid gap-4 border-2 border-(--color-border) bg-(--color-surface) p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
@@ -228,13 +263,23 @@ export function FingerprintAccessPanel({
           <h2 className="text-(--text-base) font-bold text-(--color-text)">Ingreso por huella</h2>
           <StatusBadge tone={statusTone} label={PHASE_LABEL[phase]} />
         </div>
-        <p className={cn('text-(--text-sm)', error ? 'text-(--color-danger)' : 'text-(--color-muted)')}>
-          {error ?? (deviceName ? `Lector: ${deviceName}` : ready ? 'Lector conectado' : 'Agente local sin conexión')}
+        <p
+          className={cn(
+            'text-(--text-sm)',
+            error ? 'text-(--color-danger)' : 'text-(--color-muted)',
+          )}
+        >
+          {error ??
+            (deviceName
+              ? `Lector: ${deviceName}`
+              : ready
+                ? 'Lector conectado'
+                : 'Agente local sin conexión')}
         </p>
       </div>
 
       {enabled ? (
-        <Button type="button" variant="outline" onClick={stop}>
+        <Button type="button" variant="outline" onClick={() => stop(true)}>
           <Square className="h-4 w-4" aria-hidden={true} /> Detener huella
         </Button>
       ) : (

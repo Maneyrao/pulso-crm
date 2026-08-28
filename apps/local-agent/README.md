@@ -1,6 +1,26 @@
-# Pulso Agent local
+# El Templo Agent local
 
-El agente conecta el frontend con un lector de huellas por WebSocket en loopback. Para desarrollo puede usar `FakeSensor`: no necesita hardware, pero recorre el mismo flujo de pareo, token efímero, template, matching y acceso que el lector real.
+El agente conecta el CRM web con el lector HID DigitalPersona U.are.U 4500 por WebSocket TLS en loopback. Captura mediante Windows Biometric Framework, extrae plantillas SourceAFIS y nunca guarda imágenes de huella.
+
+## Instalar en la PC de recepción
+
+Requisitos: Windows 10/11 x64, lector conectado por USB-A y driver oficial **HID DigitalPersona 4500 WBF**. No hace falta instalar .NET.
+
+1. En el CRM, abrir **Configuración > Dispositivos** y crear un agente para la sede. Dejar abierto el cuadro con `Installation ID` y `Secreto de pareo`.
+2. Ejecutar `ElTemploAgentSetup.exe` como administrador e ingresar esos dos valores.
+3. Si el instalador no detecta el lector, instalar el [driver WBF oficial de HID](https://www.hidglobal.com/drivers/39477), reiniciar Windows y volver a ejecutar el instalador. El driver legacy/non-WBF no sirve para este adaptador.
+4. Volver a **Configuración > Dispositivos** y pulsar **Aprobar**. En hasta 30 segundos el agente y el lector deben figurar online.
+5. Abrir un socio, registrar consentimiento y enrolar un dedo. Después, **Ingreso por huella** registra la asistencia y muestra la decisión de acceso en el CRM.
+
+El instalador crea el servicio Windows `ElTemploAgent` bajo `LocalSystem`, un certificado local confiable para `127.0.0.1`, configuración en `%ProgramData%\Pulso` y una credencial protegida con DPAPI. El servicio arranca automáticamente con Windows.
+
+El instalador todavía no está firmado con un certificado comercial. Windows SmartScreen puede mostrar **Más información > Ejecutar de todas formas** en la primera instalación.
+
+Desinstalación desde una terminal elevada:
+
+```powershell
+.\ElTemploAgentSetup.exe --uninstall
+```
 
 ## Demo local sin lector
 
@@ -39,17 +59,18 @@ El primer arranque intercambia el secreto por una credencial de agente y la guar
 
 Cada lectura pide un `deviceToken` IDENTIFY nuevo. El agente recibe únicamente el token, la sede y el ID del lector; nunca recibe nombre, documento, membresía ni decisión de acceso.
 
-## Límites del simulador
+## Estado del lector real
 
-- Valida la integración completa de software, no la calidad biométrica de un lector físico.
-- El matcher actual compara templates determinísticos. El matcher/SDK de DigitalPersona se incorpora al conectar el U.are.U real.
-- Los adaptadores `hid` y `wbf` siguen siendo stubs hasta instalar y validar el driver/SDK en Windows.
-- Una web desplegada con HTTPS exige `wss://`, certificado local confiable y su origen exacto en `allowedOrigins`. Para desarrollo local se usa `ws://localhost` sin TLS.
+- Captura WBF, conversión ANSI-381, calidad, plantillas y matching SourceAFIS están implementados y probados automáticamente.
+- El backend productivo y su migración `SOURCEAFIS_3_14` están desplegados.
+- Falta la validación final sobre el U.are.U 4500 físico en Windows: detección, diez capturas repetidas, desconexión USB y calibración del umbral con huellas reales.
+- El adaptador `hid` legacy sigue siendo un stub; producción usa exclusivamente `wbf`.
 
 ## Verificación
 
 ```bash
 dotnet test apps/local-agent/Pulso.Agent.sln --nologo
+dotnet test apps/biometric-matcher/tests/ElTemplo.BiometricMatcher.Tests/ElTemplo.BiometricMatcher.Tests.csproj
 pnpm --filter @pulso/contracts test
 pnpm --filter @pulso/api test
 pnpm --filter @pulso/web test

@@ -58,7 +58,18 @@ const RESULT: AccessCheckResponse = {
 
 describe('FingerprintAccessPanel', () => {
   beforeEach(() => {
+    const values = new Map<string, string>();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        clear: () => values.clear(),
+        getItem: (key: string) => values.get(key) ?? null,
+        removeItem: (key: string) => values.delete(key),
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
+    });
     vi.clearAllMocks();
+    window.localStorage.clear();
     agentListener = null;
     agent.identifyStart.mockReturnValue('op-identify-1');
     startIdentificationMock.mockResolvedValue({
@@ -99,7 +110,6 @@ describe('FingerprintAccessPanel', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /activar huella/i }));
     await waitFor(() => expect(startIdentificationMock).toHaveBeenCalledOnce());
     expect(agent.identifyStart).toHaveBeenCalledWith({
       deviceToken: 'pdt_identify',
@@ -110,7 +120,10 @@ describe('FingerprintAccessPanel', () => {
     });
 
     act(() => {
-      agentListener?.({ type: 'identify.captured', payload: { opId: 'op-identify-1', quality: 84 } });
+      agentListener?.({
+        type: 'identify.captured',
+        payload: { opId: 'op-identify-1', quality: 84 },
+      });
     });
     expect(await screen.findByText('Huella leída')).toBeInTheDocument();
 
@@ -129,15 +142,26 @@ describe('FingerprintAccessPanel', () => {
 
   it('detiene la operación activa al apagar el modo huella', async () => {
     render(
-      <FingerprintAccessPanel
-        branchId="00000000-0000-0000-0000-000000000040"
-        onResult={vi.fn()}
-      />,
+      <FingerprintAccessPanel branchId="00000000-0000-0000-0000-000000000040" onResult={vi.fn()} />,
     );
-    fireEvent.click(screen.getByRole('button', { name: /activar huella/i }));
     await waitFor(() => expect(agent.identifyStart).toHaveBeenCalledOnce());
 
     fireEvent.click(screen.getByRole('button', { name: /detener huella/i }));
     expect(agent.identifyStop).toHaveBeenCalledWith('op-identify-1');
+    expect(window.localStorage.getItem('el-templo:fingerprint-mode')).toBe('disabled');
+  });
+
+  it('respeta el modo detenido y recuerda una reactivación manual', async () => {
+    window.localStorage.setItem('el-templo:fingerprint-mode', 'disabled');
+    render(
+      <FingerprintAccessPanel branchId="00000000-0000-0000-0000-000000000040" onResult={vi.fn()} />,
+    );
+
+    expect(screen.getByRole('button', { name: /activar huella/i })).toBeInTheDocument();
+    expect(startIdentificationMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /activar huella/i }));
+    await waitFor(() => expect(startIdentificationMock).toHaveBeenCalledOnce());
+    expect(window.localStorage.getItem('el-templo:fingerprint-mode')).toBe('enabled');
   });
 });

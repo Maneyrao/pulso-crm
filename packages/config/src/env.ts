@@ -67,7 +67,7 @@ export const apiEnvSchema = z.object({
 
   // Biometría (Etapas 7-8, BIOMETRIC_SECURITY.md §5/§8).
   /** Umbral 1:N. Se calibra con datos de la POC, no por intuición. */
-  BIOMETRIC_MATCH_THRESHOLD: z.coerce.number().int().min(0).max(100).default(80),
+  BIOMETRIC_MATCH_THRESHOLD: z.coerce.number().int().min(0).max(100).default(40),
   /** Dos candidatos sobre el umbral a menos de este margen → no-match. */
   BIOMETRIC_MATCH_AMBIGUITY_MARGIN: z.coerce.number().int().min(0).max(100).default(5),
   /** TTL en segundos de los deviceTokens de un solo uso. */
@@ -76,6 +76,9 @@ export const apiEnvSchema = z.object({
   BIOMETRIC_MIN_QUALITY: z.coerce.number().int().min(0).max(100).default(60),
   /** Ventana en segundos para considerar online a un agente por su heartbeat. */
   BIOMETRIC_AGENT_ONLINE_WINDOW: z.coerce.number().int().positive().default(90),
+  /** Servicio SourceAFIS interno. Ambos valores deben configurarse juntos. */
+  BIOMETRIC_MATCHER_URL: z.string().url().optional(),
+  BIOMETRIC_MATCHER_TOKEN: secret(32).optional(),
 
   RATE_LIMIT_ENABLED: z
     .enum(['true', 'false'])

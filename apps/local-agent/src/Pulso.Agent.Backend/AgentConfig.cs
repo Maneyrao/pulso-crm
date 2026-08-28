@@ -27,6 +27,9 @@ public sealed class AgentConfig
     [JsonPropertyName("wsPort")]
     public int WsPort { get; set; } = 21987;
 
+    [JsonPropertyName("sensorKind")]
+    public string SensorKind { get; set; } = "fake";
+
     [JsonPropertyName("tlsEnabled")]
     public bool TlsEnabled { get; set; }
 

@@ -1,6 +1,8 @@
 import { ApiError, parseProblemDetails } from './errors.js';
 
-const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4001';
+const API_ORIGIN =
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:4001');
 export const API_BASE_URL = `${API_ORIGIN}/api/v1`;
 
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE']);

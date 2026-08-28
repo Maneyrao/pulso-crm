@@ -28,3 +28,9 @@ test-results/
 # .NET (apps/local-agent)
 apps/local-agent/**/bin/
 apps/local-agent/**/obj/
+apps/local-agent/.release/
+apps/local-agent/artifacts/
+apps/biometric-matcher/**/bin/
+apps/biometric-matcher/**/obj/
+.vercel/
+.env.local

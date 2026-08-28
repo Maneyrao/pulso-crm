@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Diagnostics;
 using Pulso.Agent.Core.Ports;
 using Pulso.Agent.Core.Tests.TestDoubles;
 using Pulso.Agent.Protocol.Payloads;
@@ -23,6 +24,7 @@ public class OperationCoordinatorEnrollTests
         RecordingNotifier Notifier, StubBackendClient Backend, RecordingAuditSink Audit) Build(
         FakeSensorOptions? sensorOptions = null, OperationTimeouts? timeouts = null)
     {
+        timeouts ??= new OperationTimeouts { BetweenEnrollmentSamples = TimeSpan.Zero };
         var sessions = new SessionManager();
         var state = new AgentStateMachine();
         state.Pair();
@@ -60,6 +62,23 @@ public class OperationCoordinatorEnrollTests
         Assert.Null(sessions.Current);
         Assert.Equal(AgentState.Ready, state.Current);
         Assert.Contains(audit.Records, r => r.Type == AuditEventTypes.EnrollSent);
+    }
+
+    [Fact]
+    public async Task Enrollment_leaves_a_finger_lift_interval_between_valid_samples()
+    {
+        var timeouts = new OperationTimeouts
+        {
+            BetweenEnrollmentSamples = TimeSpan.FromMilliseconds(30),
+        };
+        var (coordinator, _, _, notifier, _, _) = Build(timeouts: timeouts);
+        var stopwatch = Stopwatch.StartNew();
+
+        await coordinator.RunEnrollAsync(Request(samplesRequired: 3), CancellationToken.None);
+
+        stopwatch.Stop();
+        Assert.True(stopwatch.Elapsed >= TimeSpan.FromMilliseconds(55));
+        Assert.Equal(2, notifier.OfType<EnrollProgressPayload>().Count(progress => progress.Prompt == "LIFT_FINGER"));
     }
 
     [Fact]

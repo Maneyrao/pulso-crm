@@ -158,6 +158,7 @@ public sealed class BackendClient(HttpClient httpClient) : IBiometricBackendClie
         TemplateFormat.Iso19794_2 => "ISO_19794_2",
         TemplateFormat.Ansi378 => "ANSI_378",
         TemplateFormat.VendorProprietary => "VENDOR_PROPRIETARY",
+        TemplateFormat.SourceAfisNative => "SOURCEAFIS_3_14",
         _ => throw new ArgumentOutOfRangeException(nameof(format), format, null),
     };
 }

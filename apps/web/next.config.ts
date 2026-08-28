@@ -14,6 +14,17 @@ const nextConfig: NextConfig = {
     };
     return config;
   },
+  async rewrites() {
+    const apiProxyTarget = process.env.API_PROXY_TARGET;
+    if (!apiProxyTarget) return [];
+
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${apiProxyTarget}/api/v1/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

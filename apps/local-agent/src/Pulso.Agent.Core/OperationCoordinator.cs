@@ -113,9 +113,14 @@ public sealed class OperationCoordinator(
                     LastQuality = quality.Value,
                     Prompt = samples.Count < request.SamplesRequired ? "LIFT_FINGER" : null,
                 });
+
+                if (samples.Count < request.SamplesRequired && _timeouts.BetweenEnrollmentSamples > TimeSpan.Zero)
+                {
+                    await Task.Delay(_timeouts.BetweenEnrollmentSamples, linked.Token).ConfigureAwait(false);
+                }
             }
 
-            var template = await sensor.CreateTemplateAsync(samples, TemplateFormat.Iso19794_2, linked.Token)
+            var template = await sensor.CreateTemplateAsync(samples, ResolveTemplateFormat(), linked.Token)
                 .ConfigureAwait(false);
             try
             {
@@ -263,7 +268,7 @@ public sealed class OperationCoordinator(
 
                 notifier.IdentifyCaptured(new IdentifyCapturedPayload { OpId = request.OpId, Quality = quality.Value });
 
-                var template = await sensor.CreateTemplateAsync([sample], TemplateFormat.Iso19794_2, linked.Token)
+                var template = await sensor.CreateTemplateAsync([sample], ResolveTemplateFormat(), linked.Token)
                     .ConfigureAwait(false);
                 try
                 {
@@ -382,6 +387,10 @@ public sealed class OperationCoordinator(
         "RATE_LIMITED" => "BACKEND_REJECTED",
         _ => "BACKEND_REJECTED",
     };
+
+    private TemplateFormat ResolveTemplateFormat() => sensor is Pulso.Agent.Sensors.FakeSensor.FakeSensor
+        ? TemplateFormat.Iso19794_2
+        : TemplateFormat.SourceAfisNative;
 }
 
 /// <summary>Falla de negocio dentro de un enrolamiento; se traduce 1:1 a enroll.failed.</summary>

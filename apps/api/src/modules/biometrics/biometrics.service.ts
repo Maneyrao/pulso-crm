@@ -101,7 +101,7 @@ function serializeCredential(credential: DbBiometricCredential): BiometricCreden
 /**
  * Consentimiento, enrolamiento, credenciales e identificación 1:N
  * (API_CONTRACTS.md §10, BIOMETRIC_SECURITY.md). El matcher es pluggable
- * (`BIOMETRIC_MATCHER`): igualdad de bytes hasta que llegue el SDK real.
+ * (`BIOMETRIC_MATCHER`): SourceAFIS en producción e igualdad sólo con FakeSensor.
  */
 @Injectable()
 export class BiometricsService {
@@ -522,6 +522,7 @@ export class BiometricsService {
     const candidates = await this.prisma.client.biometricCredential.findMany({
       where: {
         status: 'ACTIVE',
+        templateFormat: input.templateFormat,
         OR: [{ branchId }, { branchId: null }],
       },
     });
@@ -543,15 +544,19 @@ export class BiometricsService {
       }
     }
 
-    const scores = this.matcher.match(probe, decrypted);
+    let scores;
+    try {
+      scores = await this.matcher.match(probe, decrypted);
+    } finally {
+      // Los buffers descifrados y la sonda se sobrescriben también si el matcher falla (§4.4).
+      for (const item of decrypted) item.template.fill(0);
+      probe.fill(0);
+    }
     const { match, topScore } = resolveMatch(
       scores,
       this.config.env.BIOMETRIC_MATCH_THRESHOLD,
       this.config.env.BIOMETRIC_MATCH_AMBIGUITY_MARGIN,
     );
-
-    // Los buffers descifrados se sobrescriben al terminar (§4.4).
-    for (const item of decrypted) item.template.fill(0);
 
     if (!match) {
       await this.prisma.client.accessAttempt.create({

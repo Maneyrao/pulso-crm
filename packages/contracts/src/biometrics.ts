@@ -74,6 +74,7 @@ export const BIOMETRIC_TEMPLATE_FORMATS = [
   'ANSI_378_2004',
   'ISO_19794_2_2005',
   'VENDOR_DIGITALPERSONA',
+  'SOURCEAFIS_3_14',
 ] as const;
 export const biometricTemplateFormatSchema = z.enum(BIOMETRIC_TEMPLATE_FORMATS);
 export type BiometricTemplateFormat = z.infer<typeof biometricTemplateFormatSchema>;

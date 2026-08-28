@@ -1,0 +1,1 @@
+ALTER TYPE "BiometricTemplateFormat" ADD VALUE IF NOT EXISTS 'SOURCEAFIS_3_14';

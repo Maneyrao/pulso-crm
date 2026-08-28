@@ -241,7 +241,7 @@ function DevicesScreen() {
         {pairing ? (
           <div className="space-y-4">
             <Alert tone="warning" title="Se muestra una sola vez">
-              Copiá estos valores en la instalación del Pulso Agent. Al cerrar este diálogo no se pueden recuperar.
+              Copiá estos valores en la instalación de El Templo Agent. Al cerrar este diálogo no se pueden recuperar.
             </Alert>
             <FormField label="Installation ID">
               {(field) => <Input {...field} readOnly={true} value={pairing.installationId} />}

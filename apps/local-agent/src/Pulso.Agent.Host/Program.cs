@@ -82,16 +82,18 @@ if (storedCredential is null &&
     await configStore.SaveAsync(agentConfig);
 }
 
-var sensorKind = Environment.GetEnvironmentVariable("PULSO_AGENT_SENSOR") ?? "fake";
+var sensorKind = Environment.GetEnvironmentVariable("PULSO_AGENT_SENSOR") ?? agentConfig.SensorKind;
 var fakeIdentity = Environment.GetEnvironmentVariable("PULSO_AGENT_FAKE_IDENTITY") ?? "demo-finger-1";
 IFingerprintSensor sensor = sensorKind.ToLowerInvariant() switch
 {
-    "hid" or "digitalpersona" => new Pulso.Agent.Sensors.HidDigitalPersonaSensor.HidDigitalPersonaSensor(),
     "wbf" or "fingerjet" => new Pulso.Agent.Sensors.WbfFingerJetSensor.WbfFingerJetSensor(),
+    "hid" or "digitalpersona" => throw new NotSupportedException(
+        "El adaptador legacy HID no está habilitado. Instalá el driver WBF y usá sensorKind=wbf."),
     _ => new FakeSensor(new FakeSensorOptions { Identity = fakeIdentity }),
 };
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseWindowsService(options => options.ServiceName = "ElTemploAgent");
 
 builder.WebHost.ConfigureKestrel(options =>
 {

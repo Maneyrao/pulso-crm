@@ -24,23 +24,92 @@ export interface MatchScore {
 }
 
 export interface BiometricMatcher {
-  match(probe: Buffer, candidates: readonly MatchCandidate[]): MatchScore[];
+  match(probe: Buffer, candidates: readonly MatchCandidate[]): Promise<MatchScore[]>;
 }
 
 /** Token de DI: permite swappear el matcher sin tocar el service. */
 export const BIOMETRIC_MATCHER = Symbol('BIOMETRIC_MATCHER');
 
 export class TemplateEqualityMatcher implements BiometricMatcher {
-  match(probe: Buffer, candidates: readonly MatchCandidate[]): MatchScore[] {
-    return candidates.map((candidate) => ({
-      credentialId: candidate.credentialId,
-      memberId: candidate.memberId,
-      score:
-        candidate.template.length === probe.length && timingSafeEqual(candidate.template, probe)
-          ? 100
-          : 0,
-    }));
+  async match(probe: Buffer, candidates: readonly MatchCandidate[]): Promise<MatchScore[]> {
+    return Promise.resolve(
+      candidates.map((candidate) => ({
+        credentialId: candidate.credentialId,
+        memberId: candidate.memberId,
+        score:
+          candidate.template.length === probe.length && timingSafeEqual(candidate.template, probe)
+            ? 100
+            : 0,
+      })),
+    );
   }
+}
+
+type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
+
+/** Calls the isolated .NET SourceAFIS process. Templates never leave the private backend network. */
+export class HttpSourceAfisMatcher implements BiometricMatcher {
+  private readonly endpoint: string;
+
+  constructor(
+    baseUrl: string,
+    private readonly token: string,
+    private readonly fetcher: Fetcher = fetch,
+  ) {
+    this.endpoint = `${baseUrl.replace(/\/$/, '')}/match`;
+  }
+
+  async match(probe: Buffer, candidates: readonly MatchCandidate[]): Promise<MatchScore[]> {
+    if (candidates.length === 0) return [];
+    const response = await this.fetcher(this.endpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${this.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        probe: probe.toString('base64'),
+        candidates: candidates.map((candidate) => ({
+          credentialId: candidate.credentialId,
+          memberId: candidate.memberId,
+          template: candidate.template.toString('base64'),
+        })),
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) {
+      throw new Error(`El matcher biométrico devolvió HTTP ${response.status}.`);
+    }
+
+    const body: unknown = await response.json();
+    if (!isMatcherResponse(body)) {
+      throw new Error('El matcher biométrico devolvió una respuesta inválida.');
+    }
+
+    const expected = new Map(
+      candidates.map((candidate) => [candidate.credentialId, candidate.memberId]),
+    );
+    if (body.scores.some((score) => expected.get(score.credentialId) !== score.memberId)) {
+      throw new Error('El matcher biométrico devolvió candidatos desconocidos.');
+    }
+    return body.scores;
+  }
+}
+
+function isMatcherResponse(value: unknown): value is { scores: MatchScore[] } {
+  if (!value || typeof value !== 'object' || !Array.isArray((value as { scores?: unknown }).scores))
+    return false;
+  return (value as { scores: unknown[] }).scores.every(
+    (score) =>
+      !!score &&
+      typeof score === 'object' &&
+      typeof (score as MatchScore).credentialId === 'string' &&
+      typeof (score as MatchScore).memberId === 'string' &&
+      typeof (score as MatchScore).score === 'number' &&
+      Number.isFinite((score as MatchScore).score) &&
+      (score as MatchScore).score >= 0 &&
+      (score as MatchScore).score <= 100,
+  );
 }
 
 /**
