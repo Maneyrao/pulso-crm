@@ -3,7 +3,7 @@ namespace ElTemplo.Agent.Setup;
 internal static class InstallerConstants
 {
     public const string ProductName = "El Templo Huella";
-    public const string ProductVersion = "0.4.0";
+    public const string ProductVersion = "0.4.1";
     public const string ServiceName = "ElTemploAgent";
     public const string InteractiveTaskName = "ElTemploHuellaAgent";
     public const string CrmUrl = "https://pulso-crm-omega.vercel.app/";

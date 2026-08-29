@@ -33,7 +33,7 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         EnsureLocalCertificate();
         logger.Info("LOCAL_CERTIFICATE_READY");
         await AgentPairer.EnsureConfigurationAsync();
-        RestrictConfigDirectory();
+        await RestrictConfigDirectoryAsync(cancellationToken);
         logger.Info("AGENT_CONFIGURATION_READY");
         RegisterUninstaller();
         logger.Info("PAYLOAD_INSTALL_COMPLETED");
@@ -251,24 +251,26 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
         }
     }
 
-    private static void RestrictConfigDirectory()
+    private static async Task RestrictConfigDirectoryAsync(CancellationToken cancellationToken)
     {
         var interactiveUser = WindowsIdentity.GetCurrent().User?.Value
             ?? throw new InvalidOperationException("No pudimos proteger la configuración para el usuario de Windows actual.");
-        RunProcessAsync(
-                "icacls.exe",
-                [
-                    AgentPaths.DefaultConfigDirectory(),
-                    "/inheritance:r",
-                    "/grant:r",
-                    "*S-1-5-18:(OI)(CI)F",
-                    "*S-1-5-32-544:(OI)(CI)F",
-                    $"*{interactiveUser}:(OI)(CI)F",
-                ],
-                false,
-                CancellationToken.None)
-            .GetAwaiter()
-            .GetResult();
+        var result = await RunProcessAsync(
+            "icacls.exe",
+            [
+                AgentPaths.DefaultConfigDirectory(),
+                "/inheritance:r",
+                "/grant:r",
+                "*S-1-5-18:(OI)(CI)F",
+                "*S-1-5-32-544:(OI)(CI)F",
+                $"*{interactiveUser}:(OI)(CI)F",
+            ],
+            false,
+            cancellationToken);
+        if (result != 0)
+        {
+            throw new UnauthorizedAccessException("Windows no pudo proteger la configuración del conector.");
+        }
     }
 
     private static async Task CreateInternetShortcutAsync(
