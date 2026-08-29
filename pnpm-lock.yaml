@@ -138,6 +138,12 @@ importers:
 
   apps/web:
     dependencies:
+      '@digitalpersona/fingerprint':
+        specifier: 1.0.0
+        version: 1.0.0(@digitalpersona/websdk@1.1.0)
+      '@digitalpersona/websdk':
+        specifier: 1.1.0
+        version: 1.1.0
       '@hookform/resolvers':
         specifier: ^3.9.1
         version: 3.10.0(react-hook-form@7.85.0(react@19.2.8))
@@ -661,6 +667,14 @@ packages:
   '@csstools/css-tokenizer@4.0.0':
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
+
+  '@digitalpersona/fingerprint@1.0.0':
+    resolution: {integrity: sha512-gT4v1/0BfPZivaC7kDdkWber+kto9aVwO/CkmmUrL8PsKEmxUspGg0UQttlIyW+lrJg/Ov1zoGQM8KFHkUCt2w==}
+    peerDependencies:
+      '@digitalpersona/websdk': ^1.0.1
+
+  '@digitalpersona/websdk@1.1.0':
+    resolution: {integrity: sha512-lpjDQhi6Vy8YGu6VMoX2e2jxsqfTmx0Z4LOPKn/ApqUXgJP6SWFfXC/ZVP8EX9C/0QToFyQWdLylzYkGzs6gwg==}
 
   '@emnapi/runtime@1.11.3':
     resolution: {integrity: sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==}
@@ -5111,6 +5125,13 @@ snapshots:
       css-tree: 3.2.1
 
   '@csstools/css-tokenizer@4.0.0': {}
+
+  '@digitalpersona/fingerprint@1.0.0(@digitalpersona/websdk@1.1.0)':
+    dependencies:
+      '@digitalpersona/websdk': 1.1.0
+      tslib: 2.8.1
+
+  '@digitalpersona/websdk@1.1.0': {}
 
   '@emnapi/runtime@1.11.3':
     dependencies:

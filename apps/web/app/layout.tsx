@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Archivo } from 'next/font/google';
+import Script from 'next/script';
 import { ToastProvider } from '@pulso/ui';
 import { QueryProvider } from '@/lib/query/provider';
 import './globals.css';
@@ -41,6 +42,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" suppressHydrationWarning className={archivo.variable}>
       <body>
         <script>{THEME_BOOTSTRAP}</script>
+        <Script src="/vendor/hid/websdk.client.ui.js" strategy="beforeInteractive" />
+        <Script src="/vendor/hid/fingerprint.sdk.js" strategy="beforeInteractive" />
         <QueryProvider>
           <ToastProvider>{children}</ToastProvider>
         </QueryProvider>

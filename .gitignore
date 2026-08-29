@@ -34,3 +34,4 @@ apps/biometric-matcher/**/bin/
 apps/biometric-matcher/**/obj/
 .vercel/
 .env.local
+apps/web/public/vendor/

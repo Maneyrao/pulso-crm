@@ -20,6 +20,7 @@ import { useSessionStore } from '@/lib/stores/session';
 import { selectOnlineBiometricEndpoint } from './agent-selection';
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { ConsentConfirmationDialog } from './ConsentConfirmationDialog';
+import { HidReaderCheck } from './HidReaderCheck';
 
 const FINGER_LABEL: Record<string, string> = {
   RIGHT_THUMB: 'Pulgar derecho',
@@ -183,6 +184,8 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         Sólo se guarda un template de minucias cifrado, nunca la imagen de la huella. El acceso por
         documento sigue disponible siempre.
       </Alert>
+
+      <HidReaderCheck />
 
       {endpoint && agentReady ? (
         <Alert tone="success" title="Lector listo en esta sede">

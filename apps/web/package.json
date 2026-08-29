@@ -4,14 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p 4000",
-    "build": "pnpm --filter @pulso/config build && next build",
+    "prepare:hid": "node ../../scripts/prepare-hid-websdk.mjs",
+    "dev": "pnpm run prepare:hid && next dev -p 4000",
+    "build": "pnpm run prepare:hid && pnpm --filter @pulso/config build && next build",
     "start": "next start -p 4000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
+    "@digitalpersona/fingerprint": "1.0.0",
+    "@digitalpersona/websdk": "1.1.0",
     "@hookform/resolvers": "^3.9.1",
     "@pulso/config": "workspace:*",
     "@pulso/contracts": "workspace:*",
