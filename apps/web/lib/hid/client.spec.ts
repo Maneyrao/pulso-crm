@@ -4,7 +4,10 @@ import { HidFingerprintClient } from './client';
 const originalUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
 
 function windowsBrowser(): void {
-  Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' });
+  Object.defineProperty(navigator, 'userAgent', {
+    configurable: true,
+    value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+  });
 }
 
 afterEach(() => {

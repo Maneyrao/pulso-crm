@@ -1,6 +1,7 @@
 'use client';
 
-export type HidConnectionState = 'idle' | 'checking' | 'ready' | 'no-reader' | 'client-missing' | 'unsupported' | 'error';
+export type HidConnectionState =
+  'idle' | 'checking' | 'ready' | 'no-reader' | 'client-missing' | 'unsupported' | 'error';
 
 export interface HidReader {
   id: string;
@@ -81,11 +82,16 @@ export class HidFingerprintClient {
         return {
           state: 'no-reader',
           reader: null,
-          message: 'El cliente HID responde, pero no encontró un lector. Revisá USB y el driver Legacy.',
+          message:
+            'El cliente HID responde, pero no encontró un lector. Revisá USB y el driver Legacy.',
         };
       }
       const reader = await this.describe(api, readers[0]!);
-      return { state: 'ready', reader, message: `${reader.model} listo para una prueba de captura.` };
+      return {
+        state: 'ready',
+        reader,
+        message: `${reader.model} listo para una prueba de captura.`,
+      };
     } catch (error) {
       return { state: 'client-missing', reader: null, message: toMessage(error) };
     }
@@ -99,7 +105,10 @@ export class HidFingerprintClient {
     const reader = check.reader;
     return new Promise<HidCaptureResult>((resolve, reject) => {
       let settled = false;
-      const timer = window.setTimeout(() => finish(new Error('No llegó una muestra. Apoyá el dedo sobre el lector y reintentá.')), timeoutMs);
+      const timer = window.setTimeout(
+        () => finish(new Error('No llegó una muestra. Apoyá el dedo sobre el lector y reintentá.')),
+        timeoutMs,
+      );
 
       const cleanup = () => {
         window.clearTimeout(timer);
@@ -117,11 +126,12 @@ export class HidFingerprintClient {
       };
 
       api.onCommunicationFailed = () => finish(new Error(CLIENT_MISSING_MESSAGE));
-      api.onErrorOccurred = () => finish(new Error('HID informó un error al capturar. Revisá el driver y el lector.'));
+      api.onErrorOccurred = () =>
+        finish(new Error('HID informó un error al capturar. Revisá el driver y el lector.'));
       api.onSamplesAcquired = () => finish({ reader, quality: null });
-      void api.startAcquisition(window.Fingerprint!.SampleFormat.Intermediate, reader.id).catch((error: unknown) =>
-        finish(new Error(toMessage(error))),
-      );
+      void api
+        .startAcquisition(window.Fingerprint!.SampleFormat.Intermediate, reader.id)
+        .catch((error: unknown) => finish(new Error(toMessage(error))));
     });
   }
 
