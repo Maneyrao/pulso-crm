@@ -5,11 +5,8 @@ import { Fingerprint } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { BiometricCredential } from '@pulso/contracts/biometrics';
 import { Alert, Button, DataTable, StatusBadge, useToast, type DataTableColumn } from '@pulso/ui';
-import { getAgentClient, useAgentStore } from '@/lib/agent';
 import {
   grantConsent,
-  listAgents,
-  listDevices,
   listMemberCredentials,
   revokeConsent,
   revokeCredential,
@@ -17,10 +14,8 @@ import {
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
 import { useSessionStore } from '@/lib/stores/session';
-import { selectOnlineBiometricEndpoint } from './agent-selection';
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { ConsentConfirmationDialog } from './ConsentConfirmationDialog';
-import { HidReaderCheck } from './HidReaderCheck';
 
 const FINGER_LABEL: Record<string, string> = {
   RIGHT_THUMB: 'Pulgar derecho',
@@ -44,30 +39,14 @@ const FINGER_LABEL: Record<string, string> = {
 export function BiometricsTab({ memberId, memberName }: { memberId: string; memberName?: string }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const agentStatus = useAgentStore((s) => s.status);
   const activeBranchId = useSessionStore((s) => s.activeBranchId);
 
   const credentialsQuery = useQuery({
     queryKey: ['biometrics', 'credentials', memberId],
     queryFn: () => listMemberCredentials(memberId),
   });
-  const agentsQuery = useQuery({
-    queryKey: ['agents', activeBranchId],
-    queryFn: () => listAgents(activeBranchId),
-    enabled: Boolean(activeBranchId),
-  });
-  const devicesQuery = useQuery({
-    queryKey: ['devices', activeBranchId],
-    queryFn: () => listDevices(activeBranchId),
-    enabled: Boolean(activeBranchId),
-  });
-
   const [enrollOpen, setEnrollOpen] = React.useState(false);
   const [consentOpen, setConsentOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    getAgentClient().connect();
-  }, []);
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['biometrics', 'credentials', memberId] });
@@ -82,7 +61,7 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
           'Quedaron registrados usuario, fecha y versión. Ahora podés enrolar la huella.',
         tone: 'success',
       });
-      if (endpoint && agentReady) setEnrollOpen(true);
+      if (activeBranchId) setEnrollOpen(true);
     },
     onError: (err) =>
       toast({
@@ -121,17 +100,6 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
     },
     onError: () => toast({ title: 'No se pudo revocar la credencial', tone: 'danger' }),
   });
-
-  const endpoint = React.useMemo(
-    () =>
-      selectOnlineBiometricEndpoint(
-        agentsQuery.data?.data ?? [],
-        devicesQuery.data?.data ?? [],
-        activeBranchId,
-      ),
-    [activeBranchId, agentsQuery.data, devicesQuery.data],
-  );
-  const agentReady = agentStatus === 'ready' || agentStatus === 'busy';
 
   const columns: DataTableColumn<BiometricCredential>[] = [
     {
@@ -186,14 +154,9 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         documento sigue disponible siempre.
       </Alert>
 
-      <HidReaderCheck />
-
-      {endpoint && agentReady ? (
-        <Alert tone="success" title="Lector listo en esta sede">
-          Al iniciar una captura se abrirá una ventana local de El Templo Huella en esta PC. Dejala
-          abierta mientras el socio apoya el dedo.
-        </Alert>
-      ) : null}
+      <Alert tone="info" title="Captura integrada">
+        El lector se controla desde esta pantalla y la confirmación aparece dentro del CRM.
+      </Alert>
 
       <div className="flex flex-wrap gap-2">
         <PermissionGate permission="biometrics:enroll" fallback={null}>
@@ -206,14 +169,8 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
           </Button>
           <Button
             onClick={() => setEnrollOpen(true)}
-            disabled={!endpoint || !agentReady}
-            title={
-              !endpoint
-                ? 'No hay un lector online en la sede'
-                : !agentReady
-                  ? 'El navegador no está conectado al agente de esta PC'
-                  : undefined
-            }
+            disabled={!activeBranchId}
+            title={!activeBranchId ? 'Seleccioná una sede' : undefined}
           >
             <Fingerprint className="h-4 w-4" aria-hidden={true} /> Enrolar huella
           </Button>
@@ -229,12 +186,6 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         </PermissionGate>
       </div>
 
-      {agentStatus !== 'ready' && agentStatus !== 'busy' ? (
-        <p className="text-(--text-sm) text-(--color-muted)">
-          Para enrolar, conectá El Templo Agent de esta PC desde Configuración → Dispositivos.
-        </p>
-      ) : null}
-
       <DataTable<BiometricCredential>
         caption="Credenciales biométricas del socio"
         columns={columns}
@@ -245,14 +196,13 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         emptyDescription="Registrá el consentimiento y enrolá un dedo con el lector de la recepción."
       />
 
-      {endpoint ? (
+      {activeBranchId ? (
         <EnrollmentDialog
           open={enrollOpen}
           onOpenChange={setEnrollOpen}
           memberId={memberId}
           {...(memberName ? { memberName } : {})}
-          localAgentId={endpoint.agent.id}
-          deviceId={endpoint.device.id}
+          branchId={activeBranchId}
           onEnrolled={invalidate}
         />
       ) : null}

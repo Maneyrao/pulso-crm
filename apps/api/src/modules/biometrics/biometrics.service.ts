@@ -16,17 +16,23 @@ import type {
   BiometricCredential,
   BiometricEnrollment,
   CancelEnrollmentResponse,
+  CompleteHidEnrollmentRequest,
+  CompleteHidEnrollmentResponse,
   GetEnrollmentResponse,
   GrantConsentRequest,
   GrantConsentResponse,
+  IdentifyHidRequest,
   ListMemberCredentialsResponse,
   RevokeConsentResponse,
   RevokeCredentialResponse,
   StartEnrollmentRequest,
   StartEnrollmentResponse,
+  StartHidEnrollmentRequest,
+  StartHidEnrollmentResponse,
   StartIdentificationRequest,
   StartIdentificationResponse,
 } from '@pulso/contracts/biometrics';
+import type { AccessCheckResponse } from '@pulso/contracts/access';
 // Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
@@ -40,8 +46,18 @@ import { BiometricCryptoService } from './biometric-crypto.service.js';
 import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
-import { DEVICE_TOKEN_PREFIX, generateToken, hashToken, type AgentAuthInfo } from '../agents/agent-auth.service.js';
-import { BIOMETRIC_MATCHER, resolveMatch, type BiometricMatcher, type MatchCandidate } from './biometric-matcher.js';
+import {
+  DEVICE_TOKEN_PREFIX,
+  generateToken,
+  hashToken,
+  type AgentAuthInfo,
+} from '../agents/agent-auth.service.js';
+import {
+  BIOMETRIC_MATCHER,
+  resolveMatch,
+  type BiometricMatcher,
+  type MatchCandidate,
+} from './biometric-matcher.js';
 
 /** Vida de una sesión de enrolamiento completa (captura de N muestras). */
 const ENROLLMENT_TTL_MS = 10 * 60 * 1000;
@@ -66,6 +82,7 @@ function serializeEnrollment(enrollment: DbBiometricEnrollment): BiometricEnroll
     id: enrollment.id,
     branchId: enrollment.branchId,
     memberId: enrollment.memberId,
+    captureProvider: enrollment.captureProvider,
     localAgentId: enrollment.localAgentId,
     deviceId: enrollment.deviceId,
     fingerPosition: enrollment.fingerPosition,
@@ -159,7 +176,11 @@ export class BiometricsService {
     const { consent, revokedCredentials } = await this.prisma.client.$transaction(async (tx) => {
       const updated = await tx.biometricConsent.update({
         where: { id: active.id },
-        data: { revokedAt: now, revokedByUserId: ctx.userId, revokeReason: 'Revocado desde el CRM' },
+        data: {
+          revokedAt: now,
+          revokedByUserId: ctx.userId,
+          revokeReason: 'Revocado desde el CRM',
+        },
       });
       const cascade = await tx.biometricCredential.updateMany({
         where: { memberId, status: 'ACTIVE' },
@@ -184,7 +205,10 @@ export class BiometricsService {
 
   // ── Enrolamiento (biometrics:enroll / biometrics:read) ────────────────
 
-  async startEnrollment(memberId: string, input: StartEnrollmentRequest): Promise<StartEnrollmentResponse> {
+  async startEnrollment(
+    memberId: string,
+    input: StartEnrollmentRequest,
+  ): Promise<StartEnrollmentResponse> {
     const ctx = TenantContextStore.require();
     await this.requireMember(memberId);
 
@@ -204,7 +228,10 @@ export class BiometricsService {
       where: { memberId, fingerPosition: input.fingerPosition, status: 'ACTIVE' },
     });
     if (existing) {
-      throw AppError.conflict(ErrorCode.FINGER_ALREADY_ENROLLED, 'Ese dedo ya tiene una credencial activa.');
+      throw AppError.conflict(
+        ErrorCode.FINGER_ALREADY_ENROLLED,
+        'Ese dedo ya tiene una credencial activa.',
+      );
     }
 
     const agent = await this.prisma.client.localAgent.findFirst({
@@ -273,6 +300,160 @@ export class BiometricsService {
     };
   }
 
+  async startHidEnrollment(
+    memberId: string,
+    input: StartHidEnrollmentRequest,
+  ): Promise<StartHidEnrollmentResponse> {
+    const ctx = TenantContextStore.require();
+    const branchId = TenantContextStore.requireBranch(input.branchId);
+    await this.requireMember(memberId);
+
+    const consent = await this.prisma.client.biometricConsent.findFirst({
+      where: { memberId, revokedAt: null },
+    });
+    if (!consent) {
+      throw AppError.conflict(
+        ErrorCode.NO_BIOMETRIC_CONSENT,
+        'El socio no tiene consentimiento biométrico vigente.',
+      );
+    }
+
+    const existing = await this.prisma.client.biometricCredential.findFirst({
+      where: { memberId, fingerPosition: input.fingerPosition, status: 'ACTIVE' },
+    });
+    if (existing) {
+      throw AppError.conflict(
+        ErrorCode.FINGER_ALREADY_ENROLLED,
+        'Ese dedo ya tiene una credencial activa.',
+      );
+    }
+
+    const enrollment = await this.prisma.client.biometricEnrollment.create({
+      data: scoped({
+        branchId,
+        memberId,
+        captureProvider: 'HID_WEB',
+        localAgentId: null,
+        deviceId: null,
+        fingerPosition: input.fingerPosition,
+        samplesRequired: 1,
+        startedByUserId: ctx.userId,
+        expiresAt: new Date(Date.now() + ENROLLMENT_TTL_MS),
+      }),
+    });
+
+    await this.audit.record({
+      action: 'BIOMETRIC_ENROLLMENT_STARTED',
+      resourceType: 'BiometricEnrollment',
+      resourceId: enrollment.id,
+      after: { memberId, fingerPosition: input.fingerPosition, captureProvider: 'HID_WEB' },
+      branchId,
+    });
+
+    return {
+      enrollmentId: enrollment.id,
+      samplesRequired: 1,
+      minQuality: this.config.env.BIOMETRIC_MIN_QUALITY,
+    };
+  }
+
+  async completeHidEnrollment(
+    id: string,
+    input: CompleteHidEnrollmentRequest,
+  ): Promise<CompleteHidEnrollmentResponse> {
+    const ctx = TenantContextStore.require();
+    const enrollment = await this.prisma.client.biometricEnrollment.findFirst({
+      where: { id, captureProvider: 'HID_WEB', startedByUserId: ctx.userId },
+    });
+    if (!enrollment) throw AppError.notFound('El enrolamiento HID');
+    if (enrollment.status !== 'STARTED' && enrollment.status !== 'CAPTURING') {
+      throw AppError.conflict(ErrorCode.CONFLICT, 'La sesión de enrolamiento ya no está abierta.');
+    }
+    if (enrollment.expiresAt.getTime() <= Date.now()) {
+      await this.prisma.client.biometricEnrollment.update({
+        where: { id: enrollment.id },
+        data: { status: 'EXPIRED', failureReason: 'Sesión vencida', completedAt: new Date() },
+      });
+      throw AppError.conflict(ErrorCode.CONFLICT, 'La sesión de enrolamiento venció.');
+    }
+    const consent = await this.prisma.client.biometricConsent.findFirst({
+      where: { memberId: enrollment.memberId, revokedAt: null },
+    });
+    if (!consent) {
+      throw AppError.conflict(ErrorCode.NO_BIOMETRIC_CONSENT, 'El consentimiento fue revocado.');
+    }
+    if (input.qualityCode !== null && input.qualityCode !== 0) {
+      throw AppError.unprocessable(
+        ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
+        'HID informó que la muestra no tiene calidad suficiente.',
+      );
+    }
+
+    const image = Buffer.from(input.pngBase64, 'base64');
+    let template: Buffer | null = null;
+    try {
+      await this.prisma.client.biometricEnrollment.update({
+        where: { id: enrollment.id },
+        data: { status: 'CAPTURING' },
+      });
+      const extracted = await this.matcher.extract(image);
+      template = extracted.template;
+      if (extracted.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
+        throw AppError.unprocessable(
+          ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
+          'La calidad de la captura no alcanza.',
+        );
+      }
+
+      const templateHash = BiometricCryptoService.templateHash(template);
+      const credentialId = randomUUID();
+      const encrypted = await this.crypto.encryptTemplate(enrollment.gymId, credentialId, template);
+
+      await this.prisma.client.$transaction(async (tx) => {
+        await tx.biometricCredential.create({
+          data: scoped({
+            id: credentialId,
+            memberId: enrollment.memberId,
+            branchId: null,
+            fingerPosition: enrollment.fingerPosition,
+            templateFormat: 'SOURCEAFIS_3_14',
+            templateCiphertext: new Uint8Array(encrypted.templateCiphertext),
+            templateNonce: new Uint8Array(encrypted.templateNonce),
+            templateAuthTag: new Uint8Array(encrypted.templateAuthTag),
+            dekWrapped: new Uint8Array(encrypted.dekWrapped),
+            keyVersion: encrypted.keyVersion,
+            templateHash: new Uint8Array(templateHash),
+            quality: extracted.quality,
+            enrollmentId: enrollment.id,
+            createdByUserId: enrollment.startedByUserId,
+          }),
+        });
+        await tx.biometricEnrollment.update({
+          where: { id: enrollment.id },
+          data: {
+            status: 'COMPLETED',
+            samplesCaptured: 1,
+            qualityScores: [extracted.quality],
+            completedAt: new Date(),
+          },
+        });
+      });
+      return { ok: true };
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        await this.prisma.client.biometricEnrollment.update({
+          where: { id: enrollment.id },
+          data: { status: 'FAILED', failureReason: 'Template duplicado', completedAt: new Date() },
+        });
+        throw AppError.conflict(ErrorCode.CONFLICT, 'Esa huella ya está enrolada.');
+      }
+      throw err;
+    } finally {
+      image.fill(0);
+      template?.fill(0);
+    }
+  }
+
   async getEnrollment(id: string): Promise<GetEnrollmentResponse> {
     const enrollment = await this.prisma.client.biometricEnrollment.findFirst({ where: { id } });
     if (!enrollment) throw AppError.notFound('El enrolamiento');
@@ -302,9 +483,13 @@ export class BiometricsService {
 
   // ── Identificación desde el CRM (access:operate) ─────────────────────
 
-  async startIdentification(input: StartIdentificationRequest): Promise<StartIdentificationResponse> {
+  async startIdentification(
+    input: StartIdentificationRequest,
+  ): Promise<StartIdentificationResponse> {
     const branchId = TenantContextStore.requireBranch(input.branchId);
-    const onlineCutoff = new Date(Date.now() - this.config.env.BIOMETRIC_AGENT_ONLINE_WINDOW * 1000);
+    const onlineCutoff = new Date(
+      Date.now() - this.config.env.BIOMETRIC_AGENT_ONLINE_WINDOW * 1000,
+    );
 
     const agent = await this.prisma.client.localAgent.findFirst({
       where: {
@@ -315,7 +500,10 @@ export class BiometricsService {
       orderBy: { lastSeenAt: 'desc' },
     });
     if (!agent) {
-      throw AppError.conflict(ErrorCode.AGENT_OFFLINE, 'No hay un agente biométrico online en la sede.');
+      throw AppError.conflict(
+        ErrorCode.AGENT_OFFLINE,
+        'No hay un agente biométrico online en la sede.',
+      );
     }
 
     const device = await this.prisma.client.accessDevice.findFirst({
@@ -328,7 +516,10 @@ export class BiometricsService {
       orderBy: { lastSeenAt: 'desc' },
     });
     if (!device) {
-      throw AppError.conflict(ErrorCode.AGENT_OFFLINE, 'No hay un lector de huellas online en la sede.');
+      throw AppError.conflict(
+        ErrorCode.AGENT_OFFLINE,
+        'No hay un lector de huellas online en la sede.',
+      );
     }
 
     const deviceToken = generateToken(DEVICE_TOKEN_PREFIX);
@@ -391,14 +582,20 @@ export class BiometricsService {
 
   // ── Superficie agente: enroll-complete ────────────────────────────────
 
-  async enrollComplete(auth: AgentAuthInfo, input: AgentEnrollCompleteRequest): Promise<AgentEnrollCompleteResponse> {
+  async enrollComplete(
+    auth: AgentAuthInfo,
+    input: AgentEnrollCompleteRequest,
+  ): Promise<AgentEnrollCompleteResponse> {
     this.requireActiveAgent(auth);
     const token = this.requireDeviceToken(auth, 'ENROLL');
 
     // Un token de ENROLL nace atado a una sesión concreta: no sirve para
     // completar otra (BIOMETRIC_SECURITY.md §8.2).
     if (token.enrollmentId !== input.enrollmentId) {
-      throw AppError.unauthorized(ErrorCode.INVALID_DEVICE_TOKEN, 'El token no corresponde a esta sesión.');
+      throw AppError.unauthorized(
+        ErrorCode.INVALID_DEVICE_TOKEN,
+        'El token no corresponde a esta sesión.',
+      );
     }
     await this.consumeDeviceToken(token.id);
 
@@ -427,7 +624,10 @@ export class BiometricsService {
     }
 
     if (input.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
-      throw AppError.unprocessable(ErrorCode.TEMPLATE_QUALITY_TOO_LOW, 'La calidad de la captura no alcanza.');
+      throw AppError.unprocessable(
+        ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
+        'La calidad de la captura no alcanza.',
+      );
     }
 
     const template = Buffer.from(input.template, 'base64');
@@ -505,24 +705,62 @@ export class BiometricsService {
       },
     });
     if (!device) {
-      throw AppError.forbidden(ErrorCode.FORBIDDEN, 'El lector no pertenece al agente autenticado.');
+      throw AppError.forbidden(
+        ErrorCode.FORBIDDEN,
+        'El lector no pertenece al agente autenticado.',
+      );
     }
 
     await this.consumeDeviceToken(token.id);
 
     if (input.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
-      throw AppError.unprocessable(ErrorCode.TEMPLATE_QUALITY_TOO_LOW, 'La calidad de la captura no alcanza.');
+      throw AppError.unprocessable(
+        ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
+        'La calidad de la captura no alcanza.',
+      );
     }
 
     const probe = Buffer.from(input.template, 'base64');
-    const branchId = auth.agent.branchId;
+    await this.resolveProbe(auth.agent.branchId, probe, input.templateFormat);
+    return { resolved: true };
+  }
 
+  async identifyHid(input: IdentifyHidRequest): Promise<AccessCheckResponse> {
+    const branchId = TenantContextStore.requireBranch(input.branchId);
+    if (input.qualityCode !== null && input.qualityCode !== 0) {
+      throw AppError.unprocessable(
+        ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
+        'HID informó que la muestra no tiene calidad suficiente.',
+      );
+    }
+
+    const image = Buffer.from(input.pngBase64, 'base64');
+    try {
+      const extracted = await this.matcher.extract(image);
+      if (extracted.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
+        extracted.template.fill(0);
+        throw AppError.unprocessable(
+          ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
+          'La calidad de la captura no alcanza.',
+        );
+      }
+      return await this.resolveProbe(branchId, extracted.template, 'SOURCEAFIS_3_14');
+    } finally {
+      image.fill(0);
+    }
+  }
+
+  private async resolveProbe(
+    branchId: string,
+    probe: Buffer,
+    templateFormat: AgentIdentifyRequest['templateFormat'],
+  ): Promise<AccessCheckResponse> {
     // Candidatos: credenciales ACTIVE de esta sede o válidas en todo el gym.
     // El gymId lo pone la extensión de Prisma desde el contexto del agente.
     const candidates = await this.prisma.client.biometricCredential.findMany({
       where: {
         status: 'ACTIVE',
-        templateFormat: input.templateFormat,
+        templateFormat,
         OR: [{ branchId }, { branchId: null }],
       },
     });
@@ -559,7 +797,7 @@ export class BiometricsService {
     );
 
     if (!match) {
-      await this.prisma.client.accessAttempt.create({
+      const attempt = await this.prisma.client.accessAttempt.create({
         data: scoped({
           branchId,
           memberId: null,
@@ -571,20 +809,25 @@ export class BiometricsService {
           matchScore: topScore,
         }),
       });
-      return { resolved: true };
+      return {
+        decision: 'DENIED',
+        reasonCode: 'BIOMETRIC_NO_MATCH',
+        member: null,
+        membership: null,
+        attendanceRegistered: false,
+        accessAttemptId: attempt.id,
+      };
     }
 
     // Match: aplica la MISMA cadena de autorización que POST /access/check y
     // registra AccessAttempt + Attendance. El resultado con PII viaja al
     // navegador del CRM; el agente sólo recibe {resolved:true}.
-    await this.access.checkForMember({
+    return this.access.checkForMember({
       memberId: match.memberId,
       branchId,
       method: 'FINGERPRINT',
       matchScore: match.score,
     });
-
-    return { resolved: true };
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────
@@ -597,11 +840,17 @@ export class BiometricsService {
 
   private requireDeviceToken(auth: AgentAuthInfo, scope: 'ENROLL' | 'IDENTIFY') {
     if (auth.kind !== 'device' || !auth.deviceToken) {
-      throw AppError.unauthorized(ErrorCode.INVALID_DEVICE_TOKEN, 'Esta operación requiere un deviceToken.');
+      throw AppError.unauthorized(
+        ErrorCode.INVALID_DEVICE_TOKEN,
+        'Esta operación requiere un deviceToken.',
+      );
     }
     // Un token de ENROLL no sirve para identify, y viceversa (§8.2).
     if (auth.deviceToken.scope !== scope) {
-      throw AppError.unauthorized(ErrorCode.INVALID_DEVICE_TOKEN, 'El token no tiene el scope de esta operación.');
+      throw AppError.unauthorized(
+        ErrorCode.INVALID_DEVICE_TOKEN,
+        'El token no tiene el scope de esta operación.',
+      );
     }
     return auth.deviceToken;
   }
@@ -616,7 +865,10 @@ export class BiometricsService {
       data: { usedAt: new Date() },
     });
     if (consumed.count !== 1) {
-      throw AppError.unauthorized(ErrorCode.INVALID_DEVICE_TOKEN, 'El token ya fue usado o venció.');
+      throw AppError.unauthorized(
+        ErrorCode.INVALID_DEVICE_TOKEN,
+        'El token ya fue usado o venció.',
+      );
     }
   }
 

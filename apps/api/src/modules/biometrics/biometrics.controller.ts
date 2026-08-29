@@ -4,12 +4,18 @@ import {
   agentEnrollCompleteRequestSchema,
   type AgentIdentifyRequest,
   agentIdentifyRequestSchema,
+  type CompleteHidEnrollmentRequest,
+  completeHidEnrollmentRequestSchema,
   type GrantConsentRequest,
   grantConsentRequestSchema,
+  type IdentifyHidRequest,
+  identifyHidRequestSchema,
   type StartEnrollmentRequest,
   startEnrollmentRequestSchema,
   type StartIdentificationRequest,
   startIdentificationRequestSchema,
+  type StartHidEnrollmentRequest,
+  startHidEnrollmentRequestSchema,
 } from '@pulso/contracts/biometrics';
 import { uuidSchema } from '@pulso/contracts/common';
 import { AgentOnly, RequiresPermission } from '../../common/auth/decorators.js';
@@ -51,6 +57,16 @@ export class MemberBiometricsController {
     return this.biometrics.startEnrollment(memberId, body);
   }
 
+  @RequiresPermission('biometrics:enroll')
+  @Idempotent()
+  @Post('hid-enrollments')
+  startHidEnrollment(
+    @ZodParam('id', uuidSchema) memberId: string,
+    @ZodBody(startHidEnrollmentRequestSchema) body: StartHidEnrollmentRequest,
+  ) {
+    return this.biometrics.startHidEnrollment(memberId, body);
+  }
+
   @RequiresPermission('biometrics:read')
   @Get('credentials')
   credentials(@ZodParam('id', uuidSchema) memberId: string) {
@@ -70,6 +86,13 @@ export class BiometricsController {
     return this.biometrics.startIdentification(body);
   }
 
+  @RequiresPermission('access:operate')
+  @Idempotent()
+  @Post('hid-identifications')
+  identifyHid(@ZodBody(identifyHidRequestSchema) body: IdentifyHidRequest) {
+    return this.biometrics.identifyHid(body);
+  }
+
   @RequiresPermission('biometrics:read')
   @Get('enrollments/:id')
   enrollment(@ZodParam('id', uuidSchema) id: string) {
@@ -81,6 +104,16 @@ export class BiometricsController {
   @HttpCode(HttpStatus.OK)
   cancelEnrollment(@ZodParam('id', uuidSchema) id: string) {
     return this.biometrics.cancelEnrollment(id);
+  }
+
+  @RequiresPermission('biometrics:enroll')
+  @Post('hid-enrollments/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  completeHidEnrollment(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodBody(completeHidEnrollmentRequestSchema) body: CompleteHidEnrollmentRequest,
+  ) {
+    return this.biometrics.completeHidEnrollment(id, body);
   }
 
   @RequiresPermission('biometrics:revoke')
@@ -111,7 +144,10 @@ export class AgentBiometricsController {
   @AgentOnly()
   @Post('identify')
   @HttpCode(HttpStatus.OK)
-  identify(@AgentAuth() auth: AgentAuthInfo, @ZodBody(agentIdentifyRequestSchema) body: AgentIdentifyRequest) {
+  identify(
+    @AgentAuth() auth: AgentAuthInfo,
+    @ZodBody(agentIdentifyRequestSchema) body: AgentIdentifyRequest,
+  ) {
     return this.biometrics.identify(auth, body);
   }
 }

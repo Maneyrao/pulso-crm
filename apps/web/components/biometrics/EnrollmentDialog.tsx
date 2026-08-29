@@ -1,11 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import { CheckCircle2, Fingerprint, XCircle } from 'lucide-react';
+import { CheckCircle2, Fingerprint, LoaderCircle, RotateCcw } from 'lucide-react';
 import { Alert, Button, Modal, Select, cn } from '@pulso/ui';
-import { getAgentClient, useAgentStore, type AgentEvent } from '@/lib/agent';
-import { startEnrollment } from '@/lib/api/biometrics';
+import { completeHidEnrollment, startHidEnrollment } from '@/lib/api/biometrics';
 import { ApiError } from '@/lib/api/errors';
+import { getHidFingerprintClient } from '@/lib/hid/client';
 
 const FINGERS = [
   { value: 'RIGHT_INDEX', label: 'Índice derecho' },
@@ -17,136 +17,87 @@ const FINGERS = [
 const API_ERROR_LABEL: Record<string, string> = {
   NO_BIOMETRIC_CONSENT: 'El socio no tiene consentimiento biométrico vigente. Registralo primero.',
   FINGER_ALREADY_ENROLLED: 'Ese dedo ya tiene una credencial activa. Revocala antes de re-enrolar.',
-  AGENT_OFFLINE: 'El agente local no reporta señales de vida en el backend.',
+  TEMPLATE_QUALITY_TOO_LOW: 'La lectura no tuvo calidad suficiente. Limpiá el lector y reintentá.',
 };
 
-const AGENT_ERROR_LABEL: Record<string, string> = {
-  INTERACTIVE_SESSION_REQUIRED:
-    'El conector se está ejecutando como servicio antiguo. Instalá la actualización y abrí el CRM desde esa misma PC.',
-  DEVICE_DISCONNECTED: 'El lector se desconectó durante la captura. Revisá el cable USB y reintentá.',
-  TIMEOUT: 'No llegó una muestra del lector. Dejá abierta la ventana local de El Templo Huella y apoyá el dedo de nuevo.',
-  QUALITY_TOO_LOW: 'La muestra no tuvo calidad suficiente. Limpiá el lector y apoyá el dedo firme.',
+type Phase = 'idle' | 'checking' | 'capturing' | 'saving' | 'done' | 'failed';
+
+const PHASE_COPY: Record<Exclude<Phase, 'idle' | 'done' | 'failed'>, string> = {
+  checking: 'Comprobando el lector…',
+  capturing: 'Apoyá el dedo y mantenelo quieto…',
+  saving: 'Protegiendo y guardando la huella…',
 };
 
-type Phase = 'idle' | 'capturing' | 'done' | 'cancelled' | 'failed';
-
-interface Progress {
-  captured: number;
-  required: number;
-  quality: number | null;
-  warning?: string;
-  prompt: string;
-}
-
-/**
- * Enrolamiento real (docs/biometrics/WEBSOCKET_PROTOCOL.md §9.1):
- * `POST /members/:id/biometrics/enrollments` emite un deviceToken de un solo
- * uso que va DIRECTO al agente por el WS local (`enroll.start`) — nunca se
- * guarda. El template viaja agente → backend; el navegador sólo ve progreso.
- * El nombre del socio es informativo: el agente jamás lo recibe.
- */
 export function EnrollmentDialog({
   open,
   onOpenChange,
   memberId,
   memberName,
-  localAgentId,
-  deviceId,
+  branchId,
   onEnrolled,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   memberId: string;
   memberName?: string;
-  localAgentId: string;
-  deviceId: string;
+  branchId: string;
   onEnrolled?: () => void;
 }) {
-  const agentStatus = useAgentStore((s) => s.status);
   const [finger, setFinger] = React.useState<string>('RIGHT_INDEX');
   const [phase, setPhase] = React.useState<Phase>('idle');
-  const [progress, setProgress] = React.useState<Progress | null>(null);
-  const [finalQuality, setFinalQuality] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const opIdRef = React.useRef<string | null>(null);
-  const startingRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (!open) return;
-    const unsubscribe = getAgentClient().subscribe((event: AgentEvent) => {
-      if (event.type === 'enroll.progress' && event.payload.opId === opIdRef.current) {
-        setProgress(event.payload);
-      } else if (event.type === 'enroll.completed' && event.payload.opId === opIdRef.current) {
-        setFinalQuality(event.payload.finalQuality);
-        setPhase('done');
-        opIdRef.current = null;
-        onEnrolled?.();
-      } else if (event.type === 'enroll.failed' && event.payload.opId === opIdRef.current) {
-        setError(AGENT_ERROR_LABEL[event.payload.code] ?? `La captura falló (${event.payload.code}).`);
-        setPhase('failed');
-        opIdRef.current = null;
-      } else if (event.type === 'operation.cancelled' && event.payload.opId === opIdRef.current) {
-        setPhase('cancelled');
-        opIdRef.current = null;
-      }
-    });
-    return unsubscribe;
-  }, [open, onEnrolled]);
+  const busy = phase === 'checking' || phase === 'capturing' || phase === 'saving';
 
   const reset = React.useCallback(() => {
     setPhase('idle');
-    setProgress(null);
-    setFinalQuality(null);
     setError(null);
   }, []);
 
+  React.useEffect(() => {
+    if (open) reset();
+  }, [open, reset]);
+
   const handleClose = (next: boolean) => {
-    if (!next && opIdRef.current) {
-      getAgentClient().cancel(opIdRef.current);
-    }
+    if (!next && busy) return;
     if (!next) reset();
     onOpenChange(next);
   };
 
-  const start = async () => {
-    if (startingRef.current) return;
-    startingRef.current = true;
+  const capture = async () => {
     setError(null);
+    setPhase('checking');
     try {
-      const session = await startEnrollment(
+      const client = getHidFingerprintClient();
+      const status = await client.check();
+      if (status.state !== 'ready') throw new Error(status.message);
+
+      const session = await startHidEnrollment(
         memberId,
-        { localAgentId, deviceId, fingerPosition: finger as 'RIGHT_INDEX' },
+        { branchId, fingerPosition: finger as 'RIGHT_INDEX' },
         crypto.randomUUID(),
       );
-      const opId = getAgentClient().enrollStart({
-        enrollmentId: session.enrollmentId,
-        deviceToken: session.deviceToken,
-        deviceId,
-        samplesRequired: session.samplesRequired,
-        minQuality: session.minQuality,
-        fingerPosition: finger,
-      });
-      if (!opId) {
-        setError('No se pudo iniciar la captura en el agente local.');
-        setPhase('failed');
-        return;
-      }
-      opIdRef.current = opId;
+
       setPhase('capturing');
-      setProgress(null);
-    } catch (err) {
+      const sample = await client.captureSample();
+      setPhase('saving');
+      await completeHidEnrollment(session.enrollmentId, {
+        pngBase64: sample.pngBase64,
+        qualityCode: sample.qualityCode,
+      });
+
+      setPhase('done');
+      onEnrolled?.();
+    } catch (reason) {
       setError(
-        err instanceof ApiError
-          ? (API_ERROR_LABEL[err.code] ?? err.message)
-          : 'No se pudo iniciar el enrolamiento.',
+        reason instanceof ApiError
+          ? (API_ERROR_LABEL[reason.code] ?? reason.message)
+          : reason instanceof Error
+            ? reason.message
+            : 'No se pudo enrolar la huella.',
       );
       setPhase('failed');
-    } finally {
-      startingRef.current = false;
     }
   };
-
-  const agentReady = agentStatus === 'ready' || agentStatus === 'busy';
 
   return (
     <Modal
@@ -156,89 +107,59 @@ export function EnrollmentDialog({
       description={memberName ? `Socio: ${memberName}` : undefined}
       size="md"
     >
-      {!agentReady && phase === 'idle' ? (
-        <div className="space-y-3">
-          <Alert tone="warning" title="Agente local no conectado">
-            El navegador todavía no pudo conectarse con El Templo Agent de esta PC. Verificá que el agente esté
-            instalado y aprobado, y reintentá la conexión.
-          </Alert>
-          <Button
-            loading={agentStatus === 'connecting'}
-            onClick={() => getAgentClient().connect()}
-          >
-            Conectar agente
-          </Button>
-        </div>
-      ) : null}
-
-      {phase === 'idle' && agentReady ? (
+      {phase === 'idle' ? (
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <label id="enroll-finger-label" className="text-(--text-sm) font-medium text-(--color-text)">
+            <label
+              id="enroll-finger-label"
+              className="text-(--text-sm) font-medium text-(--color-text)"
+            >
               Dedo a enrolar
             </label>
             <Select
               aria-labelledby="enroll-finger-label"
               value={finger}
               onValueChange={setFinger}
-              options={FINGERS.map((f) => ({ value: f.value, label: f.label }))}
+              options={FINGERS.map((item) => ({ value: item.value, label: item.label }))}
             />
           </div>
           <p className="text-(--text-sm) text-(--color-muted)">
-            Al iniciar, Windows abrirá una ventana local de captura. Dejala abierta, pedile al socio que apoye el
-            dedo firme, lo levante y lo vuelva a apoyar en cada paso.
+            La captura ocurre acá mismo. Cuando el lector se ilumine, apoyá el dedo hasta recibir la
+            confirmación.
           </p>
         </div>
       ) : null}
 
-      {phase === 'capturing' ? (
-        <div className="flex flex-col items-center gap-4 py-2" aria-live="polite">
+      {busy ? (
+        <div className="flex flex-col items-center gap-4 py-5" aria-live="polite">
           <span
             className={cn(
-              'flex h-20 w-20 items-center justify-center rounded-full border-2',
-              progress?.warning
-                ? 'border-(--color-warning) text-(--color-warning)'
-                : 'animate-pulse border-(--color-primary) text-(--color-primary)',
+              'flex h-20 w-20 items-center justify-center rounded-(--radius-full) border-2 border-(--color-primary) text-(--color-primary)',
+              phase === 'capturing' ? 'animate-pulse' : '',
             )}
           >
-            <Fingerprint className="h-10 w-10" aria-hidden={true} />
+            {phase === 'capturing' ? (
+              <Fingerprint className="h-10 w-10" aria-hidden={true} />
+            ) : (
+              <LoaderCircle className="h-9 w-9 animate-spin" aria-hidden={true} />
+            )}
           </span>
           <p className="text-center text-(--text-base) font-medium text-(--color-text)">
-            {progress?.prompt ?? 'Abriendo el lector en Windows…'}
+            {PHASE_COPY[phase]}
           </p>
-          <div className="flex items-center gap-2" aria-label={`${progress?.captured ?? 0} de ${progress?.required ?? 4} muestras`}>
-            {Array.from({ length: progress?.required ?? 4 }).map((_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  'h-2.5 w-8 rounded-(--radius-full) transition-colors',
-                  i < (progress?.captured ?? 0) ? 'bg-(--color-success)' : 'bg-(--color-muted-subtle)',
-                )}
-              />
-            ))}
-          </div>
-          {progress?.quality != null ? (
-            <p className={cn('text-(--text-sm)', progress.warning ? 'text-(--color-warning)' : 'text-(--color-muted)')}>
-              Calidad de la última muestra: {progress.quality}/100
-            </p>
-          ) : null}
         </div>
       ) : null}
 
       {phase === 'done' ? (
-        <div className="flex flex-col items-center gap-3 py-4" role="status">
+        <div className="flex flex-col items-center gap-3 py-5" role="status">
           <CheckCircle2 className="h-12 w-12 text-(--color-success)" aria-hidden={true} />
-          <p className="text-(--text-base) font-medium text-(--color-text)">Huella enrolada correctamente</p>
-          <p className="text-(--text-sm) text-(--color-muted)">
-            Calidad del template: {finalQuality}/100 · {FINGERS.find((f) => f.value === finger)?.label}
+          <p className="text-(--text-base) font-medium text-(--color-text)">
+            Huella enrolada correctamente
           </p>
-        </div>
-      ) : null}
-
-      {phase === 'cancelled' ? (
-        <div className="flex flex-col items-center gap-3 py-4" role="status">
-          <XCircle className="h-10 w-10 text-(--color-muted)" aria-hidden={true} />
-          <p className="text-(--text-sm) text-(--color-muted)">Operación cancelada.</p>
+          <p className="text-(--text-sm) text-(--color-muted)">
+            {FINGERS.find((item) => item.value === finger)?.label} quedó disponible para registrar
+            ingresos.
+          </p>
         </div>
       ) : null}
 
@@ -249,18 +170,20 @@ export function EnrollmentDialog({
       ) : null}
 
       <div className="mt-6 flex justify-end gap-2">
-        {phase === 'capturing' ? (
-          <Button variant="outline" onClick={() => opIdRef.current && getAgentClient().cancel(opIdRef.current)}>
-            Cancelar captura
-          </Button>
-        ) : (
+        {!busy ? (
           <Button variant="outline" onClick={() => handleClose(false)}>
-            Cerrar
+            {phase === 'done' ? 'Listo' : 'Cerrar'}
           </Button>
-        )}
-        {phase === 'idle' && agentReady ? <Button onClick={() => void start()}>Abrir lector y capturar</Button> : null}
-        {phase === 'done' || phase === 'cancelled' || phase === 'failed' ? (
-          <Button onClick={reset}>Enrolar otra</Button>
+        ) : null}
+        {phase === 'idle' ? (
+          <Button onClick={() => void capture()}>
+            <Fingerprint className="h-4 w-4" aria-hidden={true} /> Capturar huella
+          </Button>
+        ) : null}
+        {phase === 'failed' ? (
+          <Button onClick={reset}>
+            <RotateCcw className="h-4 w-4" aria-hidden={true} /> Reintentar
+          </Button>
         ) : null}
       </div>
     </Modal>

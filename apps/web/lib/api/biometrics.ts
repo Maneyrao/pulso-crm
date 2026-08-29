@@ -1,11 +1,14 @@
 import type {
   ApproveAgentResponse,
   CancelEnrollmentResponse,
+  CompleteHidEnrollmentRequest,
+  CompleteHidEnrollmentResponse,
   CreateAgentRequest,
   CreateAgentResponse,
   GetEnrollmentResponse,
   GrantConsentRequest,
   GrantConsentResponse,
+  IdentifyHidRequest,
   ListAgentsResponse,
   ListDevicesResponse,
   ListMemberCredentialsResponse,
@@ -15,9 +18,12 @@ import type {
   RevokeCredentialResponse,
   StartEnrollmentRequest,
   StartEnrollmentResponse,
+  StartHidEnrollmentRequest,
+  StartHidEnrollmentResponse,
   StartIdentificationRequest,
   StartIdentificationResponse,
 } from '@pulso/contracts/biometrics';
+import type { AccessCheckResponse } from '@pulso/contracts/access';
 import { apiFetch, toQueryString } from './client.js';
 
 export function listAgents(branchId?: string | null): Promise<ListAgentsResponse> {
@@ -40,7 +46,10 @@ export function listDevices(branchId?: string | null): Promise<ListDevicesRespon
   return apiFetch<ListDevicesResponse>(`/devices${toQueryString({ branchId })}`);
 }
 
-export function grantConsent(memberId: string, payload: GrantConsentRequest): Promise<GrantConsentResponse> {
+export function grantConsent(
+  memberId: string,
+  payload: GrantConsentRequest,
+): Promise<GrantConsentResponse> {
   return apiFetch<GrantConsentResponse>(`/members/${memberId}/biometrics/consent`, {
     method: 'POST',
     body: payload,
@@ -49,7 +58,9 @@ export function grantConsent(memberId: string, payload: GrantConsentRequest): Pr
 
 /** Revoca el consentimiento Y todas las credenciales, en una transacción. */
 export function revokeConsent(memberId: string): Promise<RevokeConsentResponse> {
-  return apiFetch<RevokeConsentResponse>(`/members/${memberId}/biometrics/consent`, { method: 'DELETE' });
+  return apiFetch<RevokeConsentResponse>(`/members/${memberId}/biometrics/consent`, {
+    method: 'DELETE',
+  });
 }
 
 /**
@@ -68,12 +79,39 @@ export function startEnrollment(
   });
 }
 
+export function startHidEnrollment(
+  memberId: string,
+  payload: StartHidEnrollmentRequest,
+  idempotencyKey: string,
+): Promise<StartHidEnrollmentResponse> {
+  return apiFetch<StartHidEnrollmentResponse>(`/members/${memberId}/biometrics/hid-enrollments`, {
+    method: 'POST',
+    body: payload,
+    idempotencyKey,
+  });
+}
+
+export function completeHidEnrollment(
+  enrollmentId: string,
+  payload: CompleteHidEnrollmentRequest,
+): Promise<CompleteHidEnrollmentResponse> {
+  return apiFetch<CompleteHidEnrollmentResponse>(
+    `/biometrics/hid-enrollments/${enrollmentId}/complete`,
+    {
+      method: 'POST',
+      body: payload,
+    },
+  );
+}
+
 export function getEnrollment(id: string): Promise<GetEnrollmentResponse> {
   return apiFetch<GetEnrollmentResponse>(`/biometrics/enrollments/${id}`);
 }
 
 export function cancelEnrollment(id: string): Promise<CancelEnrollmentResponse> {
-  return apiFetch<CancelEnrollmentResponse>(`/biometrics/enrollments/${id}/cancel`, { method: 'POST' });
+  return apiFetch<CancelEnrollmentResponse>(`/biometrics/enrollments/${id}/cancel`, {
+    method: 'POST',
+  });
 }
 
 export function listMemberCredentials(memberId: string): Promise<ListMemberCredentialsResponse> {
@@ -89,6 +127,17 @@ export function startIdentification(
   idempotencyKey: string,
 ): Promise<StartIdentificationResponse> {
   return apiFetch<StartIdentificationResponse>('/biometrics/identifications', {
+    method: 'POST',
+    body: payload,
+    idempotencyKey,
+  });
+}
+
+export function identifyHid(
+  payload: IdentifyHidRequest,
+  idempotencyKey: string,
+): Promise<AccessCheckResponse> {
+  return apiFetch<AccessCheckResponse>('/biometrics/hid-identifications', {
     method: 'POST',
     body: payload,
     idempotencyKey,

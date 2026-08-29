@@ -16,7 +16,16 @@ export interface HidCheckResult {
 
 export interface HidCaptureResult {
   reader: HidReader;
-  quality: number | null;
+  pngBase64: string;
+  qualityCode: number | null;
+}
+
+interface HidSamplesAcquiredEvent {
+  samples: string;
+}
+
+interface HidQualityReportedEvent {
+  quality: number;
 }
 
 interface HidSdkApi {
@@ -24,14 +33,16 @@ interface HidSdkApi {
   getDeviceInfo(deviceUid: string): Promise<{ DeviceID?: string }>;
   startAcquisition(sampleFormat: number, deviceUid?: string): Promise<void>;
   stopAcquisition(deviceUid?: string): Promise<void>;
-  onSamplesAcquired?: () => void;
+  onSamplesAcquired?: (event: HidSamplesAcquiredEvent) => void;
+  onQualityReported?: (event: HidQualityReportedEvent) => void;
   onErrorOccurred?: () => void;
   onCommunicationFailed?: () => void;
 }
 
 interface HidSdkGlobal {
   WebApi: new (options?: { debug?: boolean }) => HidSdkApi;
-  SampleFormat: { Intermediate: number };
+  SampleFormat: { Intermediate: number; PngImage: number };
+  b64UrlTo64(value: string): string;
 }
 
 const CLIENT_MISSING_MESSAGE =
@@ -58,11 +69,14 @@ declare global {
 }
 
 /**
- * Cliente de diagnóstico para HID ADC / DigitalPersona WebSDK.
- * Sólo confirma canal local, lector y captura. No persiste ni muestra imágenes
- * biométricas y no implementa matching en el navegador.
+ * Captura mediante HID ADC / DigitalPersona WebSDK. La imagen sólo vive en
+ * memoria hasta enviarse a la API; la extracción y el matching nunca ocurren
+ * en el navegador.
  */
 export class HidFingerprintClient {
+  private activeCancel: (() => void) | null = null;
+  private activeStop: (() => Promise<void>) | null = null;
+
   async check(): Promise<HidCheckResult> {
     if (!browserSupported()) {
       return {
@@ -97,7 +111,8 @@ export class HidFingerprintClient {
     }
   }
 
-  async captureProbe(timeoutMs = 20_000): Promise<HidCaptureResult> {
+  async captureSample(timeoutMs = 20_000): Promise<HidCaptureResult> {
+    await this.cancelCapture();
     const check = await this.check();
     if (check.state !== 'ready' || !check.reader) throw new Error(check.message);
 
@@ -105,6 +120,12 @@ export class HidFingerprintClient {
     const reader = check.reader;
     return new Promise<HidCaptureResult>((resolve, reject) => {
       let settled = false;
+      let qualityCode: number | null = null;
+      let stopping: Promise<void> | null = null;
+      const stop = () => {
+        stopping ??= api.stopAcquisition(reader.id).catch(() => undefined);
+        return stopping;
+      };
       const timer = window.setTimeout(
         () => finish(new Error('No llegó una muestra. Apoyá el dedo sobre el lector y reintentá.')),
         timeoutMs,
@@ -113,9 +134,14 @@ export class HidFingerprintClient {
       const cleanup = () => {
         window.clearTimeout(timer);
         api.onSamplesAcquired = undefined;
+        api.onQualityReported = undefined;
         api.onErrorOccurred = undefined;
         api.onCommunicationFailed = undefined;
-        void api.stopAcquisition(reader.id).catch(() => undefined);
+        if (this.activeCancel === cancel) {
+          this.activeCancel = null;
+          this.activeStop = null;
+        }
+        void stop();
       };
       const finish = (result: HidCaptureResult | Error) => {
         if (settled) return;
@@ -124,15 +150,49 @@ export class HidFingerprintClient {
         if (result instanceof Error) reject(result);
         else resolve(result);
       };
+      const cancel = () => finish(new Error('Captura cancelada.'));
+      this.activeCancel = cancel;
+      this.activeStop = stop;
 
       api.onCommunicationFailed = () => finish(new Error(CLIENT_MISSING_MESSAGE));
       api.onErrorOccurred = () =>
         finish(new Error('HID informó un error al capturar. Revisá el driver y el lector.'));
-      api.onSamplesAcquired = () => finish({ reader, quality: null });
+      api.onQualityReported = (event) => {
+        qualityCode = event.quality;
+      };
+      api.onSamplesAcquired = (event) => {
+        try {
+          const samples: unknown = JSON.parse(event.samples);
+          const first = Array.isArray(samples) ? samples[0] : null;
+          if (typeof first !== 'string' || !first) {
+            finish(new Error('HID no devolvió una muestra utilizable.'));
+            return;
+          }
+          finish({
+            reader,
+            pngBase64: window.Fingerprint!.b64UrlTo64(first),
+            qualityCode,
+          });
+        } catch {
+          finish(new Error('HID devolvió una muestra con formato inválido.'));
+        }
+      };
       void api
-        .startAcquisition(window.Fingerprint!.SampleFormat.Intermediate, reader.id)
+        .startAcquisition(window.Fingerprint!.SampleFormat.PngImage, reader.id)
         .catch((error: unknown) => finish(new Error(toMessage(error))));
     });
+  }
+
+  /** Compatibilidad temporal con el panel de diagnóstico existente. */
+  captureProbe(timeoutMs = 20_000): Promise<HidCaptureResult> {
+    return this.captureSample(timeoutMs);
+  }
+
+  async cancelCapture(): Promise<void> {
+    const cancel = this.activeCancel;
+    const stop = this.activeStop;
+    cancel?.();
+    await stop?.();
   }
 
   private createApi(): HidSdkApi {

@@ -14,6 +14,51 @@ if (string.IsNullOrWhiteSpace(expectedToken) || expectedToken.Length < 32)
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", engine = "sourceafis-3.14" }));
 
+app.MapPost("/extract", (HttpContext context, ExtractHttpRequest request) =>
+{
+    if (!HasValidToken(context.Request.Headers.Authorization, expectedToken))
+    {
+        return Results.Unauthorized();
+    }
+
+    if (string.IsNullOrWhiteSpace(request.Image))
+    {
+        return Results.BadRequest(new { error = "Imagen inválida." });
+    }
+
+    byte[] image;
+    try
+    {
+        image = Convert.FromBase64String(request.Image);
+    }
+    catch (FormatException)
+    {
+        return Results.BadRequest(new { error = "Imagen inválida." });
+    }
+
+    if (image.Length is 0 or > 512 * 1024)
+    {
+        CryptographicOperations.ZeroMemory(image);
+        return Results.BadRequest(new { error = "Tamaño de imagen inválido." });
+    }
+
+    try
+    {
+        var extracted = SourceAfisMatcher.ExtractPng(image);
+        var template = Convert.ToBase64String(extracted.Template);
+        CryptographicOperations.ZeroMemory(extracted.Template);
+        return Results.Ok(new { template, extracted.Quality });
+    }
+    catch (Exception exception) when (exception is ArgumentException or InvalidDataException or NotSupportedException)
+    {
+        return Results.BadRequest(new { error = "La muestra PNG no es válida." });
+    }
+    finally
+    {
+        CryptographicOperations.ZeroMemory(image);
+    }
+});
+
 app.MapPost("/match", (HttpContext context, MatchHttpRequest request) =>
 {
     if (!HasValidToken(context.Request.Headers.Authorization, expectedToken))
@@ -81,5 +126,6 @@ static bool HasValidToken(string? authorization, string expectedToken)
 
 public sealed record MatchHttpRequest(string Probe, List<MatchCandidateHttpRequest> Candidates);
 public sealed record MatchCandidateHttpRequest(string CredentialId, string MemberId, string Template);
+public sealed record ExtractHttpRequest(string Image);
 
 public partial class Program;

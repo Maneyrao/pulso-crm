@@ -1158,6 +1158,11 @@ enum BiometricEnrollmentStatus {
   EXPIRED
 }
 
+enum BiometricCaptureProvider {
+  LOCAL_AGENT
+  HID_WEB
+}
+
 enum BiometricTemplateFormat {
   ANSI_378_2004
   ISO_19794_2_2005
@@ -1302,10 +1307,11 @@ model BiometricEnrollment {
   memberId String @db.Uuid
   member   Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
-  localAgentId String       @db.Uuid
-  localAgent   LocalAgent   @relation(fields: [localAgentId], references: [id], onDelete: Restrict)
-  deviceId     String       @db.Uuid
-  device       AccessDevice @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  captureProvider BiometricCaptureProvider @default(LOCAL_AGENT)
+  localAgentId    String?                  @db.Uuid
+  localAgent      LocalAgent?              @relation(fields: [localAgentId], references: [id], onDelete: Restrict)
+  deviceId        String?                  @db.Uuid
+  device          AccessDevice?            @relation(fields: [deviceId], references: [id], onDelete: Restrict)
 
   fingerPosition  FingerPosition
   status          BiometricEnrollmentStatus @default(STARTED)

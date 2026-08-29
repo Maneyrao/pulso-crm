@@ -42,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" suppressHydrationWarning className={archivo.variable}>
       <body>
         <script>{THEME_BOOTSTRAP}</script>
-        <Script src="/vendor/hid/websdk.client.ui.js" strategy="beforeInteractive" />
+        <Script src="/vendor/hid/websdk.client.js" strategy="beforeInteractive" />
         <Script src="/vendor/hid/fingerprint.sdk.js" strategy="beforeInteractive" />
         <QueryProvider>
           <ToastProvider>{children}</ToastProvider>

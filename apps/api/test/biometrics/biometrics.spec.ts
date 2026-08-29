@@ -90,7 +90,11 @@ async function setupAgent(client: TestClient, branchId: string): Promise<AgentSe
   return { agentId: agent.id, deviceId: device!.id, credential };
 }
 
-async function createMember(client: TestClient, firstName: string, branchId?: string): Promise<string> {
+async function createMember(
+  client: TestClient,
+  firstName: string,
+  branchId?: string,
+): Promise<string> {
   const res = await client.post(
     '/api/v1/members',
     {
@@ -148,7 +152,10 @@ interface IdentificationSession {
   minQuality: number;
 }
 
-async function issueIdentifyToken(client: TestClient, branchId: string): Promise<IdentificationSession> {
+async function issueIdentifyToken(
+  client: TestClient,
+  branchId: string,
+): Promise<IdentificationSession> {
   const response = await client.post(
     '/api/v1/biometrics/identifications',
     { branchId },
@@ -191,10 +198,20 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     expect(session.deviceToken).toMatch(/^pdt_/);
     expect(session.deviceId).toBe(setupA.deviceId);
 
-    const first = await identify(session.deviceToken, gymA.branch.id, OTHER_TEMPLATE, session.deviceId);
+    const first = await identify(
+      session.deviceToken,
+      gymA.branch.id,
+      OTHER_TEMPLATE,
+      session.deviceId,
+    );
     expect(first.status).toBe(200);
 
-    const replay = await identify(session.deviceToken, gymA.branch.id, OTHER_TEMPLATE, session.deviceId);
+    const replay = await identify(
+      session.deviceToken,
+      gymA.branch.id,
+      OTHER_TEMPLATE,
+      session.deviceId,
+    );
     expect(replay.status).toBe(401);
     expect((replay.body as { code: string }).code).toBe('INVALID_DEVICE_TOKEN');
   });
@@ -236,16 +253,84 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     // El template NO está en claro en la base.
     expect(Buffer.from(credential!.templateCiphertext).toString('base64')).not.toBe(TEMPLATE);
 
-    const enrollment = await ctx.db.raw.biometricEnrollment.findUnique({ where: { id: enrollmentId } });
+    const enrollment = await ctx.db.raw.biometricEnrollment.findUnique({
+      where: { id: enrollmentId },
+    });
     expect(enrollment!.status).toBe('COMPLETED');
 
     // La API de credenciales expone sólo metadatos.
     const listed = await crmA.get(`/api/v1/members/${memberId}/biometrics/credentials`);
     expect(listed.status).toBe(200);
     const [row] = (listed.body as { data: Array<Record<string, unknown>> }).data;
-    for (const forbidden of ['templateCiphertext', 'templateNonce', 'templateAuthTag', 'dekWrapped', 'templateHash', 'template']) {
+    for (const forbidden of [
+      'templateCiphertext',
+      'templateNonce',
+      'templateAuthTag',
+      'dekWrapped',
+      'templateHash',
+      'template',
+    ]) {
       expect(row![forbidden], `no debe exponer '${forbidden}'`).toBeUndefined();
     }
+  });
+
+  it('HID web: enrola una huella sin depender del agente WBF ni abrir una ventana local', async () => {
+    const memberId = await createMember(crmA, 'HidWeb');
+    await grantConsent(crmA, memberId);
+    const realisticPngPayload = Buffer.alloc(150 * 1024, 7).toString('base64');
+
+    const started = await crmA.post(
+      `/api/v1/members/${memberId}/biometrics/hid-enrollments`,
+      { branchId: gymA.branch.id, fingerPosition: 'RIGHT_INDEX' },
+      { 'idempotency-key': randomUUID() },
+    );
+    expect(started.status).toBe(201);
+    const enrollmentId = (started.body as { enrollmentId: string }).enrollmentId;
+
+    const completed = await crmA.post(
+      `/api/v1/biometrics/hid-enrollments/${enrollmentId}/complete`,
+      {
+        pngBase64: realisticPngPayload,
+        qualityCode: 0,
+      },
+    );
+    expect(completed.status).toBe(200);
+    expect(completed.body).toEqual({ ok: true });
+
+    const credential = await ctx.db.raw.biometricCredential.findFirst({
+      where: { memberId, status: 'ACTIVE' },
+    });
+    expect(credential?.templateFormat).toBe('SOURCEAFIS_3_14');
+    expect(credential?.enrollmentId).toBe(enrollmentId);
+  });
+
+  it('HID web: identifica la huella y devuelve el resultado de acceso directamente al CRM', async () => {
+    const memberId = await createMember(crmA, 'HidIngreso');
+    await grantConsent(crmA, memberId);
+    const sample = Buffer.from(`png-hid-${Date.now()}`).toString('base64');
+    const started = await crmA.post(
+      `/api/v1/members/${memberId}/biometrics/hid-enrollments`,
+      { branchId: gymA.branch.id, fingerPosition: 'RIGHT_INDEX' },
+      { 'idempotency-key': randomUUID() },
+    );
+    const enrollmentId = (started.body as { enrollmentId: string }).enrollmentId;
+    await crmA.post(`/api/v1/biometrics/hid-enrollments/${enrollmentId}/complete`, {
+      pngBase64: sample,
+      qualityCode: 0,
+    });
+
+    const identified = await crmA.post(
+      '/api/v1/biometrics/hid-identifications',
+      { branchId: gymA.branch.id, pngBase64: sample, qualityCode: 0 },
+      { 'idempotency-key': randomUUID() },
+    );
+
+    expect(identified.status).toBe(201);
+    expect(identified.body).toMatchObject({
+      reasonCode: 'NO_MEMBERSHIP',
+      member: { id: memberId, firstName: 'HidIngreso' },
+      attendanceRegistered: false,
+    });
   });
 
   it('finger-already-enrolled: el mismo dedo no se enrola dos veces', async () => {
@@ -285,7 +370,11 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     await grantConsent(crmA, memberId);
     const { enrollmentId, deviceToken } = await startEnrollment(crmA, memberId, setupA);
 
-    const first = await enrollComplete(deviceToken, enrollmentId, Buffer.from(`replay-${Date.now()}`).toString('base64'));
+    const first = await enrollComplete(
+      deviceToken,
+      enrollmentId,
+      Buffer.from(`replay-${Date.now()}`).toString('base64'),
+    );
     expect(first.status).toBe(200);
 
     const replay = await enrollComplete(deviceToken, enrollmentId);
@@ -305,7 +394,11 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     const crossed = await enrollComplete(enrollX.deviceToken, enrollY.enrollmentId);
     expect(crossed.status).toBe(401);
 
-    const legit = await enrollComplete(enrollX.deviceToken, enrollX.enrollmentId, Buffer.from(`atado-${Date.now()}`).toString('base64'));
+    const legit = await enrollComplete(
+      enrollX.deviceToken,
+      enrollX.enrollmentId,
+      Buffer.from(`atado-${Date.now()}`).toString('base64'),
+    );
     expect(legit.status).toBe(200);
   });
 
@@ -317,7 +410,12 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     await enrollComplete(deviceToken, enrollmentId, template);
 
     const matchSession = await issueIdentifyToken(crmA, gymA.branch.id);
-    const withMatch = await identify(matchSession.deviceToken, gymA.branch.id, template, matchSession.deviceId);
+    const withMatch = await identify(
+      matchSession.deviceToken,
+      gymA.branch.id,
+      template,
+      matchSession.deviceId,
+    );
     expect(withMatch.status).toBe(200);
     expect(withMatch.body).toEqual({ resolved: true });
     expect(Object.keys(withMatch.body as object)).toEqual(['resolved']);
@@ -412,7 +510,11 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     const memberId = await createMember(crmA, 'Cascada');
     await grantConsent(crmA, memberId);
     const { enrollmentId, deviceToken } = await startEnrollment(crmA, memberId, setupA);
-    await enrollComplete(deviceToken, enrollmentId, Buffer.from(`cascada-${Date.now()}`).toString('base64'));
+    await enrollComplete(
+      deviceToken,
+      enrollmentId,
+      Buffer.from(`cascada-${Date.now()}`).toString('base64'),
+    );
 
     const res = await crmA.del(`/api/v1/members/${memberId}/biometrics/consent`);
     expect(res.status).toBe(200);
@@ -522,12 +624,56 @@ describe('biometría — flujo completo y controles de seguridad', () => {
 
     expect((await crmB.get(`/api/v1/biometrics/enrollments/${enrollmentId}`)).status).toBe(404);
     expect((await crmB.get(`/api/v1/members/${memberId}/biometrics/credentials`)).status).toBe(404);
-    expect((await crmB.post(`/api/v1/members/${memberId}/biometrics/consent`, { version: 'v1', grantedMethod: 'DIGITAL' })).status).toBe(404);
+    expect(
+      (
+        await crmB.post(`/api/v1/members/${memberId}/biometrics/consent`, {
+          version: 'v1',
+          grantedMethod: 'DIGITAL',
+        })
+      ).status,
+    ).toBe(404);
     expect(
       (
         await crmB.post(
           `/api/v1/members/${memberId}/biometrics/enrollments`,
           { localAgentId: setupA.agentId, deviceId: setupA.deviceId, fingerPosition: 'LEFT_THUMB' },
+          { 'idempotency-key': randomUUID() },
+        )
+      ).status,
+    ).toBe(404);
+
+    const hidStarted = await crmA.post(
+      `/api/v1/members/${memberId}/biometrics/hid-enrollments`,
+      { branchId: gymA.branch.id, fingerPosition: 'LEFT_INDEX' },
+      { 'idempotency-key': randomUUID() },
+    );
+    const hidEnrollmentId = (hidStarted.body as { enrollmentId: string }).enrollmentId;
+    expect(
+      (
+        await crmB.post(
+          `/api/v1/members/${memberId}/biometrics/hid-enrollments`,
+          { branchId: gymB.branch.id, fingerPosition: 'LEFT_THUMB' },
+          { 'idempotency-key': randomUUID() },
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await crmB.post(`/api/v1/biometrics/hid-enrollments/${hidEnrollmentId}/complete`, {
+          pngBase64: Buffer.from('foreign-hid-sample').toString('base64'),
+          qualityCode: 0,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await crmB.post(
+          '/api/v1/biometrics/hid-identifications',
+          {
+            branchId: gymA.branch.id,
+            pngBase64: Buffer.from('foreign-hid-probe').toString('base64'),
+            qualityCode: 0,
+          },
           { 'idempotency-key': randomUUID() },
         )
       ).status,
@@ -561,7 +707,10 @@ describe('biometría — flujo completo y controles de seguridad', () => {
   });
 
   it('pareo: secreto incorrecto o re-pareo responden 401 sin filtrar cuál falló', async () => {
-    const created = await crmA.post('/api/v1/agents', { branchId: gymA.branch.id, name: 'Pareo negativo' });
+    const created = await crmA.post('/api/v1/agents', {
+      branchId: gymA.branch.id,
+      name: 'Pareo negativo',
+    });
     const { agent, pairingSecret } = created.body as {
       agent: { installationId: string };
       pairingSecret: string;
@@ -595,7 +744,11 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     });
     expect(rePair.status).toBe(401);
     // Mismo código y detalle que el secreto incorrecto: no filtra cuál falló.
-    expect((rePair.body as { code: string }).code).toBe((wrongSecret.body as { code: string }).code);
-    expect((rePair.body as { detail?: string }).detail).toBe((wrongSecret.body as { detail?: string }).detail);
+    expect((rePair.body as { code: string }).code).toBe(
+      (wrongSecret.body as { code: string }).code,
+    );
+    expect((rePair.body as { detail?: string }).detail).toBe(
+      (wrongSecret.body as { detail?: string }).detail,
+    );
   });
 });

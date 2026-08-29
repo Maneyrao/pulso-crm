@@ -2,6 +2,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { HttpSourceAfisMatcher } from './biometric-matcher.js';
 
 describe('HttpSourceAfisMatcher', () => {
+  it('extracts a SourceAFIS template from a transient PNG through the private matcher', async () => {
+    const fetcher = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ template: 'BAUG', quality: 82 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const matcher = new HttpSourceAfisMatcher('http://matcher.internal', 'shared-secret', fetcher);
+
+    const result = await matcher.extract(Buffer.from([1, 2, 3]));
+
+    expect(result).toEqual({ template: Buffer.from([4, 5, 6]), quality: 82 });
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://matcher.internal/extract',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ image: 'AQID' }),
+      }),
+    );
+  });
+
   it('sends base64 templates to the isolated matcher and returns scores', async () => {
     const fetcher = vi.fn(
       async () =>

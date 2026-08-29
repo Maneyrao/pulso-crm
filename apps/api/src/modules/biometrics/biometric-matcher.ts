@@ -23,7 +23,13 @@ export interface MatchScore {
   score: number;
 }
 
+export interface ExtractedTemplate {
+  template: Buffer;
+  quality: number;
+}
+
 export interface BiometricMatcher {
+  extract(image: Buffer): Promise<ExtractedTemplate>;
   match(probe: Buffer, candidates: readonly MatchCandidate[]): Promise<MatchScore[]>;
 }
 
@@ -31,6 +37,10 @@ export interface BiometricMatcher {
 export const BIOMETRIC_MATCHER = Symbol('BIOMETRIC_MATCHER');
 
 export class TemplateEqualityMatcher implements BiometricMatcher {
+  async extract(image: Buffer): Promise<ExtractedTemplate> {
+    return Promise.resolve({ template: Buffer.from(image), quality: 100 });
+  }
+
   async match(probe: Buffer, candidates: readonly MatchCandidate[]): Promise<MatchScore[]> {
     return Promise.resolve(
       candidates.map((candidate) => ({
@@ -49,19 +59,42 @@ type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
 /** Calls the isolated .NET SourceAFIS process. Templates never leave the private backend network. */
 export class HttpSourceAfisMatcher implements BiometricMatcher {
-  private readonly endpoint: string;
+  private readonly matchEndpoint: string;
+  private readonly extractEndpoint: string;
 
   constructor(
     baseUrl: string,
     private readonly token: string,
     private readonly fetcher: Fetcher = fetch,
   ) {
-    this.endpoint = `${baseUrl.replace(/\/$/, '')}/match`;
+    const root = baseUrl.replace(/\/$/, '');
+    this.matchEndpoint = `${root}/match`;
+    this.extractEndpoint = `${root}/extract`;
+  }
+
+  async extract(image: Buffer): Promise<ExtractedTemplate> {
+    const response = await this.fetcher(this.extractEndpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${this.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ image: image.toString('base64') }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) {
+      throw new Error(`El extractor biométrico devolvió HTTP ${response.status}.`);
+    }
+    const body: unknown = await response.json();
+    if (!isExtractResponse(body)) {
+      throw new Error('El extractor biométrico devolvió una respuesta inválida.');
+    }
+    return { template: Buffer.from(body.template, 'base64'), quality: body.quality };
   }
 
   async match(probe: Buffer, candidates: readonly MatchCandidate[]): Promise<MatchScore[]> {
     if (candidates.length === 0) return [];
-    const response = await this.fetcher(this.endpoint, {
+    const response = await this.fetcher(this.matchEndpoint, {
       method: 'POST',
       headers: {
         authorization: `Bearer ${this.token}`,
@@ -94,6 +127,19 @@ export class HttpSourceAfisMatcher implements BiometricMatcher {
     }
     return body.scores;
   }
+}
+
+function isExtractResponse(value: unknown): value is { template: string; quality: number } {
+  if (!value || typeof value !== 'object') return false;
+  const result = value as { template?: unknown; quality?: unknown };
+  return (
+    typeof result.template === 'string' &&
+    result.template.length > 0 &&
+    typeof result.quality === 'number' &&
+    Number.isInteger(result.quality) &&
+    result.quality >= 0 &&
+    result.quality <= 100
+  );
 }
 
 function isMatcherResponse(value: unknown): value is { scores: MatchScore[] } {

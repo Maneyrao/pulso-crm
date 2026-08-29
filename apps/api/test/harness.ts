@@ -57,7 +57,11 @@ export async function createTestApp(label: string): Promise<TestApp> {
     })
     .compile();
 
-  const app = moduleRef.createNestApplication<NestExpressApplication>({ logger: false });
+  const app = moduleRef.createNestApplication<NestExpressApplication>({
+    logger: false,
+    bodyParser: false,
+  });
+  app.useBodyParser('json', { limit: '1mb' });
   app.setGlobalPrefix('api/v1', { exclude: ['health/live', 'health/ready'] });
   app.use(cookieParser());
   app.use(new RequestContextMiddleware().use.bind(new RequestContextMiddleware()));

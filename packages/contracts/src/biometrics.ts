@@ -70,6 +70,10 @@ export const BIOMETRIC_ENROLLMENT_STATUSES = [
 export const biometricEnrollmentStatusSchema = z.enum(BIOMETRIC_ENROLLMENT_STATUSES);
 export type BiometricEnrollmentStatus = z.infer<typeof biometricEnrollmentStatusSchema>;
 
+export const BIOMETRIC_CAPTURE_PROVIDERS = ['LOCAL_AGENT', 'HID_WEB'] as const;
+export const biometricCaptureProviderSchema = z.enum(BIOMETRIC_CAPTURE_PROVIDERS);
+export type BiometricCaptureProvider = z.infer<typeof biometricCaptureProviderSchema>;
+
 export const BIOMETRIC_TEMPLATE_FORMATS = [
   'ANSI_378_2004',
   'ISO_19794_2_2005',
@@ -110,7 +114,11 @@ export const deviceTokenScopeSchema = z.enum(DEVICE_TOKEN_SCOPES);
 export type DeviceTokenScope = z.infer<typeof deviceTokenScopeSchema>;
 
 /** Template biométrico serializado: base64 no vacío, con tope anti-abuso. */
-const templateBase64Schema = z.string().min(1).max(512 * 1024).base64();
+const templateBase64Schema = z
+  .string()
+  .min(1)
+  .max(512 * 1024)
+  .base64();
 
 // ─────────────────────────────────────────────────────────────────────────
 // Superficie CRM — agentes (device:manage)
@@ -266,8 +274,9 @@ export const biometricEnrollmentSchema = z.object({
   id: uuidSchema,
   branchId: uuidSchema,
   memberId: uuidSchema,
-  localAgentId: uuidSchema,
-  deviceId: uuidSchema,
+  captureProvider: biometricCaptureProviderSchema,
+  localAgentId: uuidSchema.nullable(),
+  deviceId: uuidSchema.nullable(),
   fingerPosition: fingerPositionSchema,
   status: biometricEnrollmentStatusSchema,
   samplesRequired: z.number().int().min(1),
@@ -302,6 +311,32 @@ export const startEnrollmentResponseSchema = z.object({
 });
 export type StartEnrollmentResponse = z.infer<typeof startEnrollmentResponseSchema>;
 
+export const startHidEnrollmentRequestSchema = z.object({
+  branchId: uuidSchema,
+  fingerPosition: fingerPositionSchema,
+});
+export type StartHidEnrollmentRequest = z.infer<typeof startHidEnrollmentRequestSchema>;
+
+export const startHidEnrollmentResponseSchema = z.object({
+  enrollmentId: uuidSchema,
+  samplesRequired: z.literal(1),
+  minQuality: z.number().int().min(0).max(100),
+});
+export type StartHidEnrollmentResponse = z.infer<typeof startHidEnrollmentResponseSchema>;
+
+export const completeHidEnrollmentRequestSchema = z.object({
+  pngBase64: z
+    .string()
+    .min(1)
+    .max(512 * 1024)
+    .base64(),
+  qualityCode: z.number().int().min(0).max(24).nullable(),
+});
+export type CompleteHidEnrollmentRequest = z.infer<typeof completeHidEnrollmentRequestSchema>;
+
+export const completeHidEnrollmentResponseSchema = z.object({ ok: z.literal(true) });
+export type CompleteHidEnrollmentResponse = z.infer<typeof completeHidEnrollmentResponseSchema>;
+
 export const getEnrollmentResponseSchema = z.object({ enrollment: biometricEnrollmentSchema });
 export type GetEnrollmentResponse = z.infer<typeof getEnrollmentResponseSchema>;
 
@@ -328,6 +363,17 @@ export const startIdentificationResponseSchema = z.object({
   minQuality: z.number().int().min(0).max(100),
 });
 export type StartIdentificationResponse = z.infer<typeof startIdentificationResponseSchema>;
+
+export const identifyHidRequestSchema = z.object({
+  branchId: uuidSchema,
+  pngBase64: z
+    .string()
+    .min(1)
+    .max(512 * 1024)
+    .base64(),
+  qualityCode: z.number().int().min(0).max(24).nullable(),
+});
+export type IdentifyHidRequest = z.infer<typeof identifyHidRequestSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────
 // Superficie CRM — credenciales (biometrics:read / biometrics:revoke)
@@ -384,7 +430,12 @@ export const agentHeartbeatRequestSchema = z.object({
 });
 export type AgentHeartbeatRequest = z.infer<typeof agentHeartbeatRequestSchema>;
 
-export const AGENT_HEARTBEAT_STATUSES = ['PENDING_APPROVAL', 'ACTIVE', 'REVOKED', 'BLOCKED'] as const;
+export const AGENT_HEARTBEAT_STATUSES = [
+  'PENDING_APPROVAL',
+  'ACTIVE',
+  'REVOKED',
+  'BLOCKED',
+] as const;
 export const agentHeartbeatStatusSchema = z.enum(AGENT_HEARTBEAT_STATUSES);
 export type AgentHeartbeatStatus = z.infer<typeof agentHeartbeatStatusSchema>;
 

@@ -470,4 +470,10 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'el "own no responde 404" de la suite no aplica: un socio propio SIN consentimiento vigente responde 404 legítimamente. Cross-tenant y cascada cubiertos en test/biometrics/biometrics.spec.ts (consent-revoke-cascade).',
   'POST /api/v1/members/:id/biometrics/enrollments':
     'body requerido (localAgentId, deviceId, fingerPosition) + Idempotency-Key: sin ambos la validación dispara 422/400 antes de la comprobación cross-tenant. Cross-tenant cubierto en test/biometrics/biometrics.spec.ts (agente de otra sede → 404).',
+  'POST /api/v1/members/:id/biometrics/hid-enrollments':
+    'body requerido (branchId, fingerPosition) + Idempotency-Key: sin body la validación ocurre antes de resolver el socio. Inicio HID cross-tenant cubierto explícitamente en test/biometrics/biometrics.spec.ts.',
+  'POST /api/v1/biometrics/hid-enrollments/:id/complete':
+    'body requerido (pngBase64): la sesión se resuelve por gymId y usuario autenticado. Finalización HID cross-tenant cubierta explícitamente en test/biometrics/biometrics.spec.ts.',
+  'POST /api/v1/biometrics/hid-identifications':
+    'body requerido (branchId, pngBase64) + Idempotency-Key: una sede ajena se oculta con TenantContextStore.requireBranch. Cubierto explícitamente en test/biometrics/biometrics.spec.ts.',
 };

@@ -21,8 +21,10 @@ async function bootstrap(): Promise<void> {
     // El logger de Nest se silencia: los logs estructurados salen por pino.
     logger: config.isDevelopment ? ['error', 'warn', 'log'] : ['error', 'warn'],
     bufferLogs: false,
+    bodyParser: false,
   });
 
+  app.useBodyParser('json', { limit: '1mb' });
   app.setGlobalPrefix('api/v1', { exclude: ['health/live', 'health/ready'] });
   app.use(cookieParser());
 
@@ -58,10 +60,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   await app.listen(config.env.PORT, '0.0.0.0');
-  getLogger().info(
-    { port: config.env.PORT, env: config.env.NODE_ENV },
-    'API escuchando',
-  );
+  getLogger().info({ port: config.env.PORT, env: config.env.NODE_ENV }, 'API escuchando');
 }
 
 void bootstrap();
