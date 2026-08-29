@@ -20,6 +20,14 @@ const API_ERROR_LABEL: Record<string, string> = {
   AGENT_OFFLINE: 'El agente local no reporta señales de vida en el backend.',
 };
 
+const AGENT_ERROR_LABEL: Record<string, string> = {
+  INTERACTIVE_SESSION_REQUIRED:
+    'El conector se está ejecutando como servicio antiguo. Instalá la actualización y abrí el CRM desde esa misma PC.',
+  DEVICE_DISCONNECTED: 'El lector se desconectó durante la captura. Revisá el cable USB y reintentá.',
+  TIMEOUT: 'No llegó una muestra del lector. Dejá abierta la ventana local de El Templo Huella y apoyá el dedo de nuevo.',
+  QUALITY_TOO_LOW: 'La muestra no tuvo calidad suficiente. Limpiá el lector y apoyá el dedo firme.',
+};
+
 type Phase = 'idle' | 'capturing' | 'done' | 'cancelled' | 'failed';
 
 interface Progress {
@@ -74,7 +82,7 @@ export function EnrollmentDialog({
         opIdRef.current = null;
         onEnrolled?.();
       } else if (event.type === 'enroll.failed' && event.payload.opId === opIdRef.current) {
-        setError(`La captura falló (${event.payload.code}).`);
+        setError(AGENT_ERROR_LABEL[event.payload.code] ?? `La captura falló (${event.payload.code}).`);
         setPhase('failed');
         opIdRef.current = null;
       } else if (event.type === 'operation.cancelled' && event.payload.opId === opIdRef.current) {
@@ -177,8 +185,8 @@ export function EnrollmentDialog({
             />
           </div>
           <p className="text-(--text-sm) text-(--color-muted)">
-            Se capturan varias muestras. Pedile al socio que apoye el dedo firme, lo levante y lo vuelva a apoyar en
-            cada paso.
+            Al iniciar, Windows abrirá una ventana local de captura. Dejala abierta, pedile al socio que apoye el
+            dedo firme, lo levante y lo vuelva a apoyar en cada paso.
           </p>
         </div>
       ) : null}
@@ -196,7 +204,7 @@ export function EnrollmentDialog({
             <Fingerprint className="h-10 w-10" aria-hidden={true} />
           </span>
           <p className="text-center text-(--text-base) font-medium text-(--color-text)">
-            {progress?.prompt ?? 'Iniciando captura…'}
+            {progress?.prompt ?? 'Abriendo el lector en Windows…'}
           </p>
           <div className="flex items-center gap-2" aria-label={`${progress?.captured ?? 0} de ${progress?.required ?? 4} muestras`}>
             {Array.from({ length: progress?.required ?? 4 }).map((_, i) => (
@@ -250,7 +258,7 @@ export function EnrollmentDialog({
             Cerrar
           </Button>
         )}
-        {phase === 'idle' && agentReady ? <Button onClick={() => void start()}>Iniciar captura</Button> : null}
+        {phase === 'idle' && agentReady ? <Button onClick={() => void start()}>Abrir lector y capturar</Button> : null}
         {phase === 'done' || phase === 'cancelled' || phase === 'failed' ? (
           <Button onClick={reset}>Enrolar otra</Button>
         ) : null}

@@ -13,3 +13,7 @@ public sealed class SensorDisconnectedException(string sensorId)
 {
     public string SensorId { get; } = sensorId;
 }
+
+/// <summary>WBF requires an interactive Windows session to capture from the system pool.</summary>
+public sealed class InteractiveSessionRequiredException()
+    : Exception("El lector requiere el conector interactivo de Windows.");

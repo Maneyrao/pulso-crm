@@ -76,6 +76,7 @@ public sealed partial class WindowsBiometricApi : IWindowsBiometricApi
     private static CapturedAnsi381Sample CaptureBlocking(uint requestedUnitId, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+        using var prompt = WindowsCapturePrompt.ShowAsync(ct).GetAwaiter().GetResult();
         uint session = 0;
         try
         {

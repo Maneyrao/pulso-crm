@@ -93,7 +93,13 @@ IFingerprintSensor sensor = sensorKind.ToLowerInvariant() switch
 };
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseWindowsService(options => options.ServiceName = "ElTemploAgent");
+// WBF requires a foreground interactive process to capture from the system
+// pool. The installer now starts this host at user logon; service mode remains
+// available only as an explicit compatibility escape hatch.
+if (string.Equals(Environment.GetEnvironmentVariable("PULSO_AGENT_RUN_MODE"), "service", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Host.UseWindowsService(options => options.ServiceName = "ElTemploAgent");
+}
 
 builder.WebHost.ConfigureKestrel(options =>
 {

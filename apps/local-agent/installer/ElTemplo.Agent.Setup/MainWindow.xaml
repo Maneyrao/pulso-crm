@@ -43,7 +43,7 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="2">
-                    <TextBlock Text="Versión 0.3.0" Foreground="{StaticResource MutedBrush}" FontSize="12" />
+                    <TextBlock Text="Versión 0.4.0" Foreground="{StaticResource MutedBrush}" FontSize="12" />
                     <TextBlock Text="La huella nunca se guarda como imagen." Margin="0,7,0,0" Foreground="{StaticResource MutedBrush}" FontSize="12" TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>

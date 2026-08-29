@@ -19,7 +19,7 @@ public partial class App : Application
         if (TryReadOption(e.Args, "--uninstall", out _))
         {
             var confirmation = MessageBox.Show(
-                "¿Querés desinstalar El Templo Huella y el servicio del lector de esta computadora?",
+                "¿Querés desinstalar El Templo Huella y el conector del lector de esta computadora?",
                 "Desinstalar El Templo Huella",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);

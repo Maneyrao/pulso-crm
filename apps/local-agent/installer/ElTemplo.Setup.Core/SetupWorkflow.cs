@@ -64,11 +64,11 @@ public sealed class SetupWorkflow(
             Report(progress, SetupStage.PairingAgent, 55, "Conservamos la vinculación existente.");
         }
 
-        Report(progress, SetupStage.InstallingService, 68, "Activamos el lector para que inicie con Windows.");
+        Report(progress, SetupStage.InstallingService, 68, "Activamos el conector de huella en esta sesión de Windows.");
         await RunStageAsync(
             SetupStage.InstallingService,
             "SETUP_SERVICE_FAILED",
-            "No pudimos activar el servicio del lector.",
+            "No pudimos activar el conector del lector.",
             () => platform.InstallServiceAsync(cancellationToken));
 
         Report(progress, SetupStage.DetectingReader, 82, "Buscamos el lector de huellas conectado.");

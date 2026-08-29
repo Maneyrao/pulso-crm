@@ -3,6 +3,7 @@ using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Principal;
 using ElTemplo.Setup.Core;
 using Microsoft.Win32;
 using Pulso.Agent.Backend;
@@ -40,37 +41,31 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
 
     public async Task InstallServiceAsync(CancellationToken cancellationToken)
     {
-        logger.Info("SERVICE_INSTALL_STARTED");
-        var exists = await RunProcessAsync("sc.exe", ["query", InstallerConstants.ServiceName], false, cancellationToken) == 0;
-        if (exists)
+        logger.Info("INTERACTIVE_CONNECTOR_INSTALL_STARTED");
+        await StopServiceIfPresentAsync(cancellationToken);
+        await RunProcessAsync("sc.exe", ["delete", InstallerConstants.ServiceName], false, cancellationToken);
+
+        var user = WindowsIdentity.GetCurrent().Name;
+        if (string.IsNullOrWhiteSpace(user))
         {
-            await RunProcessAsync(
-                "sc.exe",
-                ["config", InstallerConstants.ServiceName, "binPath=", $"\"{InstallerConstants.AgentExecutable}\"", "start=", "auto", "obj=", "LocalSystem"],
-                true,
-                cancellationToken);
-        }
-        else
-        {
-            await RunProcessAsync(
-                "sc.exe",
-                ["create", InstallerConstants.ServiceName, "binPath=", $"\"{InstallerConstants.AgentExecutable}\"", "start=", "auto", "obj=", "LocalSystem", "DisplayName=", "El Templo Agent"],
-                true,
-                cancellationToken);
+            throw new InvalidOperationException("No pudimos identificar al usuario de Windows para iniciar el conector.");
         }
 
         await RunProcessAsync(
-            "sc.exe",
-            ["description", InstallerConstants.ServiceName, "Conecta el lector HID U.are.U 4500 con El Templo CRM."],
-            false,
+            "schtasks.exe",
+            [
+                "/Create", "/TN", InstallerConstants.InteractiveTaskName,
+                "/TR", $"\"{InstallerConstants.AgentExecutable}\"",
+                "/SC", "ONLOGON", "/RU", user, "/RL", "HIGHEST", "/IT", "/F",
+            ],
+            true,
             cancellationToken);
         await RunProcessAsync(
-            "sc.exe",
-            ["failure", InstallerConstants.ServiceName, "reset=", "86400", "actions=", "restart/5000/restart/15000/restart/60000"],
-            false,
+            "schtasks.exe",
+            ["/Run", "/TN", InstallerConstants.InteractiveTaskName],
+            true,
             cancellationToken);
-        await RunProcessAsync("sc.exe", ["start", InstallerConstants.ServiceName], true, cancellationToken);
-        logger.Info("SERVICE_INSTALL_COMPLETED");
+        logger.Info("INTERACTIVE_CONNECTOR_INSTALL_COMPLETED");
     }
 
     public async Task CreateShortcutsAsync(CancellationToken cancellationToken)
@@ -102,6 +97,11 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
     {
         await StopServiceIfPresentAsync(cancellationToken);
         await RunProcessAsync("sc.exe", ["delete", InstallerConstants.ServiceName], false, cancellationToken);
+        await RunProcessAsync(
+            "schtasks.exe",
+            ["/Delete", "/TN", InstallerConstants.InteractiveTaskName, "/F"],
+            false,
+            cancellationToken);
         RemoveCertificate();
 
         DeleteIfPresent(Path.Combine(
@@ -253,9 +253,18 @@ internal sealed class WindowsInstallerPlatform(InstallLogger logger) : IInstalle
 
     private static void RestrictConfigDirectory()
     {
+        var interactiveUser = WindowsIdentity.GetCurrent().User?.Value
+            ?? throw new InvalidOperationException("No pudimos proteger la configuración para el usuario de Windows actual.");
         RunProcessAsync(
                 "icacls.exe",
-                [AgentPaths.DefaultConfigDirectory(), "/inheritance:r", "/grant:r", "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F"],
+                [
+                    AgentPaths.DefaultConfigDirectory(),
+                    "/inheritance:r",
+                    "/grant:r",
+                    "*S-1-5-18:(OI)(CI)F",
+                    "*S-1-5-32-544:(OI)(CI)F",
+                    $"*{interactiveUser}:(OI)(CI)F",
+                ],
                 false,
                 CancellationToken.None)
             .GetAwaiter()

@@ -2,7 +2,7 @@
 
 El instalador visual `ElTemploHuella-Setup.exe` conecta el lector con el CRM web en una sola operación:
 
-- el servicio local que conecta el navegador con el lector HID U.are.U 4500;
+- el conector local interactivo que conecta el navegador con el lector HID U.are.U 4500;
 - el certificado local y sus permisos;
 - un acceso directo al CRM web;
 - la computadora creada, vinculada y aprobada en el CRM.
@@ -21,11 +21,11 @@ Requisitos: Windows 10/11 x64, conexión a Internet, una cuenta del CRM con perm
 
 Si Windows todavía no reconoce el U.are.U 4500, el asistente abre el [controlador WBF oficial de HID](https://www.hidglobal.com/drivers/39477) y permite probar nuevamente sin repetir la instalación. En una reparación conserva la vinculación existente.
 
-El CRM se usa desde el navegador. El servicio `ElTemploAgent` arranca automáticamente con Windows y el escritorio recibe un acceso directo a la web. La desinstalación está disponible en **Configuración de Windows > Aplicaciones instaladas**.
+El CRM se usa desde el navegador. El conector inicia automáticamente al ingresar a Windows con el mismo usuario que lo instaló y el escritorio recibe un acceso directo a la web. Al comenzar una captura, Windows abre una ventana local para que el lector tenga el foco requerido por el driver WBF. La desinstalación está disponible en **Configuración de Windows > Aplicaciones instaladas**.
 
 ## Seguridad biométrica
 
-El agente captura mediante Windows Biometric Framework, transforma la muestra en una plantilla SourceAFIS y nunca guarda imágenes de huella. La credencial del agente se protege con Windows DPAPI y el directorio de configuración solo es accesible por administradores y `LocalSystem`.
+El agente captura mediante Windows Biometric Framework, transforma la muestra en una plantilla SourceAFIS y nunca guarda imágenes de huella. La credencial del agente se protege con Windows DPAPI y el directorio de configuración solo es accesible por administradores, `LocalSystem` y el usuario de Windows que opera el lector.
 
 ## Compilar en Windows
 

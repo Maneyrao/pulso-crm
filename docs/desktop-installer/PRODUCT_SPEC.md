@@ -18,7 +18,7 @@ The cloud API and PostgreSQL database remain the source of truth. The CRM runs i
 
 The user downloads one file named `ElTemploHuella-Setup.exe`. It is a self-contained graphical installer, not a console application or a compressed archive. The installer contains:
 
-- The El Templo Agent Windows service.
+- The El Templo Agent interactive Windows connector.
 - Local TLS certificate setup for the browser-to-agent connection.
 - Repair and uninstall support.
 - A shortcut that opens the production web CRM in the default browser.
@@ -31,7 +31,7 @@ Commercial releases must be Authenticode-signed. Unsigned release candidates may
 2. Check this PC: Windows version, x64 architecture, administrator rights, internet, and connected reader.
 3. Sign in: CRM email and password. Password stays in memory only for the request and is never logged or persisted.
 4. Choose branch: show human-readable branch names. Default to the active branch.
-5. Install: copy the agent payload, provision and approve it automatically, protect its credential with DPAPI, install/start the Windows service, create the web shortcut, and register uninstall metadata.
+5. Install: copy the agent payload, provision and approve it automatically, protect its credential with DPAPI, register/start the interactive connector for the current Windows user, create the web shortcut, and register uninstall metadata.
 6. Reader test: show detected manufacturer/model and a clear driver action when WBF cannot see the reader.
 7. Finish: provide `Open web CRM` as the primary action.
 
@@ -54,7 +54,7 @@ Existing paired installations skip sign-in/provisioning and run as a repair/upda
 - Never log or persist the CRM password or one-time pairing secret.
 - Pairing secret is exchanged once, cleared from memory references, and never shown in the UI.
 - Long-lived agent credential is stored with Windows DPAPI.
-- Agent configuration is restricted to LocalSystem and Administrators.
+- Agent configuration is restricted to the current Windows user, LocalSystem and Administrators.
 - Fingerprint images are never persisted by setup or the local agent.
 - API errors shown to users are sanitized; diagnostics contain codes but no credentials.
 - The local service binds only to loopback.
@@ -62,7 +62,7 @@ Existing paired installations skip sign-in/provisioning and run as a repair/upda
 ## Web integration
 
 - The CRM loads from `https://pulso-crm-omega.vercel.app/` in the default browser.
-- The installed agent service starts automatically with Windows.
+- The installed interactive connector starts automatically when its Windows user signs in.
 - The browser connects to the loopback-only endpoint at `wss://127.0.0.1:21987`.
 - The installer places the local certificate in the Windows trust store.
 

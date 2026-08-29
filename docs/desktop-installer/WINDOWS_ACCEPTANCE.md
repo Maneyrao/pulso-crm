@@ -17,13 +17,14 @@ Esta prueba final confirma la combinación real de Windows, driver HID, puerto U
 
 - [ ] El asistente muestra fabricante y modelo del lector.
 - [ ] El CRM muestra agente y lector online en menos de 30 segundos.
+- [ ] Al iniciar una captura, aparece la ventana local **El Templo Huella**; se mantiene abierta mientras se apoya el dedo.
 - [ ] Enrolar dos dedos de un socio con consentimiento.
 - [ ] Realizar diez lecturas válidas consecutivas del mismo dedo.
 - [ ] Confirmar que una huella no enrolada no registra asistencia.
 - [ ] Confirmar que una cuota vencida muestra acceso rechazado sin registrar ingreso válido.
 - [ ] Confirmar que una cuota vigente registra una sola asistencia y muestra el cartel del socio.
 - [ ] Desconectar y reconectar el USB; el sistema debe recuperarse sin reinstalar.
-- [ ] Reiniciar Windows; al abrir el CRM web, el lector debe funcionar sin abrir el agente manualmente.
+- [ ] Cerrar sesión o reiniciar Windows; al volver a ingresar con el usuario que instaló el conector y abrir el CRM web, el lector debe funcionar sin abrir el agente manualmente.
 
 ## Recuperación
 

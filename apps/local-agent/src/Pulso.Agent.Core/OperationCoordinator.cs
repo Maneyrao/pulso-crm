@@ -71,6 +71,12 @@ public sealed class OperationCoordinator(
                 {
                     throw new EnrollOperationException("DEVICE_DISCONNECTED", "El lector se desconectó durante la captura.");
                 }
+                catch (InteractiveSessionRequiredException)
+                {
+                    throw new EnrollOperationException(
+                        "INTERACTIVE_SESSION_REQUIRED",
+                        "Abrí el conector El Templo Huella desde la sesión de Windows y reintentá.");
+                }
                 catch (TimeoutException)
                 {
                     audit.Record(AuditEventTypes.CaptureTimeout, AuditSeverity.Warn, "capture timeout",
@@ -240,6 +246,11 @@ public sealed class OperationCoordinator(
                 catch (SensorDisconnectedException)
                 {
                     notifier.IdentifyFailed(new IdentifyFailedPayload { OpId = request.OpId, Code = "DEVICE_DISCONNECTED" });
+                    break;
+                }
+                catch (InteractiveSessionRequiredException)
+                {
+                    notifier.IdentifyFailed(new IdentifyFailedPayload { OpId = request.OpId, Code = "INTERACTIVE_SESSION_REQUIRED" });
                     break;
                 }
                 catch (TimeoutException)

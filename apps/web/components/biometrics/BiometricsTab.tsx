@@ -77,9 +77,10 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
       setConsentOpen(false);
       toast({
         title: 'Consentimiento registrado',
-        description: 'Quedaron registrados usuario, fecha y versión.',
+        description: 'Quedaron registrados usuario, fecha y versión. Ahora podés enrolar la huella.',
         tone: 'success',
       });
+      if (endpoint && agentReady) setEnrollOpen(true);
     },
     onError: (err) =>
       toast({
@@ -182,6 +183,13 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         Sólo se guarda un template de minucias cifrado, nunca la imagen de la huella. El acceso por
         documento sigue disponible siempre.
       </Alert>
+
+      {endpoint && agentReady ? (
+        <Alert tone="success" title="Lector listo en esta sede">
+          Al iniciar una captura se abrirá una ventana local de El Templo Huella en esta PC. Dejala abierta mientras
+          el socio apoya el dedo.
+        </Alert>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <PermissionGate permission="biometrics:enroll" fallback={null}>

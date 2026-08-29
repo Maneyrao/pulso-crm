@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Pulso.Agent.Core.Ports;
 using Pulso.Agent.Core.Tests.TestDoubles;
 using Pulso.Agent.Protocol.Payloads;
+using Pulso.Agent.Sensors;
 using Pulso.Agent.Sensors.FakeSensor;
 using Xunit;
 
@@ -41,6 +42,21 @@ public class OperationCoordinatorEnrollTests
             NullLogger<OperationCoordinator>.Instance, timeouts);
 
         return (coordinator, sessions, state, notifier, backend, audit);
+    }
+
+    private static (OperationCoordinator Coordinator, RecordingNotifier Notifier) BuildWithSensor(IFingerprintSensor sensor)
+    {
+        var sessions = new SessionManager();
+        var state = new AgentStateMachine();
+        state.Pair();
+        state.DeviceConnected();
+        state.Approve();
+        var notifier = new RecordingNotifier();
+        var coordinator = new OperationCoordinator(
+            sessions, state, sensor, new StubBackendClient(), notifier, new RecordingAuditSink(),
+            NullLogger<OperationCoordinator>.Instance,
+            new OperationTimeouts { BetweenEnrollmentSamples = TimeSpan.Zero });
+        return (coordinator, notifier);
     }
 
     [Fact]
@@ -192,6 +208,17 @@ public class OperationCoordinatorEnrollTests
     }
 
     [Fact]
+    public async Task Non_interactive_WBF_session_explains_that_the_connector_must_run_in_the_user_session()
+    {
+        var (coordinator, notifier) = BuildWithSensor(new InteractiveRequiredSensor());
+
+        await coordinator.RunEnrollAsync(Request(samplesRequired: 1), CancellationToken.None);
+
+        var failed = Assert.Single(notifier.OfType<EnrollFailedPayload>());
+        Assert.Equal("INTERACTIVE_SESSION_REQUIRED", failed.Code);
+    }
+
+    [Fact]
     public async Task Template_buffer_is_zeroed_after_the_operation_ends()
     {
         var (coordinator, _, _, _, backend, _) = Build();
@@ -203,5 +230,32 @@ public class OperationCoordinatorEnrollTests
         var sentTemplate = backend.EnrollRequests.Single().Template;
         Assert.NotEmpty(sentTemplate);
         Assert.All(sentTemplate, b => Assert.Equal(0, b));
+    }
+
+    private sealed class InteractiveRequiredSensor : IFingerprintSensor
+    {
+        public event EventHandler<SensorEventArgs>? SensorConnected
+        {
+            add { }
+            remove { }
+        }
+
+        public event EventHandler<SensorEventArgs>? SensorDisconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public Task<IReadOnlyList<SensorInfo>> EnumerateAsync(CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<SensorInfo>>(
+            [new SensorInfo { SensorId = "WBF-1", Vendor = "HID", Model = "U.are.U 4500", Status = SensorStatus.Online }]);
+
+        public Task<CaptureResult> CaptureAsync(string sensorId, TimeSpan timeout, CancellationToken ct) =>
+            throw new InteractiveSessionRequiredException();
+
+        public QualityScore EvaluateQuality(CaptureResult sample) => new() { Value = 100 };
+
+        public Task<TemplateResult> CreateTemplateAsync(IReadOnlyList<CaptureResult> samples, TemplateFormat fmt, CancellationToken ct) =>
+            throw new NotSupportedException();
     }
 }
