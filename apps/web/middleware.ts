@@ -14,7 +14,9 @@ const PUBLIC_PATHS = ['/login'];
 
 export function middleware(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
-  const isPublicPath = PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  const isPublicPath = PUBLIC_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`),
+  );
   const hasSessionCookie = request.cookies.has(SESSION_COOKIE);
 
   if (!hasSessionCookie && !isPublicPath) {
@@ -36,5 +38,8 @@ export function middleware(request: NextRequest): NextResponse {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icon.png|brand/).*)'],
+  // Los bundles oficiales de HID se cargan antes de que React hidrate la
+  // pantalla. Deben quedar fuera del guard de sesión, igual que los assets de
+  // marca, para que ADC pueda inicializarse en una vista autenticada.
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|icon.png|brand/|vendor/).*)'],
 };
