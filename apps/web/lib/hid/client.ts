@@ -20,12 +20,22 @@ export interface HidCaptureResult {
   qualityCode: number | null;
 }
 
+export interface HidCaptureProgress {
+  stage: 'reader-ready' | 'finger-detected' | 'quality';
+  message: string;
+  qualityCode: number | null;
+}
+
 interface HidSamplesAcquiredEvent {
   samples: string;
 }
 
 interface HidQualityReportedEvent {
   quality: number;
+}
+
+interface HidErrorOccurredEvent {
+  error: number;
 }
 
 interface HidSdkApi {
@@ -35,7 +45,9 @@ interface HidSdkApi {
   stopAcquisition(deviceUid?: string): Promise<void>;
   onSamplesAcquired?: (event: HidSamplesAcquiredEvent) => void;
   onQualityReported?: (event: HidQualityReportedEvent) => void;
-  onErrorOccurred?: () => void;
+  onAcquisitionStarted?: () => void;
+  onDeviceDisconnected?: () => void;
+  onErrorOccurred?: (event: HidErrorOccurredEvent) => void;
   onCommunicationFailed?: () => void;
 }
 
@@ -62,6 +74,23 @@ function toMessage(error: unknown): string {
   return CLIENT_MISSING_MESSAGE;
 }
 
+const QUALITY_MESSAGES: Record<number, string> = {
+  0: 'Dedo detectado. Procesando la muestra...',
+  1: 'No se detectó una imagen. Volvé a apoyar el dedo.',
+  2: 'La lectura quedó muy clara. Apoyá el dedo de forma pareja.',
+  3: 'La lectura quedó muy oscura. Reducí la presión.',
+  4: 'La lectura tuvo ruido. Limpiá el lector y reintentá.',
+  5: 'La huella tiene poco contraste. Apoyá todo el dedo.',
+  6: 'No se detectaron suficientes detalles. Reubicá el dedo.',
+  7: 'Centrá el dedo sobre el lector.',
+  8: 'El lector no detectó un dedo.',
+  19: 'Estás presionando demasiado fuerte.',
+  20: 'Presioná un poco más el dedo.',
+  21: 'El dedo o el lector están húmedos. Secalos y reintentá.',
+  23: 'Apoyá una superficie mayor del dedo.',
+  24: 'Mantené el dedo derecho y quieto.',
+};
+
 declare global {
   interface Window {
     Fingerprint?: HidSdkGlobal;
@@ -74,6 +103,7 @@ declare global {
  * en el navegador.
  */
 export class HidFingerprintClient {
+  private api: HidSdkApi | null = null;
   private activeCancel: (() => void) | null = null;
   private activeStop: (() => Promise<void>) | null = null;
 
@@ -111,7 +141,10 @@ export class HidFingerprintClient {
     }
   }
 
-  async captureSample(timeoutMs = 20_000): Promise<HidCaptureResult> {
+  async captureSample(
+    timeoutMs = 30_000,
+    onProgress?: (progress: HidCaptureProgress) => void,
+  ): Promise<HidCaptureResult> {
     await this.cancelCapture();
     const check = await this.check();
     if (check.state !== 'ready' || !check.reader) throw new Error(check.message);
@@ -135,6 +168,8 @@ export class HidFingerprintClient {
         window.clearTimeout(timer);
         api.onSamplesAcquired = undefined;
         api.onQualityReported = undefined;
+        api.onAcquisitionStarted = undefined;
+        api.onDeviceDisconnected = undefined;
         api.onErrorOccurred = undefined;
         api.onCommunicationFailed = undefined;
         if (this.activeCancel === cancel) {
@@ -155,10 +190,29 @@ export class HidFingerprintClient {
       this.activeStop = stop;
 
       api.onCommunicationFailed = () => finish(new Error(CLIENT_MISSING_MESSAGE));
-      api.onErrorOccurred = () =>
-        finish(new Error('HID informó un error al capturar. Revisá el driver y el lector.'));
+      api.onDeviceDisconnected = () =>
+        finish(new Error('El lector se desconectó durante la captura.'));
+      api.onAcquisitionStarted = () =>
+        onProgress?.({
+          stage: 'reader-ready',
+          message: 'Lector listo. Apoyá el dedo y mantenelo quieto.',
+          qualityCode: null,
+        });
+      api.onErrorOccurred = (event) =>
+        finish(
+          new Error(
+            `HID informó el error ${event.error}. Reconectá el lector y verificá el driver Legacy.`,
+          ),
+        );
       api.onQualityReported = (event) => {
         qualityCode = event.quality;
+        onProgress?.({
+          stage: event.quality === 0 ? 'finger-detected' : 'quality',
+          message:
+            QUALITY_MESSAGES[event.quality] ??
+            `El lector rechazó la muestra por calidad (código ${event.quality}). Reubicá el dedo.`,
+          qualityCode: event.quality,
+        });
       };
       api.onSamplesAcquired = (event) => {
         try {
@@ -179,6 +233,15 @@ export class HidFingerprintClient {
       };
       void api
         .startAcquisition(window.Fingerprint!.SampleFormat.PngImage, reader.id)
+        .then(() => {
+          if (!settled) {
+            onProgress?.({
+              stage: 'reader-ready',
+              message: 'Lector listo. Apoyá el dedo y mantenelo quieto.',
+              qualityCode: null,
+            });
+          }
+        })
         .catch((error: unknown) => finish(new Error(toMessage(error))));
     });
   }
@@ -197,7 +260,8 @@ export class HidFingerprintClient {
 
   private createApi(): HidSdkApi {
     if (!sdkAvailable()) throw new Error(CLIENT_MISSING_MESSAGE);
-    return new window.Fingerprint!.WebApi({ debug: false });
+    this.api ??= new window.Fingerprint!.WebApi({ debug: false });
+    return this.api;
   }
 
   private async describe(api: HidSdkApi, id: string): Promise<HidReader> {

@@ -74,6 +74,44 @@ describe('HidFingerprintClient', () => {
     });
   });
 
+  it('reuses one WebApi connection for detection and capture', async () => {
+    windowsBrowser();
+    let instances = 0;
+    window.Fingerprint = {
+      SampleFormat: { Intermediate: 2, PngImage: 5 },
+      b64UrlTo64: (value: string) => value,
+      WebApi: class {
+        onSamplesAcquired?: (event: { samples: string }) => void;
+        onQualityReported?: (event: { quality: number }) => void;
+        onAcquisitionStarted?: () => void;
+        onErrorOccurred?: (event: { error: number }) => void;
+        onCommunicationFailed?: () => void;
+        constructor() {
+          instances += 1;
+        }
+        enumerateDevices = vi.fn().mockResolvedValue(['hid-4500']);
+        getDeviceInfo = vi.fn().mockResolvedValue({ DeviceID: 'U.are.U 4500' });
+        startAcquisition = vi.fn().mockImplementation(async () => {
+          this.onAcquisitionStarted?.();
+          this.onQualityReported?.({ quality: 0 });
+          this.onSamplesAcquired?.({ samples: JSON.stringify(['png-sample']) });
+        });
+        stopAcquisition = vi.fn().mockResolvedValue(undefined);
+      } as never,
+    };
+    const progress = vi.fn();
+    const client = new HidFingerprintClient();
+
+    await client.check();
+    await client.captureSample(20_000, progress);
+
+    expect(instances).toBe(1);
+    expect(progress).toHaveBeenCalledWith(expect.objectContaining({ stage: 'reader-ready' }));
+    expect(progress).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: 'finger-detected', qualityCode: 0 }),
+    );
+  });
+
   it('stops the active HID acquisition when the operator disables fingerprint mode', async () => {
     windowsBrowser();
     const stopAcquisition = vi.fn().mockResolvedValue(undefined);

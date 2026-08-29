@@ -46,11 +46,13 @@ export function EnrollmentDialog({
   const [finger, setFinger] = React.useState<string>('RIGHT_INDEX');
   const [phase, setPhase] = React.useState<Phase>('idle');
   const [error, setError] = React.useState<string | null>(null);
+  const [captureMessage, setCaptureMessage] = React.useState<string | null>(null);
   const busy = phase === 'checking' || phase === 'capturing' || phase === 'saving';
 
   const reset = React.useCallback(() => {
     setPhase('idle');
     setError(null);
+    setCaptureMessage(null);
   }, []);
 
   React.useEffect(() => {
@@ -78,7 +80,10 @@ export function EnrollmentDialog({
       );
 
       setPhase('capturing');
-      const sample = await client.captureSample();
+      setCaptureMessage('Preparando el lector...');
+      const sample = await client.captureSample(30_000, (progress) => {
+        setCaptureMessage(progress.message);
+      });
       setPhase('saving');
       await completeHidEnrollment(session.enrollmentId, {
         pngBase64: sample.pngBase64,
@@ -145,7 +150,7 @@ export function EnrollmentDialog({
             )}
           </span>
           <p className="text-center text-(--text-base) font-medium text-(--color-text)">
-            {PHASE_COPY[phase]}
+            {phase === 'capturing' && captureMessage ? captureMessage : PHASE_COPY[phase]}
           </p>
         </div>
       ) : null}

@@ -56,6 +56,7 @@ export function FingerprintAccessPanel({
   const [phase, setPhase] = React.useState<Phase>('idle');
   const [error, setError] = React.useState<string | null>(null);
   const [readerName, setReaderName] = React.useState<string | null>(null);
+  const [captureHint, setCaptureHint] = React.useState<string | null>(null);
   const [cycle, setCycle] = React.useState(0);
   const enabledRef = React.useRef(false);
   const retryTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -81,6 +82,7 @@ export function FingerprintAccessPanel({
     setEnabled(false);
     setPhase('idle');
     setError(null);
+    setCaptureHint(null);
     if (remember) writeModePreference('disabled');
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     retryTimerRef.current = null;
@@ -109,6 +111,7 @@ export function FingerprintAccessPanel({
 
     const run = async () => {
       setError(null);
+      setCaptureHint(null);
       setPhase('arming');
       try {
         const client = getHidFingerprintClient();
@@ -118,9 +121,12 @@ export function FingerprintAccessPanel({
         setReaderName(status.reader.model);
         setPhase('waiting');
 
-        const sample = await client.captureSample();
+        const sample = await client.captureSample(30_000, (progress) => {
+          if (!cancelled && enabledRef.current) setCaptureHint(progress.message);
+        });
         if (cancelled || !enabledRef.current) return;
         setPhase('captured');
+        setCaptureHint('Huella capturada. Verificando socio...');
         setPhase('resolving');
         const result = await identifyHid(
           {
@@ -193,7 +199,9 @@ export function FingerprintAccessPanel({
             error ? 'text-(--color-danger)' : 'text-(--color-muted)',
           )}
         >
-          {error ?? (readerName ? `Lector: ${readerName}` : 'HID DigitalPersona desde esta web')}
+          {error ??
+            captureHint ??
+            (readerName ? `Lector: ${readerName}` : 'HID DigitalPersona desde esta web')}
         </p>
       </div>
 
