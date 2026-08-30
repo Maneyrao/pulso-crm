@@ -1050,9 +1050,9 @@ export class HidCaptureSession {
           lastHidEventAt: this.snapshot.lastHidEventAt,
         },
       );
-      // Se vuelve a armar: si el silencio persiste hay que poder medirlo, y si
-      // el operador arregla el driver sin recargar, la próxima señal lo corta.
-      this.armSilenceWatchdog();
+      // Un aviso por episodio: mientras el lector siga mudo no hay novedad que
+      // registrar, y esta traza es append-only. La próxima señal del lector
+      // baja la bandera y vuelve a armar el watchdog (ver noteHidActivity).
     }, this.silenceMs);
   }
 

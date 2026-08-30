@@ -137,3 +137,53 @@ WHERE metadata::text ILIKE '%iVBORw0KGgo%';   -- debe dar 0
 **PC / Windows:** ___  **Navegador y versión:** ___
 **Versión de ADC:** ___  **Driver (Legacy/Non-WBF):** ___
 **Commit desplegado:** ___  **Fecha y responsable:** ___
+
+---
+
+## Fase 0 (nueva) — decidir de quién es el problema antes de seguir
+
+Correr esto ANTES que el resto del protocolo. Sirve para no gastar tiempo
+probando el CRM si el sensor no está entregando imágenes a la PC.
+
+1. En la PC Windows con el lector, entrar a **Accesos** en el CRM.
+2. Apoyar el dedo y sostenerlo 15 segundos.
+3. Anotar qué pasa:
+
+   | Lo que se ve | Qué significa |
+   | --- | --- |
+   | Aparece "El lector está armado pero no llega ninguna señal del dedo" | ADC no entregó nada: el problema está entre el sensor y el cliente HID de esa PC |
+   | Aparece un mensaje de calidad ("Centrá el dedo", "Limpiá el lector"…) | El sensor SÍ entrega imágenes: el problema es de técnica o de suciedad, no de driver |
+   | Aparece un error `0x…` | ADC informó una falla concreta: anotarla completa |
+   | Se identifica al socio | La captura funciona |
+
+4. Si aparece el aviso de "no llega ninguna señal", abrir **Diagnóstico** y
+   apretar **Sondear formatos**, manteniendo el dedo apoyado los ~32 segundos
+   que dura. El panel dicta el veredicto:
+
+   - **Ningún formato entrega señal** → el problema es del host. En orden:
+     1. Quitar la huella de **Windows Hello** (Configuración → Cuentas → Opciones
+        de inicio de sesión) y reiniciar. El servicio biométrico de Windows
+        retiene el sensor.
+     2. Verificar en el Administrador de dispositivos que el U.are.U 4500 use el
+        driver **HID DigitalPersona (Legacy)** y no el WBF genérico.
+     3. Cerrar cualquier otro programa de huella (agente viejo de El Templo,
+        DigitalPersona Console).
+   - **Sólo `PngImage` no entrega y otro formato sí** → el problema es el
+     formato de captura y la corrección es de código. Pasar el resultado al
+     equipo con el informe descargado.
+
+5. En cualquier caso, apretar **Descargar informe** y guardar el JSON. Además,
+   la traza queda del lado del servidor: cada intento deja sus etapas en
+   `biometric_capture_events`, unidas por `sessionId`.
+
+```sql
+-- Qué llegó a registrar el navegador del último intento
+select "occurredAt", stage, severity, message, metadata
+from biometric_capture_events
+order by "occurredAt" desc
+limit 40;
+```
+
+Si en esa consulta aparece `ACQUISITION_SILENT`, está probado que el lector
+quedó armado y ADC no entregó nada. Si aparece `QUALITY_REPORTED`, está probado
+que el sensor sí vio el dedo.
