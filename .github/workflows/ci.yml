@@ -15,6 +15,10 @@ env:
   TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/pulso_ci?schema=public
   REDIS_URL: redis://localhost:6379
   JWT_SECRET: ci-only-not-a-real-secret-0000000000000000
+  # Sin MASTER_KEK la biometría no puede cifrar plantillas y todo test que cree
+  # una credencial responde 500. Se normaliza con SHA-256, así que cualquier
+  # string sirve: éste es obviamente falso y sólo vale dentro de CI.
+  MASTER_KEK: ci-only-not-a-real-master-kek-000000000000
   COOKIE_DOMAIN: localhost
   CORS_ORIGINS: http://localhost:4000
   NODE_ENV: test
