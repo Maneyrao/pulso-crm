@@ -131,7 +131,7 @@ export function HidDiagnosticsPanel({
     <div className="grid gap-3 border-2 border-(--color-border-strong) p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-(--text-sm) font-bold text-(--color-text)">Diagnóstico del lector</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             size="sm"

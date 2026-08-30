@@ -201,7 +201,39 @@ export function EnrollmentDialog({
       onOpenChange={handleClose}
       title="Enrolar huella digital"
       description={memberName ? `Socio: ${memberName}` : undefined}
-      size="md"
+      size="lg"
+      footer={
+        <>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-expanded={showDiagnostics}
+            onClick={() => setShowDiagnostics((value) => !value)}
+          >
+            <Stethoscope className="h-4 w-4" aria-hidden={true} /> Diagnóstico
+          </Button>
+          {busy ? (
+            <Button variant="outline" onClick={cancel}>
+              <X className="h-4 w-4" aria-hidden={true} /> Cancelar
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => handleClose(false)}>
+              {phase === 'done' ? 'Listo' : 'Cerrar'}
+            </Button>
+          )}
+          {phase === 'idle' ? (
+            <Button onClick={() => void capture()}>
+              <Fingerprint className="h-4 w-4" aria-hidden={true} /> Capturar huella
+            </Button>
+          ) : null}
+          {phase === 'failed' ? (
+            <Button onClick={reset}>
+              <RotateCcw className="h-4 w-4" aria-hidden={true} /> Reintentar
+            </Button>
+          ) : null}
+        </>
+      }
     >
       {phase === 'idle' ? (
         <div className="space-y-4">
@@ -300,37 +332,6 @@ export function EnrollmentDialog({
           <HidDiagnosticsPanel session={session} probeBlocked={busy} />
         </div>
       ) : null}
-
-      <div className="mt-6 flex flex-wrap justify-end gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          aria-expanded={showDiagnostics}
-          onClick={() => setShowDiagnostics((value) => !value)}
-        >
-          <Stethoscope className="h-4 w-4" aria-hidden={true} /> Diagnóstico
-        </Button>
-        {busy ? (
-          <Button variant="outline" onClick={cancel}>
-            <X className="h-4 w-4" aria-hidden={true} /> Cancelar
-          </Button>
-        ) : (
-          <Button variant="outline" onClick={() => handleClose(false)}>
-            {phase === 'done' ? 'Listo' : 'Cerrar'}
-          </Button>
-        )}
-        {phase === 'idle' ? (
-          <Button onClick={() => void capture()}>
-            <Fingerprint className="h-4 w-4" aria-hidden={true} /> Capturar huella
-          </Button>
-        ) : null}
-        {phase === 'failed' ? (
-          <Button onClick={reset}>
-            <RotateCcw className="h-4 w-4" aria-hidden={true} /> Reintentar
-          </Button>
-        ) : null}
-      </div>
     </Modal>
   );
 }

@@ -42,29 +42,47 @@ export function Modal({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-(--animate-fade-in)" />
         <DialogPrimitive.Content
+          data-slot="modal-content"
           className={cn(
-            'fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-surface) p-6 shadow-(--shadow-lg) data-[state=open]:animate-(--animate-lf-scale-in)',
+            'fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-surface) shadow-(--shadow-lg) data-[state=open]:animate-(--animate-lf-scale-in)',
             SIZES[size],
           )}
         >
-          <DialogPrimitive.Title
-            className={cn(
-              'text-(--text-lg) font-semibold text-(--color-text)',
-              hideTitle && 'sr-only',
-            )}
+          <header
+            data-slot="modal-header"
+            className="shrink-0 px-4 pt-4 pr-12 sm:px-6 sm:pt-6 sm:pr-14"
           >
-            {title}
-          </DialogPrimitive.Title>
-          {description ? (
-            <DialogPrimitive.Description className="mt-1 text-(--text-sm) text-(--color-muted)">
-              {description}
-            </DialogPrimitive.Description>
+            <DialogPrimitive.Title
+              className={cn(
+                'text-(--text-lg) font-semibold text-(--color-text)',
+                hideTitle && 'sr-only',
+              )}
+            >
+              {title}
+            </DialogPrimitive.Title>
+            {description ? (
+              <DialogPrimitive.Description className="mt-1 text-(--text-sm) text-(--color-muted)">
+                {description}
+              </DialogPrimitive.Description>
+            ) : null}
+          </header>
+          <div
+            data-slot="modal-body"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6"
+          >
+            {children}
+          </div>
+          {footer ? (
+            <div
+              data-slot="modal-footer"
+              className="flex shrink-0 flex-wrap justify-end gap-2 border-t-2 border-(--color-border) px-4 py-3 sm:px-6 sm:py-4"
+            >
+              {footer}
+            </div>
           ) : null}
-          <div className="mt-4">{children}</div>
-          {footer ? <div className="mt-6 flex justify-end gap-2">{footer}</div> : null}
           <DialogPrimitive.Close
             aria-label="Cerrar"
-            className="absolute right-4 top-4 rounded-(--radius-sm) p-1 text-(--color-muted) hover:bg-(--color-muted-subtle) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring)"
+            className="absolute right-3 top-3 rounded-(--radius-sm) p-2 text-(--color-muted) hover:bg-(--color-muted-subtle) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring) sm:right-4 sm:top-4"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </DialogPrimitive.Close>

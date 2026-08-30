@@ -58,7 +58,8 @@ export function ConfirmDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40" />
         <DialogPrimitive.Content
-          className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-6 shadow-(--shadow-lg)"
+          data-slot="confirm-dialog-content"
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) shadow-(--shadow-lg)"
           // Diálogos destructivos: el foco inicial va a Cancelar, no a Confirmar
           // (FRONTEND_PLAN §6.7) — evita que un Enter accidental dispare la acción.
           onOpenAutoFocus={(event) => {
@@ -68,17 +69,19 @@ export function ConfirmDialog({
             }
           }}
         >
-          <DialogPrimitive.Title className="text-(--text-lg) font-semibold text-(--color-text)">
-            {title}
-          </DialogPrimitive.Title>
-          {description ? (
-            <DialogPrimitive.Description className="mt-1 text-(--text-sm) text-(--color-muted)">
-              {description}
-            </DialogPrimitive.Description>
-          ) : null}
+          <header className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-6">
+            <DialogPrimitive.Title className="text-(--text-lg) font-semibold text-(--color-text)">
+              {title}
+            </DialogPrimitive.Title>
+            {description ? (
+              <DialogPrimitive.Description className="mt-1 text-(--text-sm) text-(--color-muted)">
+                {description}
+              </DialogPrimitive.Description>
+            ) : null}
+          </header>
 
           {requiresText ? (
-            <div className="mt-4 flex flex-col gap-1.5">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
               <Label htmlFor={inputId}>
                 {requireTextLabel ?? `Escribí "${requireTextConfirmation}" para confirmar`}
               </Label>
@@ -91,7 +94,7 @@ export function ConfirmDialog({
             </div>
           ) : null}
 
-          <div className="mt-6 flex justify-end gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-(--color-border) px-4 py-3 sm:px-6 sm:py-4">
             <DialogPrimitive.Close asChild>
               <Button ref={cancelRef} variant="outline" type="button">
                 {cancelLabel}

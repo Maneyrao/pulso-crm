@@ -303,6 +303,31 @@ function DevicesScreen() {
         }}
         title={pairing ? 'Secreto de pareo' : 'Nuevo agente'}
         size="md"
+        footer={
+          pairing ? (
+            <Button
+              onClick={() => {
+                setCreateOpen(false);
+                setPairing(null);
+              }}
+            >
+              Listo
+            </Button>
+          ) : (
+            <>
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                loading={createMutation.isPending}
+                disabled={name.trim().length < 2}
+                onClick={() => createMutation.mutate()}
+              >
+                Crear agente
+              </Button>
+            </>
+          )
+        }
       >
         {pairing ? (
           <div className="space-y-4">
@@ -316,16 +341,6 @@ function DevicesScreen() {
             <FormField label="Secreto de pareo">
               {(field) => <Input {...field} readOnly={true} value={pairing.secret} />}
             </FormField>
-            <div className="flex justify-end">
-              <Button
-                onClick={() => {
-                  setCreateOpen(false);
-                  setPairing(null);
-                }}
-              >
-                Listo
-              </Button>
-            </div>
           </div>
         ) : (
           <div className="space-y-4">
@@ -339,18 +354,6 @@ function DevicesScreen() {
                 />
               )}
             </FormField>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setCreateOpen(false)}>
-                Cancelar
-              </Button>
-              <Button
-                loading={createMutation.isPending}
-                disabled={name.trim().length < 2}
-                onClick={() => createMutation.mutate()}
-              >
-                Crear agente
-              </Button>
-            </div>
           </div>
         )}
       </Modal>
@@ -361,19 +364,8 @@ function DevicesScreen() {
         title={`Revocar ${toRevoke?.name ?? ''}`}
         description="El agente deja de operar y sus tokens en curso se invalidan. Esta acción no se deshace."
         size="sm"
-      >
-        <div className="space-y-4">
-          <FormField label="Motivo" required>
-            {(field) => (
-              <Input
-                {...field}
-                value={revokeReason}
-                onChange={(e) => setRevokeReason(e.target.value)}
-                placeholder="PC dada de baja"
-              />
-            )}
-          </FormField>
-          <div className="flex justify-end gap-2">
+        footer={
+          <>
             <Button variant="outline" onClick={() => setToRevoke(null)}>
               Cancelar
             </Button>
@@ -387,8 +379,19 @@ function DevicesScreen() {
             >
               Revocar
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      >
+        <FormField label="Motivo" required>
+          {(field) => (
+            <Input
+              {...field}
+              value={revokeReason}
+              onChange={(e) => setRevokeReason(e.target.value)}
+              placeholder="PC dada de baja"
+            />
+          )}
+        </FormField>
       </Modal>
     </div>
   );
