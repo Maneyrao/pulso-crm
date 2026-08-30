@@ -137,7 +137,8 @@ registraba nada.
    de un socio, pestaña **Biometría**, está el enrolamiento y el diagnóstico.
 
 El protocolo de validación paso a paso está en
-[`PHYSICAL_TEST_PROTOCOL.md`](./PHYSICAL_TEST_PROTOCOL.md).
+[`PHYSICAL_TEST_PROTOCOL.md`](./PHYSICAL_TEST_PROTOCOL.md), y la auditoría que
+originó estos cambios en [`AUDIT_2026-08-30.md`](./AUDIT_2026-08-30.md).
 
 ## Seguridad
 
