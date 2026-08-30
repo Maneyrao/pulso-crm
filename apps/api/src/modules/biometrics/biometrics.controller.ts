@@ -10,6 +10,8 @@ import {
   grantConsentRequestSchema,
   type IdentifyHidRequest,
   identifyHidRequestSchema,
+  type RecordHidCaptureEventsRequest,
+  recordHidCaptureEventsRequestSchema,
   type StartEnrollmentRequest,
   startEnrollmentRequestSchema,
   type StartIdentificationRequest,
@@ -91,6 +93,15 @@ export class BiometricsController {
   @Post('hid-identifications')
   identifyHid(@ZodBody(identifyHidRequestSchema) body: IdentifyHidRequest) {
     return this.biometrics.identifyHid(body);
+  }
+
+  /** Bitácora del navegador: estados, errores HID, foco, timeouts. Sin biometría. */
+  @RequiresPermission('access:operate')
+  @Post('hid-capture-events')
+  recordHidCaptureEvents(
+    @ZodBody(recordHidCaptureEventsRequestSchema) body: RecordHidCaptureEventsRequest,
+  ) {
+    return this.biometrics.recordHidCaptureEvents(body);
   }
 
   @RequiresPermission('biometrics:read')

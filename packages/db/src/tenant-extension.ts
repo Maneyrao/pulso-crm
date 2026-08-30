@@ -48,6 +48,7 @@ export const TENANT_SCOPED_MODELS = [
   'BiometricConsent',
   'BiometricEnrollment',
   'BiometricCredential',
+  'BiometricCaptureEvent',
   'AgentAuditEvent',
   'DeviceToken',
   'TenantBiometricKey',
@@ -106,12 +107,7 @@ const FILTER_OPS = new Set([
  * superior. Prisma 5+ permite agregar filtros extra al lado (extendedWhereUnique),
  * pero envolver todo en un AND rompería el ruteo del índice único.
  */
-const UNIQUE_OPS = new Set([
-  'findUnique',
-  'findUniqueOrThrow',
-  'update',
-  'delete',
-]);
+const UNIQUE_OPS = new Set(['findUnique', 'findUniqueOrThrow', 'update', 'delete']);
 
 const CREATE_OPS = new Set(['create', 'createMany', 'createManyAndReturn']);
 

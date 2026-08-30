@@ -77,39 +77,40 @@ model Gym {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  branches              Branch[]
-  users                 User[]
-  roles                 Role[]
-  members               Member[]
-  activities            Activity[]
-  plans                 Plan[]
-  memberships           Membership[]
-  ledgerEntries         LedgerEntry[]
-  paymentMethods        PaymentMethod[]
-  cashConcepts          CashConcept[]
-  cashRegisters         CashRegister[]
-  cashSessions          CashSession[]
-  cashMovements         CashMovement[]
-  cashOperationRequests CashOperationRequest[]
-  accessAttempts        AccessAttempt[]
-  attendances           Attendance[]
-  auditEvents           AuditEvent[]
-  idempotencyKeys       IdempotencyKey[]
-  outboxEvents          OutboxEvent[]
-  featureOverrides      GymFeatureOverride[]
-  memberDocuments       MemberDocument[]
-  refreshTokens         RefreshToken[]
-  memberCounters        MemberCounter[]
-  messageTemplates      MessageTemplate[]
-  messageJobs           MessageJob[]
-  localAgents           LocalAgent[]
-  accessDevices         AccessDevice[]
-  biometricConsents     BiometricConsent[]
-  biometricEnrollments  BiometricEnrollment[]
-  biometricCredentials  BiometricCredential[]
-  agentAuditEvents      AgentAuditEvent[]
-  deviceTokens          DeviceToken[]
-  tenantBiometricKeys   TenantBiometricKey[]
+  branches               Branch[]
+  users                  User[]
+  roles                  Role[]
+  members                Member[]
+  activities             Activity[]
+  plans                  Plan[]
+  memberships            Membership[]
+  ledgerEntries          LedgerEntry[]
+  paymentMethods         PaymentMethod[]
+  cashConcepts           CashConcept[]
+  cashRegisters          CashRegister[]
+  cashSessions           CashSession[]
+  cashMovements          CashMovement[]
+  cashOperationRequests  CashOperationRequest[]
+  accessAttempts         AccessAttempt[]
+  attendances            Attendance[]
+  auditEvents            AuditEvent[]
+  idempotencyKeys        IdempotencyKey[]
+  outboxEvents           OutboxEvent[]
+  featureOverrides       GymFeatureOverride[]
+  memberDocuments        MemberDocument[]
+  refreshTokens          RefreshToken[]
+  memberCounters         MemberCounter[]
+  messageTemplates       MessageTemplate[]
+  messageJobs            MessageJob[]
+  localAgents            LocalAgent[]
+  accessDevices          AccessDevice[]
+  biometricConsents      BiometricConsent[]
+  biometricEnrollments   BiometricEnrollment[]
+  biometricCredentials   BiometricCredential[]
+  agentAuditEvents       AgentAuditEvent[]
+  biometricCaptureEvents BiometricCaptureEvent[]
+  deviceTokens           DeviceToken[]
+  tenantBiometricKeys    TenantBiometricKey[]
 
   @@index([status])
   @@map("gyms")
@@ -131,20 +132,21 @@ model Branch {
   updatedAt DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt DateTime? @db.Timestamptz(3)
 
-  members              Member[]
-  memberships          Membership[]
-  planBranches         PlanBranch[]
-  cashRegisters        CashRegister[]
-  cashSessions         CashSession[]
-  accessAttempts       AccessAttempt[]
-  attendances          Attendance[]
-  userAccess           UserBranchAccess[]
-  ledgerEntries        LedgerEntry[]
-  localAgents          LocalAgent[]
-  accessDevices        AccessDevice[]
-  biometricEnrollments BiometricEnrollment[]
-  biometricCredentials BiometricCredential[]
-  agentAuditEvents     AgentAuditEvent[]
+  members                Member[]
+  memberships            Membership[]
+  planBranches           PlanBranch[]
+  cashRegisters          CashRegister[]
+  cashSessions           CashSession[]
+  accessAttempts         AccessAttempt[]
+  attendances            Attendance[]
+  userAccess             UserBranchAccess[]
+  ledgerEntries          LedgerEntry[]
+  localAgents            LocalAgent[]
+  accessDevices          AccessDevice[]
+  biometricEnrollments   BiometricEnrollment[]
+  biometricCredentials   BiometricCredential[]
+  agentAuditEvents       AgentAuditEvent[]
+  biometricCaptureEvents BiometricCaptureEvent[]
 
   /// unique (gymId, name) parcial en SQL.
   @@index([gymId, name])
@@ -960,6 +962,7 @@ enum AccessReasonCode {
   DEBT_BLOCKED
   MEDICAL_CLEARANCE_EXPIRED
   BIOMETRIC_NO_MATCH
+  BIOMETRIC_CAPTURE_FAILED
 }
 
 /// APPEND-ONLY. Se registra TODO intento, permitido o denegado.
@@ -1404,6 +1407,63 @@ model AgentAuditEvent {
   @@index([gymId, localAgentId, occurredAt(sort: Desc)])
   @@index([gymId, severity, occurredAt(sort: Desc)])
   @@map("agent_audit_events")
+}
+
+enum BiometricCaptureStage {
+  SESSION_STARTED
+  READER_DETECTED
+  ACQUISITION_STARTED
+  QUALITY_REPORTED
+  SAMPLE_RECEIVED
+  SAMPLE_INVALID
+  SAMPLE_TIMEOUT
+  HID_ERROR
+  DEVICE_DISCONNECTED
+  ADC_UNREACHABLE
+  PAGE_BLUR
+  SESSION_STOPPED
+  EXTRACTED
+  EXTRACT_FAILED
+  MATCHED
+  NO_MATCH
+  ACCESS_RESULT
+  ATTENDANCE_REGISTERED
+  ENROLLMENT_COMPLETED
+  ENROLLMENT_FAILED
+}
+
+/// Bitácora de captura HID desde el navegador y del pipeline del backend.
+/// APPEND-ONLY. PROHIBIDO en metadata: imágenes, plantillas, muestras.
+model BiometricCaptureEvent {
+  id       String @id @default(uuid(7)) @db.Uuid
+  gymId    String @db.Uuid
+  gym      Gym    @relation(fields: [gymId], references: [id], onDelete: Cascade)
+  branchId String @db.Uuid
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  /// Sesión de captura del navegador (una por pestaña/inicio).
+  sessionId String                @db.Uuid
+  /// 'browser' (POST hid-capture-events) o 'api' (pipeline identify/enroll).
+  source    String
+  stage     BiometricCaptureStage
+  severity  AgentAuditSeverity
+  message   String
+  /// Identificador del lector según ADC (no es PII).
+  deviceUid String?
+  metadata  Json                  @default("{}")
+
+  memberId        String? @db.Uuid
+  accessAttemptId String? @db.Uuid
+  enrollmentId    String? @db.Uuid
+  userId          String? @db.Uuid
+
+  occurredAt DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([gymId, branchId, occurredAt(sort: Desc)])
+  @@index([gymId, sessionId, occurredAt])
+  @@index([gymId, stage, occurredAt(sort: Desc)])
+  @@map("biometric_capture_events")
 }
 
 /// Token de corta vida (TTL 120 s) para UNA operación del agente. Un solo uso.

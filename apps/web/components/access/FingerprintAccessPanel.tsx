@@ -1,30 +1,55 @@
 'use client';
 
 import * as React from 'react';
-import { Fingerprint, Square } from 'lucide-react';
+import { Fingerprint, Square, Stethoscope } from 'lucide-react';
 import type { AccessCheckResponse } from '@pulso/contracts/access';
 import { Button, StatusBadge, cn } from '@pulso/ui';
 import { identifyHid } from '@/lib/api/biometrics';
 import { ApiError } from '@/lib/api/errors';
-import { getHidFingerprintClient } from '@/lib/hid/client';
+import { HidDiagnosticsPanel } from '@/components/biometrics/HidDiagnosticsPanel';
+import { getHidCaptureSession } from '@/lib/hid/session';
+import type { HidSample, HidSampleOutcome, HidSessionState } from '@/lib/hid/session';
+import { useHidCaptureReporter, useHidSessionSnapshot } from '@/lib/hid/useHidSession';
 
-type Phase = 'idle' | 'arming' | 'waiting' | 'captured' | 'resolving' | 'error';
+/**
+ * Terminal de acceso por huella. Al entrar a la pantalla el lector queda
+ * armado en modo continuo: cada dedo que se apoya dispara una identificación y
+ * el panel vuelve solo a "Esperando huella". No hay botón "Capturar" por
+ * lectura, no se abre ninguna ventana externa y todo el estado —incluido el
+ * diagnóstico— se ve acá adentro.
+ */
 
-const PHASE_LABEL: Record<Phase, string> = {
-  idle: 'Modo huella detenido',
-  arming: 'Preparando lector',
-  waiting: 'Esperando huella',
-  captured: 'Huella leída',
-  resolving: 'Validando acceso',
-  error: 'Lectura interrumpida',
+const PHASE_LABEL: Record<HidSessionState, string> = {
+  DISCONNECTED: 'Modo huella detenido',
+  CONNECTING: 'Conectando con el lector',
+  READY: 'Lector listo',
+  ACQUIRING: 'Esperando huella',
+  FINGER_DETECTED: 'Dedo detectado',
+  SAMPLE_RECEIVED: 'Huella leída',
+  IDENTIFYING: 'Validando acceso',
+  ACCESS_GRANTED: 'Acceso permitido',
+  ACCESS_DENIED: 'Acceso rechazado',
+  RECOVERING: 'Reconectando el lector',
+  PAUSED: 'Lectura pausada',
+  ERROR: 'Lectura interrumpida',
 };
 
 const ERROR_LABEL: Record<string, string> = {
   TEMPLATE_QUALITY_TOO_LOW: 'Calidad insuficiente. Limpiá el lector y volvé a apoyar el dedo.',
+  BIOMETRIC_MATCHER_UNAVAILABLE:
+    'El servicio biométrico no responde. Se reintenta en la próxima lectura.',
 };
 
-const NEXT_SCAN_DELAY_MS = 900;
 const MODE_STORAGE_KEY = 'el-templo:fingerprint-mode';
+/** Estados en los que el lector está operativo esperando o procesando un dedo. */
+const LIVE_STATES = new Set<HidSessionState>([
+  'ACQUIRING',
+  'FINGER_DETECTED',
+  'SAMPLE_RECEIVED',
+  'IDENTIFYING',
+  'ACCESS_GRANTED',
+  'ACCESS_DENIED',
+]);
 
 function readModePreference(): 'enabled' | 'disabled' | null {
   try {
@@ -52,168 +77,179 @@ export function FingerprintAccessPanel({
   onResult: (result: AccessCheckResponse) => void;
   onAttemptRecorded?: () => void;
 }) {
-  const [enabled, setEnabled] = React.useState(false);
-  const [phase, setPhase] = React.useState<Phase>('idle');
-  const [error, setError] = React.useState<string | null>(null);
-  const [readerName, setReaderName] = React.useState<string | null>(null);
-  const [captureHint, setCaptureHint] = React.useState<string | null>(null);
-  const [cycle, setCycle] = React.useState(0);
-  const enabledRef = React.useRef(false);
-  const retryTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const session = React.useMemo(() => getHidCaptureSession(), []);
+  const snapshot = useHidSessionSnapshot(session);
+  const [showDiagnostics, setShowDiagnostics] = React.useState(false);
+  const [apiError, setApiError] = React.useState<string | null>(null);
+  const [running, setRunning] = React.useState(false);
+
+  const branchRef = React.useRef(branchId);
   const onResultRef = React.useRef(onResult);
   const onAttemptRecordedRef = React.useRef(onAttemptRecorded);
-
   React.useEffect(() => {
+    branchRef.current = branchId;
     onResultRef.current = onResult;
     onAttemptRecordedRef.current = onAttemptRecorded;
-  }, [onAttemptRecorded, onResult]);
+  }, [branchId, onAttemptRecorded, onResult]);
 
-  const scheduleNext = React.useCallback((delay = NEXT_SCAN_DELAY_MS) => {
-    if (!enabledRef.current) return;
-    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    retryTimerRef.current = setTimeout(() => {
-      retryTimerRef.current = null;
-      setCycle((value) => value + 1);
-    }, delay);
-  }, []);
+  useHidCaptureReporter(branchId, session);
 
-  const stop = React.useCallback((remember = true) => {
-    enabledRef.current = false;
-    setEnabled(false);
-    setPhase('idle');
-    setError(null);
-    setCaptureHint(null);
-    if (remember) writeModePreference('disabled');
-    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-    retryTimerRef.current = null;
-    void getHidFingerprintClient().cancelCapture();
-  }, []);
-
-  React.useEffect(() => {
-    if (!branchId || readModePreference() === 'disabled') return;
-    enabledRef.current = true;
-    setEnabled(true);
-    setCycle((value) => value + 1);
-  }, [branchId]);
-
-  React.useEffect(
-    () => () => {
-      enabledRef.current = false;
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-      void getHidFingerprintClient().cancelCapture();
-    },
-    [],
-  );
-
-  React.useEffect(() => {
-    if (!enabled || !branchId) return;
-    let cancelled = false;
-
-    const run = async () => {
-      setError(null);
-      setCaptureHint(null);
-      setPhase('arming');
+  /** Envía la muestra a la API y traduce el resultado a un estado del lector. */
+  const handleSample = React.useCallback(
+    async (sample: HidSample): Promise<HidSampleOutcome> => {
+      const activeBranch = branchRef.current;
+      if (!activeBranch) return { kind: 'error' };
       try {
-        const client = getHidFingerprintClient();
-        const status = await client.check();
-        if (status.state !== 'ready' || !status.reader) throw new Error(status.message);
-        if (cancelled || !enabledRef.current) return;
-        setReaderName(status.reader.model);
-        setPhase('waiting');
-
-        const sample = await client.captureSample(30_000, (progress) => {
-          if (!cancelled && enabledRef.current) setCaptureHint(progress.message);
-        });
-        if (cancelled || !enabledRef.current) return;
-        setPhase('captured');
-        setCaptureHint('Huella capturada. Verificando socio...');
-        setPhase('resolving');
+        setApiError(null);
         const result = await identifyHid(
           {
-            branchId,
+            branchId: activeBranch,
             pngBase64: sample.pngBase64,
             qualityCode: sample.qualityCode,
+            capture: {
+              sessionId: sample.sessionId,
+              deviceUid: sample.deviceUid,
+              readerModel: session.getSnapshot().reader?.model ?? 'HID DigitalPersona',
+              acquisitionStartedAt: session.getSnapshot().acquisitionStartedAt,
+              acquiredAt: sample.acquiredAt,
+              sampleBytes: sample.byteLength,
+            },
           },
           crypto.randomUUID(),
         );
-        if (cancelled || !enabledRef.current) return;
         onResultRef.current(result);
         onAttemptRecordedRef.current?.();
-        setPhase('waiting');
-        scheduleNext();
+        return { kind: result.decision === 'ALLOWED' ? 'granted' : 'denied' };
       } catch (reason) {
-        if (cancelled || !enabledRef.current) return;
-        setError(
+        setApiError(
           reason instanceof ApiError
             ? (ERROR_LABEL[reason.code] ?? reason.message)
             : reason instanceof Error
               ? reason.message
-              : 'No se pudo leer la huella.',
+              : 'No se pudo validar la huella.',
         );
-        setPhase('error');
-        scheduleNext(1_500);
+        return { kind: 'error' };
       }
-    };
+    },
+    [session],
+  );
 
-    void run();
+  const start = React.useCallback(
+    (remember: boolean) => {
+      if (!branchRef.current || session.isActive()) return;
+      if (remember) writeModePreference('enabled');
+      setApiError(null);
+      setRunning(true);
+      void session
+        .start({ mode: 'continuous', onSample: handleSample })
+        .catch(() => setRunning(false));
+    },
+    [handleSample, session],
+  );
+
+  const stop = React.useCallback(() => {
+    writeModePreference('disabled');
+    setRunning(false);
+    void session.stop();
+  }, [session]);
+
+  // Arranque automático al entrar con una sede activa. Cambiar de sede
+  // reinicia la sesión para que la traza y el padrón sean los correctos.
+  React.useEffect(() => {
+    if (!branchId) return undefined;
+    if (readModePreference() === 'disabled') return undefined;
+    start(false);
     return () => {
-      cancelled = true;
+      setRunning(false);
+      void session.stop();
     };
-  }, [branchId, cycle, enabled, scheduleNext]);
+  }, [branchId, session, start]);
 
-  const start = () => {
-    if (!branchId) return;
-    enabledRef.current = true;
-    setEnabled(true);
-    writeModePreference('enabled');
-    setError(null);
-    setCycle((value) => value + 1);
-  };
+  const live = LIVE_STATES.has(snapshot.state);
+  const active = running || session.isActive();
+  const statusTone = live
+    ? 'success'
+    : snapshot.state === 'ERROR'
+      ? 'danger'
+      : snapshot.state === 'RECOVERING' || snapshot.state === 'PAUSED'
+        ? 'warning'
+        : 'neutral';
 
-  const statusTone =
-    enabled && phase !== 'error' ? 'success' : phase === 'error' ? 'warning' : 'neutral';
+  const hint =
+    apiError ??
+    snapshot.lastError ??
+    (snapshot.state === 'FINGER_DETECTED' ? snapshot.lastQuality?.message : null) ??
+    (snapshot.reader ? `Lector: ${snapshot.reader.model}` : 'HID DigitalPersona desde esta web');
+  const isProblem = Boolean(apiError ?? snapshot.lastError);
 
   return (
-    <section className="grid gap-4 border-2 border-(--color-border) bg-(--color-surface) p-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-      <span
-        aria-hidden={true}
-        className={cn(
-          'flex h-14 w-14 items-center justify-center rounded-(--radius-full) border-2',
-          enabled && phase !== 'error'
-            ? 'border-(--color-primary) text-(--color-primary)'
-            : 'border-(--color-border-strong) text-(--color-muted)',
-          phase === 'waiting' || phase === 'captured' ? 'animate-pulse' : '',
-        )}
-      >
-        <Fingerprint className="h-7 w-7" />
-      </span>
-
-      <div className="min-w-0" aria-live="polite">
-        <div className="mb-1 flex flex-wrap items-center gap-2">
-          <h2 className="text-(--text-base) font-bold text-(--color-text)">Ingreso por huella</h2>
-          <StatusBadge tone={statusTone} label={PHASE_LABEL[phase]} />
-        </div>
-        <p
+    <section className="grid gap-4 border-2 border-(--color-border) bg-(--color-surface) p-4">
+      <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
+        <span
+          aria-hidden={true}
           className={cn(
-            'text-(--text-sm)',
-            error ? 'text-(--color-danger)' : 'text-(--color-muted)',
+            'flex h-14 w-14 items-center justify-center rounded-(--radius-full) border-2',
+            live
+              ? 'border-(--color-primary) text-(--color-primary)'
+              : 'border-(--color-border-strong) text-(--color-muted)',
+            snapshot.state === 'ACQUIRING' || snapshot.state === 'FINGER_DETECTED'
+              ? 'animate-pulse'
+              : '',
           )}
         >
-          {error ??
-            captureHint ??
-            (readerName ? `Lector: ${readerName}` : 'HID DigitalPersona desde esta web')}
-        </p>
+          <Fingerprint className="h-7 w-7" />
+        </span>
+
+        <div className="min-w-0" aria-live="polite">
+          <div className="mb-1 flex flex-wrap items-center gap-2">
+            <h2 className="text-(--text-base) font-bold text-(--color-text)">Ingreso por huella</h2>
+            <StatusBadge tone={statusTone} label={PHASE_LABEL[snapshot.state]} />
+          </div>
+          <p
+            className={cn(
+              'text-(--text-sm)',
+              isProblem ? 'text-(--color-danger)' : 'text-(--color-muted)',
+            )}
+          >
+            {hint}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            aria-expanded={showDiagnostics}
+            onClick={() => setShowDiagnostics((value) => !value)}
+          >
+            <Stethoscope className="h-4 w-4" aria-hidden={true} /> Diagnóstico
+          </Button>
+          {active ? (
+            <Button type="button" variant="outline" onClick={stop}>
+              <Square className="h-4 w-4" aria-hidden={true} /> Detener huella
+            </Button>
+          ) : (
+            <Button type="button" onClick={() => start(true)} disabled={!branchId}>
+              <Fingerprint className="h-4 w-4" aria-hidden={true} /> Activar huella
+            </Button>
+          )}
+        </div>
       </div>
 
-      {enabled ? (
-        <Button type="button" variant="outline" onClick={() => stop(true)}>
-          <Square className="h-4 w-4" aria-hidden={true} /> Detener huella
-        </Button>
-      ) : (
-        <Button type="button" onClick={start} disabled={!branchId}>
-          <Fingerprint className="h-4 w-4" aria-hidden={true} /> Activar huella
-        </Button>
-      )}
+      {snapshot.state === 'ERROR' ? (
+        <div className="flex flex-wrap items-center gap-3 border-2 border-(--color-danger) p-3">
+          <p className="flex-1 text-(--text-sm) text-(--color-text)">
+            El lector no respondió después de varios reintentos. Revisá el cable USB y que HID
+            Authentication Device Client esté corriendo.
+          </p>
+          <Button type="button" size="sm" onClick={() => session.retry()}>
+            Reintentar
+          </Button>
+        </div>
+      ) : null}
+
+      {showDiagnostics ? <HidDiagnosticsPanel session={session} /> : null}
     </section>
   );
 }

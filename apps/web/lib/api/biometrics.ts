@@ -20,6 +20,8 @@ import type {
   StartEnrollmentResponse,
   StartHidEnrollmentRequest,
   StartHidEnrollmentResponse,
+  RecordHidCaptureEventsRequest,
+  RecordHidCaptureEventsResponse,
   StartIdentificationRequest,
   StartIdentificationResponse,
 } from '@pulso/contracts/biometrics';
@@ -141,5 +143,18 @@ export function identifyHid(
     method: 'POST',
     body: payload,
     idempotencyKey,
+  });
+}
+
+/**
+ * Bitácora de captura del navegador (estados, errores de ADC, timeouts). Sólo
+ * metadatos: la muestra biométrica nunca pasa por acá.
+ */
+export function recordHidCaptureEvents(
+  payload: RecordHidCaptureEventsRequest,
+): Promise<RecordHidCaptureEventsResponse> {
+  return apiFetch<RecordHidCaptureEventsResponse>('/biometrics/hid-capture-events', {
+    method: 'POST',
+    body: payload,
   });
 }

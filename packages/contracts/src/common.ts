@@ -98,6 +98,10 @@ export const ERROR_CODES = [
   'INVALID_DEVICE_TOKEN',
   'AGENT_REVOKED',
   'TEMPLATE_QUALITY_TOO_LOW',
+  /** Las muestras del mismo enrolamiento no se reconocen entre sí. */
+  'ENROLLMENT_SAMPLES_INCONSISTENT',
+  /** SourceAFIS no respondió: el intento queda registrado y se puede reintentar. */
+  'BIOMETRIC_MATCHER_UNAVAILABLE',
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
@@ -130,7 +134,12 @@ export type ProblemDetails = z.infer<typeof problemDetailsSchema>;
 export const MAX_PAGE_LIMIT = 100;
 export const DEFAULT_PAGE_LIMIT = 25;
 
-const limitSchema = z.coerce.number().int().positive().max(MAX_PAGE_LIMIT).default(DEFAULT_PAGE_LIMIT);
+const limitSchema = z.coerce
+  .number()
+  .int()
+  .positive()
+  .max(MAX_PAGE_LIMIT)
+  .default(DEFAULT_PAGE_LIMIT);
 
 /** Cursor: modo por defecto. `cursor` es opaco, no se interpreta en el cliente. */
 export const cursorPaginationQuerySchema = z.object({

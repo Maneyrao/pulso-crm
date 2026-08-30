@@ -32,20 +32,23 @@ const postgresUrl = z
 
 /** En producción exige un secreto largo de verdad; en desarrollo alcanza con algo. */
 const secret = (minProd = 32) =>
-  z.string().min(1).superRefine((v, ctx) => {
-    if (process.env['NODE_ENV'] === 'production' && v.length < minProd) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `en producción debe tener al menos ${minProd} caracteres`,
-      });
-    }
-    if (process.env['NODE_ENV'] === 'production' && /dev-only|change-me|example/i.test(v)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'parece un valor de ejemplo; en producción tiene que ser un secreto real',
-      });
-    }
-  });
+  z
+    .string()
+    .min(1)
+    .superRefine((v, ctx) => {
+      if (process.env['NODE_ENV'] === 'production' && v.length < minProd) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `en producción debe tener al menos ${minProd} caracteres`,
+        });
+      }
+      if (process.env['NODE_ENV'] === 'production' && /dev-only|change-me|example/i.test(v)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'parece un valor de ejemplo; en producción tiene que ser un secreto real',
+        });
+      }
+    });
 
 export const apiEnvSchema = z.object({
   NODE_ENV: nodeEnv,
@@ -73,6 +76,14 @@ export const apiEnvSchema = z.object({
   /** TTL en segundos de los deviceTokens de un solo uso. */
   BIOMETRIC_DEVICE_TOKEN_TTL: z.coerce.number().int().positive().default(120),
   BIOMETRIC_ENROLL_SAMPLES: z.coerce.number().int().min(1).max(10).default(4),
+  /**
+   * Muestras por dedo en el enrolamiento HID desde el navegador. Con 2 se
+   * verifica que ambas capturas se reconozcan entre sí (consistencia) y se
+   * guarda la de mejor calidad; con 1 se acepta la única captura.
+   */
+  BIOMETRIC_HID_ENROLL_SAMPLES: z.coerce.number().int().min(1).max(3).default(2),
+  /** Score SourceAFIS mínimo entre muestras del mismo enrolamiento. */
+  BIOMETRIC_HID_ENROLL_CONSISTENCY: z.coerce.number().int().min(0).max(100).default(30),
   BIOMETRIC_MIN_QUALITY: z.coerce.number().int().min(0).max(100).default(60),
   /** Ventana en segundos para considerar online a un agente por su heartbeat. */
   BIOMETRIC_AGENT_ONLINE_WINDOW: z.coerce.number().int().positive().default(90),

@@ -11,10 +11,22 @@
  * `MEDICAL_CLEARANCE_EXPIRED`; no tiene `OUTSIDE_SCHEDULE`. Se sigue el schema.
  */
 import { z } from 'zod';
-import { businessDateSchema, isoInstantSchema, offsetPaginatedResponseSchema, offsetPaginationQuerySchema, uuidSchema } from './common.js';
+import {
+  businessDateSchema,
+  isoInstantSchema,
+  offsetPaginatedResponseSchema,
+  offsetPaginationQuerySchema,
+  uuidSchema,
+} from './common.js';
 import { memberStatusSchema } from './members.js';
 
-export const ACCESS_METHODS = ['DOCUMENT', 'CARD', 'MEMBER_NUMBER', 'FINGERPRINT', 'MANUAL'] as const;
+export const ACCESS_METHODS = [
+  'DOCUMENT',
+  'CARD',
+  'MEMBER_NUMBER',
+  'FINGERPRINT',
+  'MANUAL',
+] as const;
 export const accessMethodSchema = z.enum(ACCESS_METHODS);
 export type AccessMethod = z.infer<typeof accessMethodSchema>;
 
@@ -36,6 +48,8 @@ export const ACCESS_REASON_CODES = [
   'DEBT_BLOCKED',
   'MEDICAL_CLEARANCE_EXPIRED',
   'BIOMETRIC_NO_MATCH',
+  /** La muestra no sirvió (calidad HID, PNG inválido o extracción fallida). */
+  'BIOMETRIC_CAPTURE_FAILED',
 ] as const;
 export const accessReasonCodeSchema = z.enum(ACCESS_REASON_CODES);
 export type AccessReasonCode = z.infer<typeof accessReasonCodeSchema>;
@@ -168,7 +182,9 @@ export type AttendanceStatsQuery = z.infer<typeof attendanceStatsQuerySchema>;
 
 export const attendanceStatsResponseSchema = z.object({
   total: z.number().int(),
-  byWeekday: z.array(z.object({ weekday: z.number().int().min(0).max(6), count: z.number().int() })),
+  byWeekday: z.array(
+    z.object({ weekday: z.number().int().min(0).max(6), count: z.number().int() }),
+  ),
   byHour: z.array(z.object({ hour: z.number().int().min(0).max(23), count: z.number().int() })),
   /** Documento siempre enmascarado (ADR-018), incluso acá. */
   ranking: z.array(

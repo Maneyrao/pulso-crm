@@ -317,24 +317,69 @@ export const startHidEnrollmentRequestSchema = z.object({
 });
 export type StartHidEnrollmentRequest = z.infer<typeof startHidEnrollmentRequestSchema>;
 
+export const HID_ENROLL_MAX_SAMPLES = 3;
+
 export const startHidEnrollmentResponseSchema = z.object({
   enrollmentId: uuidSchema,
-  samplesRequired: z.literal(1),
+  /** Muestras que el CRM debe capturar (BIOMETRIC_HID_ENROLL_SAMPLES). */
+  samplesRequired: z.number().int().min(1).max(HID_ENROLL_MAX_SAMPLES),
   minQuality: z.number().int().min(0).max(100),
 });
 export type StartHidEnrollmentResponse = z.infer<typeof startHidEnrollmentResponseSchema>;
 
-export const completeHidEnrollmentRequestSchema = z.object({
+/** Una muestra PNG capturada por el WebSDK de HID. Sólo viaja; nunca se persiste. */
+export const hidSampleSchema = z.object({
   pngBase64: z
     .string()
     .min(1)
     .max(512 * 1024)
     .base64(),
+  /** `Fingerprint.QualityCode` informado por ADC antes de la muestra (0 = Good). */
   qualityCode: z.number().int().min(0).max(24).nullable(),
 });
+export type HidSample = z.infer<typeof hidSampleSchema>;
+
+/**
+ * Metadatos de la captura para trazabilidad (biometric_capture_events).
+ * PROHIBIDO: imágenes, plantillas o cualquier dato biométrico.
+ */
+export const hidCaptureTraceSchema = z.object({
+  sessionId: uuidSchema,
+  deviceUid: z.string().min(1).max(200),
+  readerModel: z.string().min(1).max(120),
+  acquisitionStartedAt: isoInstantSchema.nullable(),
+  acquiredAt: isoInstantSchema,
+  sampleBytes: z.number().int().min(0),
+  webSdkVersion: z.string().max(40).optional(),
+  fingerprintSdkVersion: z.string().max(40).optional(),
+});
+export type HidCaptureTrace = z.infer<typeof hidCaptureTraceSchema>;
+
+export const completeHidEnrollmentRequestSchema = z
+  .object({
+    /** Forma legada: una sola muestra. */
+    pngBase64: hidSampleSchema.shape.pngBase64.optional(),
+    qualityCode: hidSampleSchema.shape.qualityCode.optional(),
+    /** Forma actual: 1..3 muestras del mismo dedo. */
+    samples: z.array(hidSampleSchema).min(1).max(HID_ENROLL_MAX_SAMPLES).optional(),
+    capture: hidCaptureTraceSchema.optional(),
+  })
+  .refine((value) => value.samples !== undefined || value.pngBase64 !== undefined, {
+    message: 'Se requiere samples o pngBase64.',
+    path: ['samples'],
+  });
 export type CompleteHidEnrollmentRequest = z.infer<typeof completeHidEnrollmentRequestSchema>;
 
-export const completeHidEnrollmentResponseSchema = z.object({ ok: z.literal(true) });
+export const completeHidEnrollmentResponseSchema = z.object({
+  ok: z.literal(true),
+  credential: z.object({
+    id: uuidSchema,
+    quality: z.number().int(),
+    samplesUsed: z.number().int().min(1),
+    /** Score SourceAFIS mínimo entre las muestras capturadas (consistencia). */
+    consistencyScore: z.number().nullable(),
+  }),
+});
 export type CompleteHidEnrollmentResponse = z.infer<typeof completeHidEnrollmentResponseSchema>;
 
 export const getEnrollmentResponseSchema = z.object({ enrollment: biometricEnrollmentSchema });
@@ -366,14 +411,63 @@ export type StartIdentificationResponse = z.infer<typeof startIdentificationResp
 
 export const identifyHidRequestSchema = z.object({
   branchId: uuidSchema,
-  pngBase64: z
-    .string()
-    .min(1)
-    .max(512 * 1024)
-    .base64(),
-  qualityCode: z.number().int().min(0).max(24).nullable(),
+  pngBase64: hidSampleSchema.shape.pngBase64,
+  qualityCode: hidSampleSchema.shape.qualityCode,
+  capture: hidCaptureTraceSchema.optional(),
 });
 export type IdentifyHidRequest = z.infer<typeof identifyHidRequestSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Superficie CRM — bitácora de captura HID (access:operate | biometrics:enroll)
+// ─────────────────────────────────────────────────────────────────────────
+
+export const BIOMETRIC_CAPTURE_STAGES = [
+  'SESSION_STARTED',
+  'READER_DETECTED',
+  'ACQUISITION_STARTED',
+  'QUALITY_REPORTED',
+  'SAMPLE_RECEIVED',
+  'SAMPLE_INVALID',
+  'SAMPLE_TIMEOUT',
+  'HID_ERROR',
+  'DEVICE_DISCONNECTED',
+  'ADC_UNREACHABLE',
+  'PAGE_BLUR',
+  'SESSION_STOPPED',
+  'EXTRACTED',
+  'EXTRACT_FAILED',
+  'MATCHED',
+  'NO_MATCH',
+  'ACCESS_RESULT',
+  'ATTENDANCE_REGISTERED',
+  'ENROLLMENT_COMPLETED',
+  'ENROLLMENT_FAILED',
+] as const;
+export const biometricCaptureStageSchema = z.enum(BIOMETRIC_CAPTURE_STAGES);
+export type BiometricCaptureStage = z.infer<typeof biometricCaptureStageSchema>;
+
+/** Evento del navegador. `metadata` sólo admite escalares cortos: nunca muestras. */
+export const hidCaptureEventInputSchema = z.object({
+  sessionId: uuidSchema,
+  stage: biometricCaptureStageSchema,
+  severity: agentAuditSeveritySchema,
+  message: z.string().min(1).max(500),
+  occurredAt: isoInstantSchema,
+  deviceUid: z.string().max(200).optional(),
+  metadata: z.record(z.union([z.string().max(200), z.number(), z.boolean(), z.null()])).optional(),
+});
+export type HidCaptureEventInput = z.infer<typeof hidCaptureEventInputSchema>;
+
+export const recordHidCaptureEventsRequestSchema = z.object({
+  branchId: uuidSchema,
+  events: z.array(hidCaptureEventInputSchema).min(1).max(50),
+});
+export type RecordHidCaptureEventsRequest = z.infer<typeof recordHidCaptureEventsRequestSchema>;
+
+export const recordHidCaptureEventsResponseSchema = z.object({
+  accepted: z.number().int().min(0),
+});
+export type RecordHidCaptureEventsResponse = z.infer<typeof recordHidCaptureEventsResponseSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────
 // Superficie CRM — credenciales (biometrics:read / biometrics:revoke)

@@ -16,6 +16,7 @@ import { PermissionGate } from '@/lib/auth/permissions';
 import { useSessionStore } from '@/lib/stores/session';
 import { EnrollmentDialog } from './EnrollmentDialog';
 import { ConsentConfirmationDialog } from './ConsentConfirmationDialog';
+import { HidDiagnosticsPanel } from './HidDiagnosticsPanel';
 
 const FINGER_LABEL: Record<string, string> = {
   RIGHT_THUMB: 'Pulgar derecho',
@@ -47,6 +48,7 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
   });
   const [enrollOpen, setEnrollOpen] = React.useState(false);
   const [consentOpen, setConsentOpen] = React.useState(false);
+  const [showDiagnostics, setShowDiagnostics] = React.useState(false);
 
   const invalidate = () =>
     void queryClient.invalidateQueries({ queryKey: ['biometrics', 'credentials', memberId] });
@@ -184,7 +186,17 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
             Revocar consentimiento y credenciales
           </Button>
         </PermissionGate>
+        <Button
+          type="button"
+          variant="outline"
+          aria-expanded={showDiagnostics}
+          onClick={() => setShowDiagnostics((value) => !value)}
+        >
+          Diagnóstico del lector
+        </Button>
       </div>
+
+      {showDiagnostics ? <HidDiagnosticsPanel /> : null}
 
       <DataTable<BiometricCredential>
         caption="Credenciales biométricas del socio"

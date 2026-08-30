@@ -57,6 +57,25 @@ export class TemplateEqualityMatcher implements BiometricMatcher {
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
+/** El matcher respondió pero rechazó la entrada (PNG inválido, template corrupta). */
+export class MatcherRejectedError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'MatcherRejectedError';
+  }
+}
+
+/** El matcher no está disponible (red, timeout, 5xx): error de infraestructura. */
+export class MatcherUnavailableError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = 'MatcherUnavailableError';
+  }
+}
+
 /** Calls the isolated .NET SourceAFIS process. Templates never leave the private backend network. */
 export class HttpSourceAfisMatcher implements BiometricMatcher {
   private readonly matchEndpoint: string;
@@ -72,58 +91,63 @@ export class HttpSourceAfisMatcher implements BiometricMatcher {
     this.extractEndpoint = `${root}/extract`;
   }
 
-  async extract(image: Buffer): Promise<ExtractedTemplate> {
-    const response = await this.fetcher(this.extractEndpoint, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${this.token}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({ image: image.toString('base64') }),
-      signal: AbortSignal.timeout(5_000),
-    });
-    if (!response.ok) {
-      throw new Error(`El extractor biométrico devolvió HTTP ${response.status}.`);
+  private async call(endpoint: string, payload: unknown): Promise<Response> {
+    let response: Response;
+    try {
+      response = await this.fetcher(endpoint, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(8_000),
+      });
+    } catch (error) {
+      throw new MatcherUnavailableError('El servicio biométrico no respondió.', { cause: error });
     }
+    if (response.status >= 500) {
+      throw new MatcherUnavailableError(`El servicio biométrico devolvió HTTP ${response.status}.`);
+    }
+    if (!response.ok) {
+      throw new MatcherRejectedError(
+        response.status,
+        `El servicio biométrico rechazó la solicitud (HTTP ${response.status}).`,
+      );
+    }
+    return response;
+  }
+
+  async extract(image: Buffer): Promise<ExtractedTemplate> {
+    const response = await this.call(this.extractEndpoint, { image: image.toString('base64') });
     const body: unknown = await response.json();
     if (!isExtractResponse(body)) {
-      throw new Error('El extractor biométrico devolvió una respuesta inválida.');
+      throw new MatcherUnavailableError('El extractor biométrico devolvió una respuesta inválida.');
     }
     return { template: Buffer.from(body.template, 'base64'), quality: body.quality };
   }
 
   async match(probe: Buffer, candidates: readonly MatchCandidate[]): Promise<MatchScore[]> {
     if (candidates.length === 0) return [];
-    const response = await this.fetcher(this.matchEndpoint, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${this.token}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        probe: probe.toString('base64'),
-        candidates: candidates.map((candidate) => ({
-          credentialId: candidate.credentialId,
-          memberId: candidate.memberId,
-          template: candidate.template.toString('base64'),
-        })),
-      }),
-      signal: AbortSignal.timeout(5_000),
+    const response = await this.call(this.matchEndpoint, {
+      probe: probe.toString('base64'),
+      candidates: candidates.map((candidate) => ({
+        credentialId: candidate.credentialId,
+        memberId: candidate.memberId,
+        template: candidate.template.toString('base64'),
+      })),
     });
-    if (!response.ok) {
-      throw new Error(`El matcher biométrico devolvió HTTP ${response.status}.`);
-    }
 
     const body: unknown = await response.json();
     if (!isMatcherResponse(body)) {
-      throw new Error('El matcher biométrico devolvió una respuesta inválida.');
+      throw new MatcherUnavailableError('El matcher biométrico devolvió una respuesta inválida.');
     }
 
     const expected = new Map(
       candidates.map((candidate) => [candidate.credentialId, candidate.memberId]),
     );
     if (body.scores.some((score) => expected.get(score.credentialId) !== score.memberId)) {
-      throw new Error('El matcher biométrico devolvió candidatos desconocidos.');
+      throw new MatcherUnavailableError('El matcher biométrico devolvió candidatos desconocidos.');
     }
     return body.scores;
   }

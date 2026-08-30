@@ -276,6 +276,32 @@ describe('append-only', () => {
     ).rejects.toThrow(/append-only/i);
   });
 
+  it('BiometricCaptureEvent no acepta UPDATE ni DELETE', async () => {
+    // La bitácora de captura es la prueba de qué pasó en un intento de huella:
+    // si se pudiera editar o borrar, no serviría para auditar nada.
+    const event = await db.raw.biometricCaptureEvent.create({
+      data: {
+        gymId: gymA.id,
+        branchId: branchA.id,
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        source: 'api',
+        stage: 'SAMPLE_RECEIVED',
+        severity: 'INFO',
+        message: 'Muestra recibida',
+        occurredAt: new Date(),
+      },
+    });
+    await expect(
+      db.raw.biometricCaptureEvent.update({
+        where: { id: event.id },
+        data: { message: 'ALTERADO' },
+      }),
+    ).rejects.toThrow(/append-only/i);
+    await expect(db.raw.biometricCaptureEvent.delete({ where: { id: event.id } })).rejects.toThrow(
+      /append-only/i,
+    );
+  });
+
   it('AccessAttempt no acepta UPDATE', async () => {
     const attempt = await db.raw.accessAttempt.create({
       data: {

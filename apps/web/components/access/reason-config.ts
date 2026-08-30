@@ -20,7 +20,8 @@ export const ACCESS_REASON_CONFIG: Record<AccessReasonCode, AccessReasonConfig> 
   DUPLICATE_WINDOW: {
     tone: 'info',
     title: 'Ya registró asistencia hoy',
-    description: 'Este socio ya tiene un ingreso registrado en el día. No se duplica la asistencia.',
+    description:
+      'Este socio ya tiene un ingreso registrado en el día. No se duplica la asistencia.',
   },
   MEMBER_NOT_FOUND: {
     tone: 'neutral',
@@ -82,5 +83,11 @@ export const ACCESS_REASON_CONFIG: Record<AccessReasonCode, AccessReasonConfig> 
     tone: 'danger',
     title: 'Huella no reconocida',
     description: 'No pudimos confirmar la identidad por huella.',
+  },
+  BIOMETRIC_CAPTURE_FAILED: {
+    tone: 'warning',
+    title: 'Lectura no válida',
+    description:
+      'La muestra no sirvió. Limpiá el lector y volvé a apoyar el dedo, quieto y centrado.',
   },
 };

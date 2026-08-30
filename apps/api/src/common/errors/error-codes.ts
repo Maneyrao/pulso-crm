@@ -77,6 +77,10 @@ export const ErrorCode = {
   INVALID_DEVICE_TOKEN: 'INVALID_DEVICE_TOKEN',
   AGENT_REVOKED: 'AGENT_REVOKED',
   TEMPLATE_QUALITY_TOO_LOW: 'TEMPLATE_QUALITY_TOO_LOW',
+  /** Las muestras del mismo enrolamiento no se reconocen entre sí. */
+  ENROLLMENT_SAMPLES_INCONSISTENT: 'ENROLLMENT_SAMPLES_INCONSISTENT',
+  /** El servicio SourceAFIS no respondió: se registra el intento y se avisa. */
+  BIOMETRIC_MATCHER_UNAVAILABLE: 'BIOMETRIC_MATCHER_UNAVAILABLE',
 
   // Mensajería
   MESSAGING_NOT_CONFIGURED: 'MESSAGING_NOT_CONFIGURED',

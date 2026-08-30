@@ -121,9 +121,7 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
           passwordHash: 'x',
           firstName: 'Fixture',
           lastName: 'User',
-          ...(role
-            ? { roleAssignments: { create: { gymId, roleId: role.id } } }
-            : {}),
+          ...(role ? { roleAssignments: { create: { gymId, roleId: role.id } } } : {}),
           branchAccess: { create: { gymId, branchId } },
         },
       });
@@ -160,7 +158,11 @@ export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
       return role.id;
     },
     async createBody() {
-      return { code: `CREATE_ROUTE_${unique()}`, name: 'Rol create-route', permissions: ['member:read'] };
+      return {
+        code: `CREATE_ROUTE_${unique()}`,
+        name: 'Rol create-route',
+        permissions: ['member:read'],
+      };
     },
     readRaw: (raw, id) => raw.role.findUnique({ where: { id } }),
   },
@@ -432,8 +434,10 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
   'GET /api/v1/auth/me': 'sesión — datos del propio usuario autenticado, no un recurso con :id',
   'POST /api/v1/auth/select-branch':
     'ya tiene su propio test de cross-tenant en test/auth.spec.ts (seleccionar sede de otro gimnasio → 404)',
-  'GET /api/v1/gym': 'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
-  'PATCH /api/v1/gym': 'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
+  'GET /api/v1/gym':
+    'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
+  'PATCH /api/v1/gym':
+    'singleton: opera siempre sobre ctx.gymId, nunca sobre un id que llegue del cliente',
   'POST /api/v1/members/:memberId/memberships':
     'body requerido (planId, branchId, startDate, charge): sin body válido la validación Zod dispara 422 antes de la comprobación cross-tenant. Cross-tenant cubierto explícitamente en test/memberships/memberships.spec.ts (memberId/planId/branchId ajenos → 404).',
   'POST /api/v1/memberships/:id/cancel':
@@ -443,7 +447,8 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
   // OPEN se resuelve por ctx.userId + ctx.gymId. El aislamiento por tenant
   // está garantizado por la extensión de Prisma (todo Cash* es tenant-scoped)
   // y se re-verifica en los specs dedicados de cash cuando se agreguen.
-  'GET /api/v1/cash/sessions/current': 'singleton: opera sobre la sesión OPEN de ctx.userId; no toma id del cliente',
+  'GET /api/v1/cash/sessions/current':
+    'singleton: opera sobre la sesión OPEN de ctx.userId; no toma id del cliente',
   'GET /api/v1/cash/sessions': 'list scoped por gymId + filtros opcionales; sin id de recurso',
   'POST /api/v1/cash/sessions/open':
     'body requerido (cashRegisterId, openingAmount); registerId de otro gym se filtra por gymId → 404 con el mismo shape de "no existe"',
@@ -476,4 +481,6 @@ export const NON_TENANT_ALLOWLIST: Record<string, string> = {
     'body requerido (pngBase64): la sesión se resuelve por gymId y usuario autenticado. Finalización HID cross-tenant cubierta explícitamente en test/biometrics/biometrics.spec.ts.',
   'POST /api/v1/biometrics/hid-identifications':
     'body requerido (branchId, pngBase64) + Idempotency-Key: una sede ajena se oculta con TenantContextStore.requireBranch. Cubierto explícitamente en test/biometrics/biometrics.spec.ts.',
+  'POST /api/v1/biometrics/hid-capture-events':
+    'body requerido (branchId, events): una sede ajena se oculta con TenantContextStore.requireBranch y el gymId sale de la sesión. Cubierto explícitamente en test/biometrics/hid-capture.spec.ts (sede de otro gimnasio → 404, sin filas).',
 };

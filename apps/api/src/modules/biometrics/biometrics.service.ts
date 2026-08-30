@@ -12,6 +12,7 @@ import type {
   AgentEnrollCompleteResponse,
   AgentIdentifyRequest,
   AgentIdentifyResponse,
+  BiometricCaptureStage,
   BiometricConsent,
   BiometricCredential,
   BiometricEnrollment,
@@ -21,8 +22,12 @@ import type {
   GetEnrollmentResponse,
   GrantConsentRequest,
   GrantConsentResponse,
+  HidCaptureTrace,
+  HidSample,
   IdentifyHidRequest,
   ListMemberCredentialsResponse,
+  RecordHidCaptureEventsRequest,
+  RecordHidCaptureEventsResponse,
   RevokeConsentResponse,
   RevokeCredentialResponse,
   StartEnrollmentRequest,
@@ -33,6 +38,7 @@ import type {
   StartIdentificationResponse,
 } from '@pulso/contracts/biometrics';
 import type { AccessCheckResponse } from '@pulso/contracts/access';
+import { getLogger } from '../../common/logging/logger.js';
 // Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
@@ -54,13 +60,77 @@ import {
 } from '../agents/agent-auth.service.js';
 import {
   BIOMETRIC_MATCHER,
+  MatcherRejectedError,
+  MatcherUnavailableError,
   resolveMatch,
   type BiometricMatcher,
+  type ExtractedTemplate,
   type MatchCandidate,
 } from './biometric-matcher.js';
 
 /** Vida de una sesión de enrolamiento completa (captura de N muestras). */
 const ENROLLMENT_TTL_MS = 10 * 60 * 1000;
+
+const HID_QUALITY_LABELS: Record<number, string> = {
+  0: 'Good',
+  1: 'NoImage',
+  2: 'TooLight',
+  3: 'TooDark',
+  4: 'TooNoisy',
+  5: 'LowContrast',
+  6: 'NotEnoughFeatures',
+  7: 'NotCentered',
+  8: 'NotAFinger',
+  9: 'TooHigh',
+  10: 'TooLow',
+  11: 'TooLeft',
+  12: 'TooRight',
+  13: 'TooStrange',
+  14: 'TooFast',
+  15: 'TooSkewed',
+  16: 'TooShort',
+  17: 'TooSlow',
+  18: 'ReverseMotion',
+  19: 'PressureTooHard',
+  20: 'PressureTooLight',
+  21: 'WetFinger',
+  22: 'FakeFinger',
+  23: 'TooSmall',
+  24: 'RotatedTooMuch',
+};
+
+/** Contexto de trazabilidad de una captura HID. Nunca contiene biometría. */
+interface CaptureContext {
+  branchId: string;
+  sessionId: string;
+  deviceUid: string | null;
+  trace: HidCaptureTrace | null;
+  userId: string;
+}
+
+interface CaptureEventInput {
+  stage: BiometricCaptureStage;
+  severity: 'INFO' | 'WARN' | 'ERROR';
+  message: string;
+  metadata?: Record<string, string | number | boolean | null>;
+  memberId?: string | null;
+  accessAttemptId?: string | null;
+  enrollmentId?: string | null;
+  occurredAt?: Date;
+}
+
+/** Marca de tiempo de la muestra y del inicio de adquisición según el navegador. */
+function traceMetadata(trace: HidCaptureTrace | null): Record<string, string | number | null> {
+  if (!trace) return {};
+  return {
+    readerModel: trace.readerModel,
+    acquisitionStartedAt: trace.acquisitionStartedAt,
+    acquiredAt: trace.acquiredAt,
+    sampleBytes: trace.sampleBytes,
+    webSdkVersion: trace.webSdkVersion ?? null,
+    fingerprintSdkVersion: trace.fingerprintSdkVersion ?? null,
+  };
+}
 
 function serializeConsent(consent: DbBiometricConsent): BiometricConsent {
   return {
@@ -328,6 +398,7 @@ export class BiometricsService {
       );
     }
 
+    const samplesRequired = this.config.env.BIOMETRIC_HID_ENROLL_SAMPLES;
     const enrollment = await this.prisma.client.biometricEnrollment.create({
       data: scoped({
         branchId,
@@ -336,7 +407,7 @@ export class BiometricsService {
         localAgentId: null,
         deviceId: null,
         fingerPosition: input.fingerPosition,
-        samplesRequired: 1,
+        samplesRequired,
         startedByUserId: ctx.userId,
         expiresAt: new Date(Date.now() + ENROLLMENT_TTL_MS),
       }),
@@ -352,11 +423,18 @@ export class BiometricsService {
 
     return {
       enrollmentId: enrollment.id,
-      samplesRequired: 1,
+      samplesRequired,
       minQuality: this.config.env.BIOMETRIC_MIN_QUALITY,
     };
   }
 
+  /**
+   * Cierra un enrolamiento HID con 1..3 muestras del mismo dedo. Con más de
+   * una muestra se extrae cada plantilla, se cruzan entre sí (la primera como
+   * sonda contra las demás) y se exige un score mínimo de consistencia: dos
+   * capturas del mismo dedo que no se reconocen entre sí no sirven como
+   * credencial. Se guarda sólo la plantilla de mejor calidad, cifrada.
+   */
   async completeHidEnrollment(
     id: string,
     input: CompleteHidEnrollmentRequest,
@@ -382,32 +460,171 @@ export class BiometricsService {
     if (!consent) {
       throw AppError.conflict(ErrorCode.NO_BIOMETRIC_CONSENT, 'El consentimiento fue revocado.');
     }
-    if (input.qualityCode !== null && input.qualityCode !== 0) {
-      throw AppError.unprocessable(
-        ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
-        'HID informó que la muestra no tiene calidad suficiente.',
-      );
+
+    const samples: HidSample[] =
+      input.samples ??
+      (input.pngBase64 !== undefined
+        ? [{ pngBase64: input.pngBase64, qualityCode: input.qualityCode ?? null }]
+        : []);
+    const capture: CaptureContext = {
+      branchId: enrollment.branchId,
+      sessionId: input.capture?.sessionId ?? randomUUID(),
+      deviceUid: input.capture?.deviceUid ?? null,
+      trace: input.capture ?? null,
+      userId: ctx.userId,
+    };
+    const failEnrollment = async (reason: string, event: CaptureEventInput) => {
+      await this.prisma.client.biometricEnrollment.update({
+        where: { id: enrollment.id },
+        data: { status: 'FAILED', failureReason: reason, completedAt: new Date() },
+      });
+      await this.captureEvent(capture, {
+        ...event,
+        enrollmentId: enrollment.id,
+        memberId: enrollment.memberId,
+      });
+      await this.audit.record({
+        action: 'BIOMETRIC_ENROLLMENT_FAILED',
+        resourceType: 'BiometricEnrollment',
+        resourceId: enrollment.id,
+        after: { memberId: enrollment.memberId, reason },
+        branchId: enrollment.branchId,
+      });
+    };
+
+    for (const [index, sample] of samples.entries()) {
+      await this.captureEvent(capture, {
+        stage: 'SAMPLE_RECEIVED',
+        severity: 'INFO',
+        message: `Muestra ${index + 1}/${samples.length} recibida para enrolar`,
+        metadata: {
+          sampleIndex: index + 1,
+          qualityCode: sample.qualityCode,
+          qualityLabel:
+            sample.qualityCode === null ? null : (HID_QUALITY_LABELS[sample.qualityCode] ?? null),
+          byteLength: Buffer.byteLength(sample.pngBase64, 'base64'),
+          ...traceMetadata(capture.trace),
+        },
+        enrollmentId: enrollment.id,
+        memberId: enrollment.memberId,
+      });
+      if (sample.qualityCode !== null && sample.qualityCode !== 0) {
+        const label = HID_QUALITY_LABELS[sample.qualityCode] ?? String(sample.qualityCode);
+        throw AppError.unprocessable(
+          ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
+          `HID informó que la muestra ${index + 1} no tiene calidad suficiente (${label}).`,
+        );
+      }
     }
 
-    const image = Buffer.from(input.pngBase64, 'base64');
-    let template: Buffer | null = null;
+    const images = samples.map((sample) => Buffer.from(sample.pngBase64, 'base64'));
+    const extracted: ExtractedTemplate[] = [];
     try {
       await this.prisma.client.biometricEnrollment.update({
         where: { id: enrollment.id },
         data: { status: 'CAPTURING' },
       });
-      const extracted = await this.matcher.extract(image);
-      template = extracted.template;
-      if (extracted.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
+
+      for (const [index, image] of images.entries()) {
+        const startedAt = Date.now();
+        try {
+          const template = await this.matcher.extract(image);
+          extracted.push(template);
+          await this.captureEvent(capture, {
+            stage: 'EXTRACTED',
+            severity: 'INFO',
+            message: `Plantilla ${index + 1} extraída`,
+            metadata: {
+              sampleIndex: index + 1,
+              quality: template.quality,
+              templateBytes: template.template.length,
+              elapsedMs: Date.now() - startedAt,
+            },
+            enrollmentId: enrollment.id,
+            memberId: enrollment.memberId,
+          });
+        } catch (error) {
+          const detail = this.describeExtractFailure(error);
+          await failEnrollment(detail.reason, {
+            stage: 'EXTRACT_FAILED',
+            severity: detail.unavailable ? 'ERROR' : 'WARN',
+            message: detail.reason,
+            metadata: { sampleIndex: index + 1, elapsedMs: Date.now() - startedAt },
+          });
+          if (detail.unavailable) {
+            throw new AppError(
+              ErrorCode.BIOMETRIC_MATCHER_UNAVAILABLE,
+              503,
+              'El servicio biométrico no está disponible. Reintentá en unos segundos.',
+              { detail: 'El servicio biométrico no está disponible. Reintentá en unos segundos.' },
+            );
+          }
+          throw AppError.unprocessable(ErrorCode.TEMPLATE_QUALITY_TOO_LOW, detail.reason);
+        }
+      }
+
+      const qualities = extracted.map((item) => item.quality);
+      let consistencyScore: number | null = null;
+      if (extracted.length > 1) {
+        const probe = extracted[0]!.template;
+        const scores = await this.matcher.match(
+          probe,
+          extracted.slice(1).map((item, index) => ({
+            credentialId: `sample-${index + 2}`,
+            memberId: enrollment.memberId,
+            template: item.template,
+          })),
+        );
+        consistencyScore = scores.length > 0 ? Math.min(...scores.map((score) => score.score)) : 0;
+        const required = this.config.env.BIOMETRIC_HID_ENROLL_CONSISTENCY;
+        await this.captureEvent(capture, {
+          stage: consistencyScore >= required ? 'MATCHED' : 'NO_MATCH',
+          severity: consistencyScore >= required ? 'INFO' : 'WARN',
+          message: `Consistencia entre muestras: ${consistencyScore} (mínimo ${required})`,
+          metadata: { consistencyScore, required, samples: extracted.length },
+          enrollmentId: enrollment.id,
+          memberId: enrollment.memberId,
+        });
+        if (consistencyScore < required) {
+          await failEnrollment('Las muestras no se reconocen entre sí', {
+            stage: 'ENROLLMENT_FAILED',
+            severity: 'WARN',
+            message:
+              'Las muestras capturadas no se reconocen entre sí; se pide repetir el enrolamiento',
+            metadata: { consistencyScore, required },
+          });
+          throw AppError.unprocessable(
+            ErrorCode.ENROLLMENT_SAMPLES_INCONSISTENT,
+            'Las muestras no coinciden entre sí. Apoyá el mismo dedo, centrado y quieto, y repetí.',
+          );
+        }
+      }
+
+      const bestIndex = qualities.reduce(
+        (best, quality, index) => (quality > qualities[best]! ? index : best),
+        0,
+      );
+      const best = extracted[bestIndex]!;
+      if (best.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
+        await failEnrollment('Calidad insuficiente', {
+          stage: 'ENROLLMENT_FAILED',
+          severity: 'WARN',
+          message: `La mejor plantilla (${best.quality}) no alcanza la calidad mínima`,
+          metadata: { quality: best.quality, minQuality: this.config.env.BIOMETRIC_MIN_QUALITY },
+        });
         throw AppError.unprocessable(
           ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
           'La calidad de la captura no alcanza.',
         );
       }
 
-      const templateHash = BiometricCryptoService.templateHash(template);
+      const templateHash = BiometricCryptoService.templateHash(best.template);
       const credentialId = randomUUID();
-      const encrypted = await this.crypto.encryptTemplate(enrollment.gymId, credentialId, template);
+      const encrypted = await this.crypto.encryptTemplate(
+        enrollment.gymId,
+        credentialId,
+        best.template,
+      );
 
       await this.prisma.client.$transaction(async (tx) => {
         await tx.biometricCredential.create({
@@ -423,7 +640,7 @@ export class BiometricsService {
             dekWrapped: new Uint8Array(encrypted.dekWrapped),
             keyVersion: encrypted.keyVersion,
             templateHash: new Uint8Array(templateHash),
-            quality: extracted.quality,
+            quality: best.quality,
             enrollmentId: enrollment.id,
             createdByUserId: enrollment.startedByUserId,
           }),
@@ -432,25 +649,72 @@ export class BiometricsService {
           where: { id: enrollment.id },
           data: {
             status: 'COMPLETED',
-            samplesCaptured: 1,
-            qualityScores: [extracted.quality],
+            samplesCaptured: extracted.length,
+            qualityScores: qualities,
             completedAt: new Date(),
           },
         });
+        await this.audit.recordIn(tx, {
+          action: 'BIOMETRIC_ENROLLMENT_COMPLETED',
+          resourceType: 'BiometricEnrollment',
+          resourceId: enrollment.id,
+          after: {
+            memberId: enrollment.memberId,
+            credentialId,
+            samples: extracted.length,
+            quality: best.quality,
+            consistencyScore,
+          },
+          branchId: enrollment.branchId,
+        });
       });
-      return { ok: true };
+      await this.captureEvent(capture, {
+        stage: 'ENROLLMENT_COMPLETED',
+        severity: 'INFO',
+        message: 'Credencial creada a partir de la mejor muestra',
+        metadata: {
+          credentialId,
+          samplesUsed: extracted.length,
+          quality: best.quality,
+          consistencyScore,
+          bestSampleIndex: bestIndex + 1,
+        },
+        enrollmentId: enrollment.id,
+        memberId: enrollment.memberId,
+      });
+      getLogger().info(
+        {
+          event: 'biometrics.hid.enrollment.completed',
+          enrollmentId: enrollment.id,
+          sessionId: capture.sessionId,
+          samples: extracted.length,
+          quality: best.quality,
+          consistencyScore,
+        },
+        'Enrolamiento HID completado',
+      );
+      return {
+        ok: true,
+        credential: {
+          id: credentialId,
+          quality: best.quality,
+          samplesUsed: extracted.length,
+          consistencyScore,
+        },
+      };
     } catch (err) {
       if (isUniqueViolation(err)) {
-        await this.prisma.client.biometricEnrollment.update({
-          where: { id: enrollment.id },
-          data: { status: 'FAILED', failureReason: 'Template duplicado', completedAt: new Date() },
+        await failEnrollment('Template duplicado', {
+          stage: 'ENROLLMENT_FAILED',
+          severity: 'WARN',
+          message: 'Esa huella ya está enrolada (hash duplicado)',
         });
         throw AppError.conflict(ErrorCode.CONFLICT, 'Esa huella ya está enrolada.');
       }
       throw err;
     } finally {
-      image.fill(0);
-      template?.fill(0);
+      for (const image of images) image.fill(0);
+      for (const item of extracted) item.template.fill(0);
     }
   }
 
@@ -725,35 +989,137 @@ export class BiometricsService {
     return { resolved: true };
   }
 
+  /**
+   * Identificación 1:N desde el navegador. Siempre deja un `AccessAttempt`:
+   * también cuando la muestra no sirve (calidad HID, PNG inválido) — el
+   * operador ve "Lectura no válida" y la bitácora explica por qué. Sólo la
+   * caída del servicio biométrico se reporta como error (503), y aun así
+   * queda registrada.
+   */
   async identifyHid(input: IdentifyHidRequest): Promise<AccessCheckResponse> {
+    const ctx = TenantContextStore.require();
     const branchId = TenantContextStore.requireBranch(input.branchId);
+    const capture: CaptureContext = {
+      branchId,
+      sessionId: input.capture?.sessionId ?? randomUUID(),
+      deviceUid: input.capture?.deviceUid ?? null,
+      trace: input.capture ?? null,
+      userId: ctx.userId,
+    };
+    const byteLength = Buffer.byteLength(input.pngBase64, 'base64');
+    await this.captureEvent(capture, {
+      stage: 'SAMPLE_RECEIVED',
+      severity: 'INFO',
+      message: 'Muestra recibida para identificar',
+      metadata: {
+        qualityCode: input.qualityCode,
+        qualityLabel:
+          input.qualityCode === null ? null : (HID_QUALITY_LABELS[input.qualityCode] ?? null),
+        byteLength,
+        ...traceMetadata(capture.trace),
+      },
+    });
+
     if (input.qualityCode !== null && input.qualityCode !== 0) {
-      throw AppError.unprocessable(
-        ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
-        'HID informó que la muestra no tiene calidad suficiente.',
+      const label = HID_QUALITY_LABELS[input.qualityCode] ?? String(input.qualityCode);
+      return this.captureFailed(
+        capture,
+        `HID informó calidad insuficiente: ${label} (${input.qualityCode}).`,
+        { qualityCode: input.qualityCode, qualityLabel: label },
       );
     }
 
     const image = Buffer.from(input.pngBase64, 'base64');
+    let extracted: ExtractedTemplate;
+    const startedAt = Date.now();
     try {
-      const extracted = await this.matcher.extract(image);
-      if (extracted.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
-        extracted.template.fill(0);
-        throw AppError.unprocessable(
-          ErrorCode.TEMPLATE_QUALITY_TOO_LOW,
-          'La calidad de la captura no alcanza.',
+      extracted = await this.matcher.extract(image);
+    } catch (error) {
+      const detail = this.describeExtractFailure(error);
+      if (detail.unavailable) {
+        const attempt = await this.captureFailed(capture, detail.reason, {
+          elapsedMs: Date.now() - startedAt,
+          unavailable: true,
+        });
+        throw new AppError(
+          ErrorCode.BIOMETRIC_MATCHER_UNAVAILABLE,
+          503,
+          'El servicio biométrico no está disponible. Reintentá en unos segundos.',
+          {
+            detail: 'El servicio biométrico no está disponible. Reintentá en unos segundos.',
+            meta: { accessAttemptId: attempt.accessAttemptId },
+          },
         );
       }
-      return await this.resolveProbe(branchId, extracted.template, 'SOURCEAFIS_3_14');
+      return this.captureFailed(capture, detail.reason, { elapsedMs: Date.now() - startedAt });
     } finally {
       image.fill(0);
     }
+
+    await this.captureEvent(capture, {
+      stage: 'EXTRACTED',
+      severity: 'INFO',
+      message: 'Plantilla extraída',
+      metadata: {
+        quality: extracted.quality,
+        templateBytes: extracted.template.length,
+        elapsedMs: Date.now() - startedAt,
+      },
+    });
+    if (extracted.quality < this.config.env.BIOMETRIC_MIN_QUALITY) {
+      extracted.template.fill(0);
+      return this.captureFailed(
+        capture,
+        `La calidad de la plantilla (${extracted.quality}) no alcanza el mínimo (${this.config.env.BIOMETRIC_MIN_QUALITY}).`,
+        { quality: extracted.quality, minQuality: this.config.env.BIOMETRIC_MIN_QUALITY },
+      );
+    }
+    return this.resolveProbe(branchId, extracted.template, 'SOURCEAFIS_3_14', capture);
+  }
+
+  /** Bitácora del navegador (session start, errores HID, foco, timeouts…). */
+  async recordHidCaptureEvents(
+    input: RecordHidCaptureEventsRequest,
+  ): Promise<RecordHidCaptureEventsResponse> {
+    const ctx = TenantContextStore.require();
+    const branchId = TenantContextStore.requireBranch(input.branchId);
+    const rows = input.events.map((event) =>
+      scoped({
+        branchId,
+        sessionId: event.sessionId,
+        source: 'browser',
+        stage: event.stage,
+        severity: event.severity,
+        message: event.message,
+        deviceUid: event.deviceUid ?? null,
+        metadata: (event.metadata ?? {}) as Prisma.InputJsonObject,
+        userId: ctx.userId,
+        occurredAt: new Date(event.occurredAt),
+      }),
+    );
+    const created = await this.prisma.client.biometricCaptureEvent.createMany({ data: rows });
+    const worst = input.events.some((e) => e.severity === 'ERROR')
+      ? 'error'
+      : input.events.some((e) => e.severity === 'WARN')
+        ? 'warn'
+        : 'info';
+    getLogger()[worst](
+      {
+        event: 'biometrics.hid.browser-events',
+        branchId,
+        accepted: created.count,
+        stages: input.events.map((e) => e.stage),
+      },
+      'Eventos de captura HID del navegador',
+    );
+    return { accepted: created.count };
   }
 
   private async resolveProbe(
     branchId: string,
     probe: Buffer,
     templateFormat: AgentIdentifyRequest['templateFormat'],
+    capture: CaptureContext | null = null,
   ): Promise<AccessCheckResponse> {
     // Candidatos: credenciales ACTIVE de esta sede o válidas en todo el gym.
     // El gymId lo pone la extensión de Prisma desde el contexto del agente.
@@ -768,6 +1134,7 @@ export class BiometricsService {
     // Descifrado SÓLO en memoria y sólo del conjunto de candidatos de la
     // sede (BIOMETRIC_SECURITY.md §4.4).
     const decrypted: MatchCandidate[] = [];
+    let undecryptable = 0;
     for (const candidate of candidates) {
       try {
         decrypted.push({
@@ -779,12 +1146,32 @@ export class BiometricsService {
         // Falla de autenticidad GCM: el ciphertext no corresponde a este
         // gym/credencial (AAD, BIOMETRIC_SECURITY.md §4.2) o está corrupto.
         // Se excluye del matching — jamás autentica.
+        undecryptable += 1;
       }
     }
 
     let scores;
+    const matchStartedAt = Date.now();
     try {
       scores = await this.matcher.match(probe, decrypted);
+    } catch (error) {
+      if (capture) {
+        const reason = error instanceof Error ? error.message : 'El matcher falló.';
+        const attempt = await this.captureFailed(capture, reason, {
+          candidates: decrypted.length,
+          unavailable: true,
+        });
+        throw new AppError(
+          ErrorCode.BIOMETRIC_MATCHER_UNAVAILABLE,
+          503,
+          'El servicio biométrico no está disponible. Reintentá en unos segundos.',
+          {
+            detail: 'El servicio biométrico no está disponible. Reintentá en unos segundos.',
+            meta: { accessAttemptId: attempt.accessAttemptId },
+          },
+        );
+      }
+      throw error;
     } finally {
       // Los buffers descifrados y la sonda se sobrescriben también si el matcher falla (§4.4).
       for (const item of decrypted) item.template.fill(0);
@@ -795,6 +1182,13 @@ export class BiometricsService {
       this.config.env.BIOMETRIC_MATCH_THRESHOLD,
       this.config.env.BIOMETRIC_MATCH_AMBIGUITY_MARGIN,
     );
+    const matchMetadata = {
+      candidates: decrypted.length,
+      undecryptable,
+      topScore,
+      threshold: this.config.env.BIOMETRIC_MATCH_THRESHOLD,
+      elapsedMs: Date.now() - matchStartedAt,
+    };
 
     if (!match) {
       const attempt = await this.prisma.client.accessAttempt.create({
@@ -806,9 +1200,27 @@ export class BiometricsService {
           decision: 'DENIED',
           reasonCode: 'BIOMETRIC_NO_MATCH',
           detail: 'Ninguna credencial superó el umbral de matching.',
-          matchScore: topScore,
+          matchScore: topScore === null ? null : Math.round(topScore),
         }),
       });
+      if (capture) {
+        await this.captureEvent(capture, {
+          stage: 'NO_MATCH',
+          severity: 'WARN',
+          message: 'Ninguna credencial superó el umbral',
+          metadata: matchMetadata,
+          accessAttemptId: attempt.id,
+        });
+        getLogger().info(
+          {
+            event: 'biometrics.hid.identify',
+            sessionId: capture.sessionId,
+            outcome: 'no-match',
+            ...matchMetadata,
+          },
+          'Identificación HID sin coincidencia',
+        );
+      }
       return {
         decision: 'DENIED',
         reasonCode: 'BIOMETRIC_NO_MATCH',
@@ -819,14 +1231,142 @@ export class BiometricsService {
       };
     }
 
+    if (capture) {
+      await this.captureEvent(capture, {
+        stage: 'MATCHED',
+        severity: 'INFO',
+        message: `Coincidencia con score ${match.score}`,
+        metadata: { ...matchMetadata, score: match.score },
+        memberId: match.memberId,
+      });
+    }
+
     // Match: aplica la MISMA cadena de autorización que POST /access/check y
     // registra AccessAttempt + Attendance. El resultado con PII viaja al
     // navegador del CRM; el agente sólo recibe {resolved:true}.
-    return this.access.checkForMember({
+    const result = await this.access.checkForMember({
       memberId: match.memberId,
       branchId,
       method: 'FINGERPRINT',
-      matchScore: match.score,
+      matchScore: Math.round(match.score),
+    });
+    if (capture) {
+      await this.captureEvent(capture, {
+        stage: 'ACCESS_RESULT',
+        severity: result.decision === 'ALLOWED' ? 'INFO' : 'WARN',
+        message: `${result.decision} — ${result.reasonCode}`,
+        metadata: {
+          decision: result.decision,
+          reasonCode: result.reasonCode,
+          attendanceRegistered: result.attendanceRegistered,
+        },
+        memberId: match.memberId,
+        accessAttemptId: result.accessAttemptId,
+      });
+      if (result.attendanceRegistered) {
+        await this.captureEvent(capture, {
+          stage: 'ATTENDANCE_REGISTERED',
+          severity: 'INFO',
+          message: 'Asistencia registrada',
+          memberId: match.memberId,
+          accessAttemptId: result.accessAttemptId,
+        });
+      }
+      getLogger().info(
+        {
+          event: 'biometrics.hid.identify',
+          sessionId: capture.sessionId,
+          outcome: result.decision,
+          reasonCode: result.reasonCode,
+          attendanceRegistered: result.attendanceRegistered,
+          accessAttemptId: result.accessAttemptId,
+          ...matchMetadata,
+        },
+        'Identificación HID resuelta',
+      );
+    }
+    return result;
+  }
+
+  /** Registra un intento DENIED por captura inválida y devuelve la respuesta de acceso. */
+  private async captureFailed(
+    capture: CaptureContext,
+    reason: string,
+    metadata: Record<string, string | number | boolean | null> = {},
+  ): Promise<AccessCheckResponse> {
+    const attempt = await this.prisma.client.accessAttempt.create({
+      data: scoped({
+        branchId: capture.branchId,
+        memberId: null,
+        method: 'FINGERPRINT',
+        rawInput: null,
+        decision: 'DENIED',
+        reasonCode: 'BIOMETRIC_CAPTURE_FAILED',
+        detail: reason.slice(0, 500),
+        matchScore: null,
+      }),
+    });
+    await this.captureEvent(capture, {
+      stage: 'EXTRACT_FAILED',
+      severity: metadata['unavailable'] === true ? 'ERROR' : 'WARN',
+      message: reason,
+      metadata,
+      accessAttemptId: attempt.id,
+    });
+    getLogger().warn(
+      {
+        event: 'biometrics.hid.identify',
+        sessionId: capture.sessionId,
+        outcome: 'capture-failed',
+        reason,
+        ...metadata,
+      },
+      'Identificación HID: la muestra no sirvió',
+    );
+    return {
+      decision: 'DENIED',
+      reasonCode: 'BIOMETRIC_CAPTURE_FAILED',
+      member: null,
+      membership: null,
+      attendanceRegistered: false,
+      accessAttemptId: attempt.id,
+    };
+  }
+
+  private describeExtractFailure(error: unknown): { reason: string; unavailable: boolean } {
+    if (error instanceof MatcherUnavailableError) {
+      return { reason: error.message, unavailable: true };
+    }
+    if (error instanceof MatcherRejectedError) {
+      return {
+        reason: 'El extractor rechazó la muestra: el PNG no es una huella válida.',
+        unavailable: false,
+      };
+    }
+    return {
+      reason: error instanceof Error ? error.message : 'La extracción falló.',
+      unavailable: true,
+    };
+  }
+
+  /** Fila append-only en biometric_capture_events. Jamás recibe biometría. */
+  private async captureEvent(capture: CaptureContext, event: CaptureEventInput): Promise<void> {
+    await this.prisma.client.biometricCaptureEvent.create({
+      data: scoped({
+        branchId: capture.branchId,
+        sessionId: capture.sessionId,
+        source: 'api',
+        stage: event.stage,
+        severity: event.severity,
+        message: event.message.slice(0, 500),
+        deviceUid: capture.deviceUid,
+        metadata: (event.metadata ?? {}) as Prisma.InputJsonObject,
+        memberId: event.memberId ?? null,
+        accessAttemptId: event.accessAttemptId ?? null,
+        enrollmentId: event.enrollmentId ?? null,
+        userId: capture.userId,
+        occurredAt: event.occurredAt ?? new Date(),
+      }),
     });
   }
 

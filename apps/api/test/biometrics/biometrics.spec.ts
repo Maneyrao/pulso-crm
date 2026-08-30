@@ -295,13 +295,24 @@ describe('biometría — flujo completo y controles de seguridad', () => {
       },
     );
     expect(completed.status).toBe(200);
-    expect(completed.body).toEqual({ ok: true });
 
     const credential = await ctx.db.raw.biometricCredential.findFirst({
       where: { memberId, status: 'ACTIVE' },
     });
     expect(credential?.templateFormat).toBe('SOURCEAFIS_3_14');
     expect(credential?.enrollmentId).toBe(enrollmentId);
+    // La respuesta confirma la credencial recién creada: el modal del CRM la
+    // muestra sin volver a pedir la lista (una muestra ⇒ sin consistencia
+    // cruzada que medir).
+    expect(completed.body).toEqual({
+      ok: true,
+      credential: {
+        id: credential!.id,
+        quality: credential!.quality,
+        samplesUsed: 1,
+        consistencyScore: null,
+      },
+    });
   });
 
   it('HID web: identifica la huella y devuelve el resultado de acceso directamente al CRM', async () => {
