@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../../common/audit/audit.module.js';
 import { AgentAuthService } from './agent-auth.service.js';
-import { AgentGatewayController, AgentsController, DevicesController } from './agents.controller.js';
+import {
+  AgentGatewayController,
+  AgentsController,
+  DevicesController,
+} from './agents.controller.js';
 import { AgentsService } from './agents.service.js';
 
 /**

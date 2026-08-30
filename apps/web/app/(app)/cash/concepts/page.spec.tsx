@@ -176,7 +176,12 @@ describe('CashConceptsPage', () => {
     await primeSession(['cash:read', 'config:write']);
     listCashConceptsMock.mockResolvedValue({ data: [] });
     createCashConceptMock.mockResolvedValueOnce(
-      makeConcept({ id: '00000000-0000-0000-0000-000000000003', code: 'RENT', name: 'Alquiler', type: 'EXPENSE' }),
+      makeConcept({
+        id: '00000000-0000-0000-0000-000000000003',
+        code: 'RENT',
+        name: 'Alquiler',
+        type: 'EXPENSE',
+      }),
     );
 
     const user = userEvent.setup();
@@ -198,6 +203,10 @@ describe('CashConceptsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Guardar$/i }));
 
     await waitFor(() => expect(createCashConceptMock).toHaveBeenCalledTimes(1));
-    expect(createCashConceptMock).toHaveBeenCalledWith({ code: 'RENT', name: 'Alquiler', type: 'EXPENSE' });
+    expect(createCashConceptMock).toHaveBeenCalledWith({
+      code: 'RENT',
+      name: 'Alquiler',
+      type: 'EXPENSE',
+    });
   });
 });

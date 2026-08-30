@@ -78,9 +78,7 @@ export function discoverRoutes(app: INestApplication, globalPrefix = '/api/v1'):
       if (!instance || !metatype) continue;
 
       const controllerPathRaw = Reflect.getMetadata(PATH_METADATA, metatype) as
-        | string
-        | string[]
-        | undefined;
+        string | string[] | undefined;
       const controllerPath = firstOrSelf(controllerPathRaw).replace(/^\/+|\/+$/g, '');
       const prefix = pathPrefixFor(controllerPath, globalPrefix);
 
@@ -90,7 +88,8 @@ export function discoverRoutes(app: INestApplication, globalPrefix = '/api/v1'):
         const handler = prototype[handlerName];
         if (typeof handler !== 'function') continue;
 
-        const routePath = Reflect.getMetadata(PATH_METADATA, handler) as string | string[] | undefined;
+        const routePath = Reflect.getMetadata(PATH_METADATA, handler) as
+          string | string[] | undefined;
         const routeMethod = Reflect.getMetadata(METHOD_METADATA, handler) as number | undefined;
         // Sin metadata de ruta: no es un handler HTTP (método helper privado, etc.).
         if (routePath === undefined || routeMethod === undefined) continue;
@@ -113,6 +112,8 @@ export function discoverRoutes(app: INestApplication, globalPrefix = '/api/v1'):
 
   // Orden estable: hace legible el reporte y determinístico cualquier test
   // que dependa del orden (ninguno debería, pero por las dudas).
-  routes.sort((a, b) => (a.path === b.path ? a.method.localeCompare(b.method) : a.path.localeCompare(b.path)));
+  routes.sort((a, b) =>
+    a.path === b.path ? a.method.localeCompare(b.method) : a.path.localeCompare(b.path),
+  );
   return routes;
 }

@@ -30,7 +30,13 @@ function withQuery(children: ReactNode): ReactNode {
 async function primeSession(permissions: string[] = ['attendance:read']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u',
+      firstName: 'Ana',
+      lastName: 'Test',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -98,10 +104,17 @@ describe('AttendancePage', () => {
   it('calcula KPIs con los registros del día', async () => {
     await primeSession();
     listAttendancesMock.mockResolvedValueOnce(
-      makeResponse([
-        makeAttendance({ id: 'att-1', occurredAt: '2026-08-20T21:10:00.000Z' }),
-        makeAttendance({ id: 'att-2', method: 'DOCUMENT', occurredAt: '2026-08-20T21:35:00.000Z' }),
-      ], 2),
+      makeResponse(
+        [
+          makeAttendance({ id: 'att-1', occurredAt: '2026-08-20T21:10:00.000Z' }),
+          makeAttendance({
+            id: 'att-2',
+            method: 'DOCUMENT',
+            occurredAt: '2026-08-20T21:35:00.000Z',
+          }),
+        ],
+        2,
+      ),
     );
     const { default: AttendancePage } = await import('./page');
     render(withQuery(<AttendancePage />));

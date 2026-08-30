@@ -379,7 +379,10 @@ let sdkSource: string | null = null;
 function readFingerprintSdk(): string {
   const candidates = [
     resolve(process.cwd(), 'node_modules/@digitalpersona/fingerprint/dist/fingerprint.sdk.js'),
-    resolve(process.cwd(), '../../node_modules/@digitalpersona/fingerprint/dist/fingerprint.sdk.js'),
+    resolve(
+      process.cwd(),
+      '../../node_modules/@digitalpersona/fingerprint/dist/fingerprint.sdk.js',
+    ),
     resolve(process.cwd(), 'public/vendor/hid/fingerprint.sdk.js'),
   ];
   for (const candidate of candidates) {

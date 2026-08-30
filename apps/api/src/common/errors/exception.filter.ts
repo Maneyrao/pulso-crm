@@ -82,7 +82,10 @@ function fromPostgres(message: string): AppError | null {
     );
   }
   if (message.includes('cash_movements_amount_positive')) {
-    return AppError.unprocessable(ErrorCode.VALIDATION_ERROR, 'El importe tiene que ser mayor a cero.');
+    return AppError.unprocessable(
+      ErrorCode.VALIDATION_ERROR,
+      'El importe tiene que ser mayor a cero.',
+    );
   }
   if (message.includes('append-only') || message.includes('inmutable')) {
     return AppError.conflict(
@@ -142,10 +145,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     });
 
     if (exception instanceof AppError) {
-      return build(exception.code, exception.status, exception.options.detail ?? exception.message, {
-        ...(exception.options.errors ? { errors: exception.options.errors } : {}),
-        ...(exception.options.meta ?? {}),
-      });
+      return build(
+        exception.code,
+        exception.status,
+        exception.options.detail ?? exception.message,
+        {
+          ...(exception.options.errors ? { errors: exception.options.errors } : {}),
+          ...(exception.options.meta ?? {}),
+        },
+      );
     }
 
     if (exception instanceof ZodError) {

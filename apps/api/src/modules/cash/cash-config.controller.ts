@@ -42,7 +42,8 @@ export class CashConfigController {
   @RequiresPermission('config:write')
   @Post('payment-methods')
   async createPaymentMethod(
-    @ZodBody(createPaymentMethodRequestSchema) body: z.infer<typeof createPaymentMethodRequestSchema>,
+    @ZodBody(createPaymentMethodRequestSchema)
+    body: z.infer<typeof createPaymentMethodRequestSchema>,
   ) {
     return this.service.createPaymentMethod(body);
   }
@@ -51,7 +52,8 @@ export class CashConfigController {
   @Patch('payment-methods/:id')
   async updatePaymentMethod(
     @ZodParam('id', uuidSchema) id: string,
-    @ZodBody(updatePaymentMethodRequestSchema) body: z.infer<typeof updatePaymentMethodRequestSchema>,
+    @ZodBody(updatePaymentMethodRequestSchema)
+    body: z.infer<typeof updatePaymentMethodRequestSchema>,
   ) {
     return this.service.updatePaymentMethod(id, body);
   }

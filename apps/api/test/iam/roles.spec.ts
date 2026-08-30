@@ -73,7 +73,9 @@ describe('PATCH /roles/:id — los roles de sistema no se editan', () => {
       (r) => r.code === 'RECEPTIONIST',
     )!;
 
-    const res = await owner.patch(`/api/v1/roles/${receptionist.id}`, { name: 'Recepción hackeada' });
+    const res = await owner.patch(`/api/v1/roles/${receptionist.id}`, {
+      name: 'Recepción hackeada',
+    });
     expect(res.status).toBe(409);
   });
 

@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, scoped } from '@pulso/db';
 import type { BillingCycle, Plan as PrismaPlan } from '@pulso/db';
-import type { CancelMembershipRequest, CreateMembershipRequest } from '@pulso/contracts/memberships';
+import type {
+  CancelMembershipRequest,
+  CreateMembershipRequest,
+} from '@pulso/contracts/memberships';
 // Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { AuditService } from '../../common/audit/audit.service.js';
@@ -15,10 +18,7 @@ import { fromDateOnly } from '../members/date-only.js';
 import { postLedgerEntry } from '../members/ledger.js';
 import { requireOpenSessionForUser } from '../cash/lib/session-lookup.js';
 import { ensureSystemConcept } from '../cash/lib/system-concepts.js';
-import {
-  serializeCashMovement,
-  type CashMovementDto,
-} from '../cash/lib/cash-serializer.js';
+import { serializeCashMovement, type CashMovementDto } from '../cash/lib/cash-serializer.js';
 import {
   serializeLedgerEntry,
   serializeMembership,
@@ -158,7 +158,10 @@ export class MembershipsService {
             // compatible con la tx extendida; el genérico de Prisma no coincide
             // exacto por argumentos fluent, se pasa como unknown y el helper
             // usa sólo `cashConcept.findFirst`/`create`.
-            ensureSystemConcept(tx as unknown as Parameters<typeof ensureSystemConcept>[0], 'MEMBERSHIP_CHARGE'),
+            ensureSystemConcept(
+              tx as unknown as Parameters<typeof ensureSystemConcept>[0],
+              'MEMBERSHIP_CHARGE',
+            ),
           ]);
           if (!paymentMethod) throw AppError.notFound('El método de pago');
 

@@ -53,7 +53,9 @@ export class CashSessionController {
   @Idempotent()
   @Post('close')
   @HttpCode(HttpStatus.OK)
-  close(@ZodBody(closeCashSessionRequestSchema) body: z.infer<typeof closeCashSessionRequestSchema>) {
+  close(
+    @ZodBody(closeCashSessionRequestSchema) body: z.infer<typeof closeCashSessionRequestSchema>,
+  ) {
     return this.service.close(body);
   }
 }

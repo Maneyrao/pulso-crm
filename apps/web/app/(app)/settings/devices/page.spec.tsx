@@ -44,7 +44,9 @@ const AGENT = {
 };
 
 function withProviders(children: ReactNode): ReactNode {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return (
     <QueryClientProvider client={qc}>
       <ToastProvider>{children}</ToastProvider>

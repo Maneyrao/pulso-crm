@@ -14,7 +14,14 @@ import type {
   PaymentMethod,
   ReverseCashMovementRequest,
 } from '@pulso/contracts/cash';
-import { ZERO_MONEY, addMoney, formatMoney, isMoneyString, subMoney, sumMoney } from '@pulso/config/money';
+import {
+  ZERO_MONEY,
+  addMoney,
+  formatMoney,
+  isMoneyString,
+  subMoney,
+  sumMoney,
+} from '@pulso/config/money';
 import {
   Button,
   DataTable,
@@ -62,7 +69,10 @@ export default function CashPage() {
     <PermissionGate
       permission="cash:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <CashScreen />
@@ -107,14 +117,8 @@ function CashScreen() {
     () => paymentMethodsQuery.data?.data ?? [],
     [paymentMethodsQuery.data],
   );
-  const concepts = React.useMemo(
-    () => conceptsQuery.data?.data ?? [],
-    [conceptsQuery.data],
-  );
-  const movements = React.useMemo(
-    () => movementsQuery.data?.data ?? [],
-    [movementsQuery.data],
-  );
+  const concepts = React.useMemo(() => conceptsQuery.data?.data ?? [], [conceptsQuery.data]);
+  const movements = React.useMemo(() => movementsQuery.data?.data ?? [], [movementsQuery.data]);
 
   const paymentMethodById = React.useMemo(
     () => new Map(paymentMethods.map((m) => [m.id, m])),
@@ -152,7 +156,9 @@ function CashScreen() {
           canOperate={canOperate}
           onChanged={() => {
             void movementsQuery.refetch();
-            queryClient.invalidateQueries({ queryKey: qk.cashSession(gymId ?? '', activeBranchId) });
+            queryClient.invalidateQueries({
+              queryKey: qk.cashSession(gymId ?? '', activeBranchId),
+            });
           }}
           onReverseError={(err) =>
             toast({
@@ -212,7 +218,11 @@ function SessionHeader({
   const usersQuery = useQuery({
     queryKey: qk.users(gymId, {}),
     queryFn: () => listUsers(),
-    enabled: Boolean(gymId) && canReadUsers && Boolean(session) && session?.openedByUserId !== currentUser?.id,
+    enabled:
+      Boolean(gymId) &&
+      canReadUsers &&
+      Boolean(session) &&
+      session?.openedByUserId !== currentUser?.id,
   });
 
   const openedByName = React.useMemo(() => {
@@ -298,7 +308,9 @@ interface KpiCardProps {
 function KpiCard({ label, value, emphasizeNegative }: KpiCardProps) {
   return (
     <div className="rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-surface) p-4">
-      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)">{label}</p>
+      <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)">
+        {label}
+      </p>
       <p className="mt-1 text-(--text-xl) font-semibold text-(--color-text)">
         <MoneyDisplay value={value} emphasizeNegative={emphasizeNegative} />
       </p>
@@ -396,7 +408,9 @@ function MovementsSection({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-(--text-lg) font-semibold text-(--color-text)">Movimientos de la sesión</h2>
+        <h2 className="text-(--text-lg) font-semibold text-(--color-text)">
+          Movimientos de la sesión
+        </h2>
         {canOperate ? <Button onClick={() => setNewOpen(true)}>Nuevo movimiento</Button> : null}
       </div>
 
@@ -458,9 +472,7 @@ function OpenCashCard({ canOperate, onOpened }: OpenCashCardProps) {
             ? 'Abrí una caja para empezar a registrar ingresos y egresos.'
             : 'Cuando alguien con permiso abra la caja podrás ver los movimientos.'
         }
-        action={
-          canOperate ? <Button onClick={() => setOpen(true)}>Abrir caja</Button> : undefined
-        }
+        action={canOperate ? <Button onClick={() => setOpen(true)}>Abrir caja</Button> : undefined}
       />
       <OpenCashModal open={open} onOpenChange={setOpen} onOpened={onOpened} />
     </>
@@ -569,13 +581,19 @@ function OpenCashModal({ open, onOpenChange, onOpened }: OpenCashModalProps) {
               options={registers.map((r) => ({ value: r.id, label: r.name }))}
               value={cashRegisterId}
               onValueChange={setCashRegisterId}
-              placeholder={registers.length === 0 ? 'No hay cajas disponibles' : 'Seleccioná una caja'}
+              placeholder={
+                registers.length === 0 ? 'No hay cajas disponibles' : 'Seleccioná una caja'
+              }
               disabled={registers.length === 0}
             />
           )}
         </FormField>
 
-        <FormField label="Fondo de apertura" required hint="Ingresá 0 si abrís sin efectivo inicial.">
+        <FormField
+          label="Fondo de apertura"
+          required
+          hint="Ingresá 0 si abrís sin efectivo inicial."
+        >
           {(field) => <MoneyInput {...field} value={openingAmount} onChange={setOpeningAmount} />}
         </FormField>
 
@@ -752,7 +770,9 @@ function NewMovementModal({
                 value={cashConceptId}
                 onValueChange={setCashConceptId}
                 placeholder={
-                  filteredConcepts.length === 0 ? 'No hay conceptos disponibles' : 'Elegí un concepto'
+                  filteredConcepts.length === 0
+                    ? 'No hay conceptos disponibles'
+                    : 'Elegí un concepto'
                 }
                 disabled={filteredConcepts.length === 0}
               />

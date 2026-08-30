@@ -38,7 +38,9 @@ vi.mock('@/lib/api/tenancy', () => ({
 }));
 
 function withProviders(children: ReactNode): ReactNode {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return (
     <QueryClientProvider client={qc}>
       <ToastProvider>{children}</ToastProvider>
@@ -66,7 +68,14 @@ function makeUser(overrides: Partial<User> = {}): User {
 }
 
 function makeRole(overrides: Partial<Role> = {}): Role {
-  return { id: ROLE_ADMIN, gymId: 'g1', name: 'Administrador', permissions: [], isSystem: true, ...overrides } as Role;
+  return {
+    id: ROLE_ADMIN,
+    gymId: 'g1',
+    name: 'Administrador',
+    permissions: [],
+    isSystem: true,
+    ...overrides,
+  } as Role;
 }
 
 function makeBranch(overrides: Partial<Branch> = {}): Branch {

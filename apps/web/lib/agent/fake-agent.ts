@@ -51,7 +51,10 @@ class FakeAgentClient implements AgentClient {
     useAgentStore.getState().setStatus('connecting', null);
     this.schedule(() => {
       this.connected = true;
-      this.emit({ type: 'hello.ack', payload: { agentVersion: '0.0.0-demo', deviceName: DEVICE_NAME } });
+      this.emit({
+        type: 'hello.ack',
+        payload: { agentVersion: '0.0.0-demo', deviceName: DEVICE_NAME },
+      });
       this.emit({ type: 'device.connected', payload: { deviceName: DEVICE_NAME } });
       useAgentStore.getState().setStatus('ready', DEVICE_NAME);
     }, 700);
@@ -61,7 +64,10 @@ class FakeAgentClient implements AgentClient {
     for (const t of this.timers) window.clearTimeout(t);
     this.timers = [];
     if (this.activeOpId) {
-      this.emit({ type: 'operation.cancelled', payload: { opId: this.activeOpId, reason: 'AGENT_DISCONNECTED' } });
+      this.emit({
+        type: 'operation.cancelled',
+        payload: { opId: this.activeOpId, reason: 'AGENT_DISCONNECTED' },
+      });
       this.activeOpId = null;
     }
     this.connected = false;
@@ -131,7 +137,13 @@ class FakeAgentClient implements AgentClient {
 
     this.emit({
       type: 'enroll.progress',
-      payload: { opId, captured: 0, required: samplesRequired, quality: null, prompt: 'Apoyá el dedo en el lector.' },
+      payload: {
+        opId,
+        captured: 0,
+        required: samplesRequired,
+        quality: null,
+        prompt: 'Apoyá el dedo en el lector.',
+      },
     });
     this.schedule(step, 1200);
     return opId;

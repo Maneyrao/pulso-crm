@@ -49,12 +49,16 @@ function withQuery(children: ReactNode): ReactNode {
   );
 }
 
-async function primeSession(
-  permissions: string[] = ['plan:read', 'plan:write'],
-): Promise<void> {
+async function primeSession(permissions: string[] = ['plan:read', 'plan:write']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u',
+      firstName: 'Ana',
+      lastName: 'Test',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -154,10 +158,9 @@ describe('ActivitiesPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Desactivar/i }));
 
     await waitFor(() => expect(updateActivityMock).toHaveBeenCalledTimes(1));
-    expect(updateActivityMock).toHaveBeenCalledWith(
-      '00000000-0000-0000-0000-000000000001',
-      { isActive: false },
-    );
+    expect(updateActivityMock).toHaveBeenCalledWith('00000000-0000-0000-0000-000000000001', {
+      isActive: false,
+    });
   });
 
   it('crear actividad: envía nombre + descripción + color y una Idempotency-Key uuid', async () => {

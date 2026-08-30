@@ -30,7 +30,9 @@ export function Header({ onOpenMenu }: { onOpenMenu: () => void }) {
       >
         <Menu className="h-4.5 w-4.5" aria-hidden={true} />
       </button>
-      <span className="min-w-0 truncate text-[13px] font-bold text-(--color-text)">{pageTitle}</span>
+      <span className="min-w-0 truncate text-[13px] font-bold text-(--color-text)">
+        {pageTitle}
+      </span>
       <div className="flex-1" />
       <div className="hidden items-center gap-3.5 md:flex">
         <BranchSelector />

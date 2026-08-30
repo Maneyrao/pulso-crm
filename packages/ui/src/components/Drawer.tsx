@@ -20,7 +20,15 @@ export interface DrawerProps {
  * La animación usa transform + data-state de Radix; se anula con
  * `prefers-reduced-motion`.
  */
-export function Drawer({ open, onOpenChange, title, hideTitle, side = 'left', children, className }: DrawerProps) {
+export function Drawer({
+  open,
+  onOpenChange,
+  title,
+  hideTitle,
+  side = 'left',
+  children,
+  className,
+}: DrawerProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -36,7 +44,10 @@ export function Drawer({ open, onOpenChange, title, hideTitle, side = 'left', ch
           )}
         >
           <DialogPrimitive.Title
-            className={cn('px-4 pt-4 text-(--text-lg) font-semibold text-(--color-text)', hideTitle && 'sr-only')}
+            className={cn(
+              'px-4 pt-4 text-(--text-lg) font-semibold text-(--color-text)',
+              hideTitle && 'sr-only',
+            )}
           >
             {title}
           </DialogPrimitive.Title>

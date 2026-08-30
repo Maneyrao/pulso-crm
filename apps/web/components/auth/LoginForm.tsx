@@ -50,7 +50,9 @@ export function LoginForm() {
     onSuccess: (session) => {
       const activeBranchId = resolveActiveBranchId(session);
       if (!activeBranchId) {
-        setFormError('Tu usuario no tiene sedes asignadas. Contactá al administrador del gimnasio.');
+        setFormError(
+          'Tu usuario no tiene sedes asignadas. Contactá al administrador del gimnasio.',
+        );
         return;
       }
       setSession({
@@ -66,7 +68,9 @@ export function LoginForm() {
     onError: (error: unknown) => {
       if (error instanceof ApiError) {
         if (error.code === 'ACCOUNT_LOCKED') {
-          setFormError(error.detail ?? 'Tu cuenta está bloqueada temporalmente. Probá de nuevo más tarde.');
+          setFormError(
+            error.detail ?? 'Tu cuenta está bloqueada temporalmente. Probá de nuevo más tarde.',
+          );
           return;
         }
         if (error.code === 'GYM_SUSPENDED') {

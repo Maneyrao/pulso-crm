@@ -40,7 +40,10 @@ export class BranchController {
 
   @RequiresPermission('config:write')
   @Patch(':id')
-  update(@ZodParam('id', uuidSchema) id: string, @ZodBody(updateBranchRequestSchema) body: UpdateBranchRequest) {
+  update(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodBody(updateBranchRequestSchema) body: UpdateBranchRequest,
+  ) {
     return this.branches.update(id, body);
   }
 

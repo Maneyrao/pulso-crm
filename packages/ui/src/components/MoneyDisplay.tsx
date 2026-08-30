@@ -12,7 +12,10 @@ export interface MoneyDisplayProps extends Omit<React.HTMLAttributes<HTMLSpanEle
 }
 
 export const MoneyDisplay = React.forwardRef<HTMLSpanElement, MoneyDisplayProps>(
-  ({ value, currency = 'ARS', locale = 'es-AR', emphasizeNegative = false, className, ...props }, ref) => {
+  (
+    { value, currency = 'ARS', locale = 'es-AR', emphasizeNegative = false, className, ...props },
+    ref,
+  ) => {
     const formatted = formatMoney(value, { locale, currency });
     const negative = emphasizeNegative && isNegativeMoney(value);
     return (

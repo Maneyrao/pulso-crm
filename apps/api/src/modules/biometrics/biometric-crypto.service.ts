@@ -84,7 +84,14 @@ export class BiometricCryptoService {
       orderBy: { keyVersion: 'desc' },
     });
     if (row) {
-      return { kek: open(this.masterKey(), Buffer.from(row.kekWrapped), this.kekAad(gymId, row.keyVersion)), keyVersion: row.keyVersion };
+      return {
+        kek: open(
+          this.masterKey(),
+          Buffer.from(row.kekWrapped),
+          this.kekAad(gymId, row.keyVersion),
+        ),
+        keyVersion: row.keyVersion,
+      };
     }
     const kek = randomBytes(32);
     const keyVersion = 1;
@@ -108,7 +115,11 @@ export class BiometricCryptoService {
     return open(this.masterKey(), Buffer.from(row.kekWrapped), this.kekAad(gymId, keyVersion));
   }
 
-  async encryptTemplate(gymId: string, credentialId: string, template: Buffer): Promise<EncryptedTemplate> {
+  async encryptTemplate(
+    gymId: string,
+    credentialId: string,
+    template: Buffer,
+  ): Promise<EncryptedTemplate> {
     const { kek, keyVersion } = await this.tenantKek(gymId);
     const aad = BiometricCryptoService.templateAad(gymId, credentialId, keyVersion);
 
@@ -128,14 +139,32 @@ export class BiometricCryptoService {
   }
 
   /** Lanza si el ciphertext no corresponde a este gym/credencial (AAD). */
-  async decryptTemplate(credential: Pick<DbBiometricCredential, 'id' | 'gymId' | 'keyVersion' | 'templateCiphertext' | 'templateNonce' | 'templateAuthTag' | 'dekWrapped'>): Promise<Buffer> {
+  async decryptTemplate(
+    credential: Pick<
+      DbBiometricCredential,
+      | 'id'
+      | 'gymId'
+      | 'keyVersion'
+      | 'templateCiphertext'
+      | 'templateNonce'
+      | 'templateAuthTag'
+      | 'dekWrapped'
+    >,
+  ): Promise<Buffer> {
     const kek = await this.tenantKekVersion(credential.gymId, credential.keyVersion);
-    const aad = BiometricCryptoService.templateAad(credential.gymId, credential.id, credential.keyVersion);
+    const aad = BiometricCryptoService.templateAad(
+      credential.gymId,
+      credential.id,
+      credential.keyVersion,
+    );
 
     const dek = open(kek, Buffer.from(credential.dekWrapped), aad);
     const decipher = createDecipheriv('aes-256-gcm', dek, Buffer.from(credential.templateNonce));
     decipher.setAAD(aad);
     decipher.setAuthTag(Buffer.from(credential.templateAuthTag));
-    return Buffer.concat([decipher.update(Buffer.from(credential.templateCiphertext)), decipher.final()]);
+    return Buffer.concat([
+      decipher.update(Buffer.from(credential.templateCiphertext)),
+      decipher.final(),
+    ]);
   }
 }

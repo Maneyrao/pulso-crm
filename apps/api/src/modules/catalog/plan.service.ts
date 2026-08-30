@@ -124,7 +124,9 @@ export class PlanService {
     if (!existing) throw AppError.notFound('El plan');
 
     const activityIds =
-      input.activityIds !== undefined ? await this.resolveActivityIds(input.activityIds) : undefined;
+      input.activityIds !== undefined
+        ? await this.resolveActivityIds(input.activityIds)
+        : undefined;
     const branchIds =
       input.branchIds !== undefined ? await this.resolveBranchIds(input.branchIds) : undefined;
 

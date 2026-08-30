@@ -91,7 +91,11 @@ export class CashDaybookService {
     // que su sesión, no al siguiente por UTC.
     const dayIndex = new Map<
       string,
-      { sessions: CashSessionDto[]; movements: CashMovementDto[]; totals: Map<string, { income: string; expense: string }> }
+      {
+        sessions: CashSessionDto[];
+        movements: CashMovementDto[];
+        totals: Map<string, { income: string; expense: string }>;
+      }
     >();
     const ensureDay = (date: string) => {
       let entry = dayIndex.get(date);
@@ -113,7 +117,10 @@ export class CashDaybookService {
       const day = toDateOnly(parent.businessDate);
       const entry = ensureDay(day);
       entry.movements.push(serializeCashMovement(m));
-      const bucket = entry.totals.get(m.paymentMethodId) ?? { income: ZERO_MONEY, expense: ZERO_MONEY };
+      const bucket = entry.totals.get(m.paymentMethodId) ?? {
+        income: ZERO_MONEY,
+        expense: ZERO_MONEY,
+      };
       if (m.type === 'INCOME') bucket.income = addMoney(bucket.income, m.amount.toFixed(2));
       else bucket.expense = addMoney(bucket.expense, m.amount.toFixed(2));
       entry.totals.set(m.paymentMethodId, bucket);

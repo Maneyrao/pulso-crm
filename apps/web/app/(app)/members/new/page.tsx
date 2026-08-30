@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { DOCUMENT_TYPES, documentHint } from '@pulso/config/document';
 import type { CreateMemberRequest, Member, MemberDocumentType } from '@pulso/contracts/members';
-import type { CreateMembershipRequest, CreateMembershipResponse, MembershipCharge } from '@pulso/contracts/memberships';
+import type {
+  CreateMembershipRequest,
+  CreateMembershipResponse,
+  MembershipCharge,
+} from '@pulso/contracts/memberships';
 import type { Plan } from '@pulso/contracts/catalog';
 import {
   Alert,
@@ -97,7 +101,10 @@ export default function NewMemberPage() {
     <PermissionGate
       permission="member:write"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para crear socios." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para crear socios."
+        />
       }
     >
       <NewMemberScreen />
@@ -115,7 +122,9 @@ function NewMemberScreen() {
   const [stepId, setStepId] = React.useState<StepId>('personal');
   const [completed, setCompleted] = React.useState<StepId[]>([]);
   const [personalForm, setPersonalForm] = React.useState<PersonalFormState>(EMPTY_PERSONAL);
-  const [personalErrors, setPersonalErrors] = React.useState<Partial<Record<keyof PersonalFormState, string>>>({});
+  const [personalErrors, setPersonalErrors] = React.useState<
+    Partial<Record<keyof PersonalFormState, string>>
+  >({});
   const [personalError, setPersonalError] = React.useState<string | undefined>();
 
   const [member, setMember] = React.useState<Member | null>(null);
@@ -155,12 +164,24 @@ function NewMemberScreen() {
     enabled: Boolean(gymId) && stepId === 'payment' && Boolean(cashSessionQuery.data),
   });
 
-  const activePlans = React.useMemo(() => (plansQuery.data?.data ?? []).filter((p) => p.isActive), [plansQuery.data]);
-  const planOptions = React.useMemo(() => activePlans.map((p) => ({ value: p.id, label: p.name })), [activePlans]);
+  const activePlans = React.useMemo(
+    () => (plansQuery.data?.data ?? []).filter((p) => p.isActive),
+    [plansQuery.data],
+  );
+  const planOptions = React.useMemo(
+    () => activePlans.map((p) => ({ value: p.id, label: p.name })),
+    [activePlans],
+  );
   const branchList = branchesQuery.data?.data ?? branches;
-  const branchOptions = React.useMemo(() => branchList.map((b) => ({ value: b.id, label: b.name })), [branchList]);
+  const branchOptions = React.useMemo(
+    () => branchList.map((b) => ({ value: b.id, label: b.name })),
+    [branchList],
+  );
   const paymentMethodOptions = React.useMemo(
-    () => (paymentMethodsQuery.data?.data ?? []).filter((pm) => pm.isActive).map((pm) => ({ value: pm.id, label: pm.name })),
+    () =>
+      (paymentMethodsQuery.data?.data ?? [])
+        .filter((pm) => pm.isActive)
+        .map((pm) => ({ value: pm.id, label: pm.name })),
     [paymentMethodsQuery.data],
   );
   const selectedPlan: Plan | undefined = activePlans.find((p) => p.id === planForm.planId);
@@ -207,7 +228,10 @@ function NewMemberScreen() {
     return Object.keys(errs).length === 0;
   };
 
-  const setPersonalField = <K extends keyof PersonalFormState>(key: K, value: PersonalFormState[K]): void => {
+  const setPersonalField = <K extends keyof PersonalFormState>(
+    key: K,
+    value: PersonalFormState[K],
+  ): void => {
     setPersonalForm((f) => ({ ...f, [key]: value }));
     if (personalErrors[key]) setPersonalErrors((s) => ({ ...s, [key]: undefined }));
   };
@@ -398,7 +422,11 @@ function NewMemberScreen() {
           ) : null}
 
           {stepId === 'personal' ? (
-            <Button onClick={handlePersonalSubmit} loading={createMemberMutation.isPending} disabled={createMemberMutation.isPending}>
+            <Button
+              onClick={handlePersonalSubmit}
+              loading={createMemberMutation.isPending}
+              disabled={createMemberMutation.isPending}
+            >
               {member ? 'Continuar' : 'Crear socio y continuar'}
             </Button>
           ) : null}
@@ -483,27 +511,59 @@ function PersonalStep({ form, errors, onChange, locked }: PersonalStepProps) {
       </FormField>
       <FormField label="Nombre" required error={errors.firstName}>
         {(field) => (
-          <Input {...field} value={form.firstName} onChange={(e) => onChange('firstName', e.target.value)} disabled={locked} required />
+          <Input
+            {...field}
+            value={form.firstName}
+            onChange={(e) => onChange('firstName', e.target.value)}
+            disabled={locked}
+            required
+          />
         )}
       </FormField>
       <FormField label="Apellido" required error={errors.lastName}>
         {(field) => (
-          <Input {...field} value={form.lastName} onChange={(e) => onChange('lastName', e.target.value)} disabled={locked} required />
+          <Input
+            {...field}
+            value={form.lastName}
+            onChange={(e) => onChange('lastName', e.target.value)}
+            disabled={locked}
+            required
+          />
         )}
       </FormField>
       <FormField label="Teléfono" hint="Se normaliza a formato internacional." error={errors.phone}>
         {(field) => (
-          <Input {...field} type="tel" value={form.phone} onChange={(e) => onChange('phone', e.target.value)} disabled={locked} autoComplete="tel" />
+          <Input
+            {...field}
+            type="tel"
+            value={form.phone}
+            onChange={(e) => onChange('phone', e.target.value)}
+            disabled={locked}
+            autoComplete="tel"
+          />
         )}
       </FormField>
       <FormField label="Email" error={errors.email}>
         {(field) => (
-          <Input {...field} type="email" value={form.email} onChange={(e) => onChange('email', e.target.value)} disabled={locked} autoComplete="email" />
+          <Input
+            {...field}
+            type="email"
+            value={form.email}
+            onChange={(e) => onChange('email', e.target.value)}
+            disabled={locked}
+            autoComplete="email"
+          />
         )}
       </FormField>
       <FormField label="Fecha de nacimiento">
         {(field) => (
-          <Input {...field} type="date" value={form.birthDate} onChange={(e) => onChange('birthDate', e.target.value)} disabled={locked} />
+          <Input
+            {...field}
+            type="date"
+            value={form.birthDate}
+            onChange={(e) => onChange('birthDate', e.target.value)}
+            disabled={locked}
+          />
         )}
       </FormField>
     </div>
@@ -546,7 +606,14 @@ function PlanStep({ form, onChange, planOptions, branchOptions, loading }: PlanS
         )}
       </FormField>
       <FormField label="Fecha de inicio">
-        {(field) => <Input {...field} type="date" value={form.startDate} onChange={(e) => onChange({ startDate: e.target.value })} />}
+        {(field) => (
+          <Input
+            {...field}
+            type="date"
+            value={form.startDate}
+            onChange={(e) => onChange({ startDate: e.target.value })}
+          />
+        )}
       </FormField>
     </div>
   );
@@ -575,13 +642,16 @@ function PaymentStep({
   onChargeAmountChange,
 }: PaymentStepProps) {
   if (cashSessionLoading) {
-    return <p className="text-(--text-sm) text-(--color-muted)">Revisando si hay una caja abierta…</p>;
+    return (
+      <p className="text-(--text-sm) text-(--color-muted)">Revisando si hay una caja abierta…</p>
+    );
   }
   if (!hasCashSession) {
     return (
       <Alert tone="warning" title="No hay una caja abierta en esta sede">
-        Podés terminar el alta igual: el precio del plan{selectedPlan ? ` (${selectedPlan.name})` : ''} queda
-        como saldo pendiente del socio hasta que se cobre desde Caja.
+        Podés terminar el alta igual: el precio del plan
+        {selectedPlan ? ` (${selectedPlan.name})` : ''} queda como saldo pendiente del socio hasta
+        que se cobre desde Caja.
       </Alert>
     );
   }
@@ -589,7 +659,12 @@ function PaymentStep({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <FormField label="Método de pago" required>
         {(field) => (
-          <Select {...field} options={paymentMethodOptions} value={paymentMethodId || undefined} onValueChange={onPaymentMethodChange} />
+          <Select
+            {...field}
+            options={paymentMethodOptions}
+            value={paymentMethodId || undefined}
+            onValueChange={onPaymentMethodChange}
+          />
         )}
       </FormField>
       <FormField label="Monto" required hint="Prellenado con el precio del plan; se puede ajustar.">
@@ -611,7 +686,11 @@ function DoneScreen({ summary }: { summary: DoneSummary }) {
       <Card className="flex flex-col gap-3 p-6">
         <SummaryRow
           label="Membresía"
-          value={membership ? `Sí — ${membership.membership.status === 'ACTIVE' ? 'activa' : membership.membership.status}` : 'No se asignó ninguna'}
+          value={
+            membership
+              ? `Sí — ${membership.membership.status === 'ACTIVE' ? 'activa' : membership.membership.status}`
+              : 'No se asignó ninguna'
+          }
         />
         {membership ? (
           <SummaryRow

@@ -30,12 +30,19 @@ test.describe('listado de socios', () => {
 
   test('los filtros viven en la URL y sobreviven a un refresh', async ({ page }) => {
     await page.goto('/members');
-    await page.getByRole('searchbox').or(page.getByPlaceholder(/buscar/i)).first().fill('Lucía');
+    await page
+      .getByRole('searchbox')
+      .or(page.getByPlaceholder(/buscar/i))
+      .first()
+      .fill('Lucía');
     await page.waitForURL(/q=Luc/i);
 
     await page.reload();
     await expect(
-      page.getByRole('searchbox').or(page.getByPlaceholder(/buscar/i)).first(),
+      page
+        .getByRole('searchbox')
+        .or(page.getByPlaceholder(/buscar/i))
+        .first(),
     ).toHaveValue(/Luc/i);
   });
 
@@ -59,9 +66,18 @@ test.describe('alta de socio', () => {
     const doc = nuevoDocumento();
     await page.goto('/members/new');
 
-    await page.getByLabel(/nombre/i).first().fill('Camila');
-    await page.getByLabel(/apellido/i).first().fill('Prueba');
-    await page.getByLabel(/documento|dni/i).first().fill(doc);
+    await page
+      .getByLabel(/nombre/i)
+      .first()
+      .fill('Camila');
+    await page
+      .getByLabel(/apellido/i)
+      .first()
+      .fill('Prueba');
+    await page
+      .getByLabel(/documento|dni/i)
+      .first()
+      .fill(doc);
     await page.getByRole('button', { name: /siguiente|continuar/i }).click();
 
     // Paso 2: plan
@@ -76,10 +92,19 @@ test.describe('alta de socio', () => {
 
   test('un documento duplicado se avisa en el mismo paso', async ({ page }) => {
     await page.goto('/members/new');
-    await page.getByLabel(/nombre/i).first().fill('Duplicada');
-    await page.getByLabel(/apellido/i).first().fill('Prueba');
+    await page
+      .getByLabel(/nombre/i)
+      .first()
+      .fill('Duplicada');
+    await page
+      .getByLabel(/apellido/i)
+      .first()
+      .fill('Prueba');
     // 90000001 ya existe en el seed.
-    await page.getByLabel(/documento|dni/i).first().fill('90000001');
+    await page
+      .getByLabel(/documento|dni/i)
+      .first()
+      .fill('90000001');
     await page.getByRole('button', { name: /siguiente|continuar/i }).click();
 
     await expect(page.getByText(/ya existe|duplicado/i)).toBeVisible();
@@ -87,8 +112,14 @@ test.describe('alta de socio', () => {
 
   test('recargar no pierde lo que se venía cargando', async ({ page }) => {
     await page.goto('/members/new');
-    await page.getByLabel(/nombre/i).first().fill('Borrador');
-    await page.getByLabel(/apellido/i).first().fill('Persistente');
+    await page
+      .getByLabel(/nombre/i)
+      .first()
+      .fill('Borrador');
+    await page
+      .getByLabel(/apellido/i)
+      .first()
+      .fill('Persistente');
 
     await page.reload();
 

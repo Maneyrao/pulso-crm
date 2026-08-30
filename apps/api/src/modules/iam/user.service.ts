@@ -114,10 +114,20 @@ export class UserService {
           action: 'USER_CREATED',
           resourceType: 'User',
           resourceId: user.id,
-          after: { email: user.email, firstName: user.firstName, lastName: user.lastName, roleIds, branchIds },
+          after: {
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            roleIds,
+            branchIds,
+          },
         });
 
-        return { ...user, roleAssignments: roleIds.map((roleId) => ({ roleId })), branchAccess: branchIds.map((branchId) => ({ branchId })) };
+        return {
+          ...user,
+          roleAssignments: roleIds.map((roleId) => ({ roleId })),
+          branchAccess: branchIds.map((branchId) => ({ branchId })),
+        };
       });
 
       return { user: serializeUser(created), temporaryPassword };
@@ -320,7 +330,9 @@ export class UserService {
    */
   private async resolveBranchIds(branchIds: string[]): Promise<string[]> {
     if (branchIds.length === 0) {
-      const all = await this.prisma.client.branch.findMany({ where: { deletedAt: null, isActive: true } });
+      const all = await this.prisma.client.branch.findMany({
+        where: { deletedAt: null, isActive: true },
+      });
       return all.map((b) => b.id);
     }
     const branches = await this.prisma.client.branch.findMany({
@@ -398,7 +410,9 @@ export class UserService {
     if (actingUserId !== targetUserId) return;
 
     const roles = await tx.role.findMany({ where: { id: { in: newRoleIds } } });
-    const stillHasUserWrite = roles.some((role) => role.permissions.includes(USER_WRITE_PERMISSION));
+    const stillHasUserWrite = roles.some((role) =>
+      role.permissions.includes(USER_WRITE_PERMISSION),
+    );
     if (!stillHasUserWrite) {
       throw AppError.conflict(
         ErrorCode.CONFLICT,
@@ -409,7 +423,10 @@ export class UserService {
 
   private translateWriteError(err: unknown): unknown {
     if (isUniqueViolation(err)) {
-      return AppError.conflict(ErrorCode.CONFLICT, 'Ya existe un usuario con ese email en este gimnasio.');
+      return AppError.conflict(
+        ErrorCode.CONFLICT,
+        'Ya existe un usuario con ese email en este gimnasio.',
+      );
     }
     return err;
   }

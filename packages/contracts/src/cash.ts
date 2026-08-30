@@ -296,7 +296,9 @@ export const listCashOperationsQuerySchema = z.object({
 });
 export type ListCashOperationsQuery = z.infer<typeof listCashOperationsQuerySchema>;
 
-export const listCashOperationsResponseSchema = z.object({ data: z.array(cashOperationRequestSchema) });
+export const listCashOperationsResponseSchema = z.object({
+  data: z.array(cashOperationRequestSchema),
+});
 export type ListCashOperationsResponse = z.infer<typeof listCashOperationsResponseSchema>;
 
 /** `POST /cash/operations/:id/approve` — `cash:approve`, Idem. */

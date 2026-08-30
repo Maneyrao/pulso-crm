@@ -43,7 +43,10 @@ export default function DebtorsPage() {
     <PermissionGate
       permission="member:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <DebtorsScreen />
@@ -60,7 +63,8 @@ function DebtorsScreen() {
   const searchParams = useSearchParams();
 
   const page = Number(searchParams.get('page') ?? '1') || 1;
-  const sortParam = (searchParams.get('sort') as `${SortField}:${SortOrder}` | null) ?? DEFAULT_SORT;
+  const sortParam =
+    (searchParams.get('sort') as `${SortField}:${SortOrder}` | null) ?? DEFAULT_SORT;
   const [sortField, sortOrder] = React.useMemo(() => {
     const [f, o] = sortParam.split(':') as [SortField, SortOrder];
     return [f ?? 'balance', o ?? 'desc'] as const;
@@ -128,9 +132,7 @@ function DebtorsScreen() {
     {
       id: 'debtSince',
       header: 'Deuda desde',
-      cell: (m) => (
-        <span className="text-(--color-muted) tabular-nums">{m.debtSince ?? '—'}</span>
-      ),
+      cell: (m) => <span className="text-(--color-muted) tabular-nums">{m.debtSince ?? '—'}</span>,
     },
     {
       id: 'balance',
@@ -168,7 +170,10 @@ function DebtorsScreen() {
           </p>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="debtors-sort" className="text-(--text-sm) font-medium text-(--color-text)">
+          <label
+            htmlFor="debtors-sort"
+            className="text-(--text-sm) font-medium text-(--color-text)"
+          >
             Ordenar por
           </label>
           <Select

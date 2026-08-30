@@ -90,7 +90,10 @@ export function MonthCalendar({
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </Button>
-        <p className="text-(--text-lg) font-semibold capitalize text-(--color-text)" aria-live="polite">
+        <p
+          className="text-(--text-lg) font-semibold capitalize text-(--color-text)"
+          aria-live="polite"
+        >
           {monthLabel}
         </p>
         <Button
@@ -145,7 +148,9 @@ export function MonthCalendar({
                     selected ? 'bg-(--color-primary-subtle)' : '',
                   )}
                 >
-                  <span className="text-(--text-sm) font-medium tabular-nums">{format(day, 'd')}</span>
+                  <span className="text-(--text-sm) font-medium tabular-nums">
+                    {format(day, 'd')}
+                  </span>
                   <div className="flex flex-col gap-0.5">
                     {count > 0 ? (
                       <Badge tone="info" className="whitespace-nowrap">

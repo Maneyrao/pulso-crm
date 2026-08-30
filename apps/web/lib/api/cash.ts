@@ -133,7 +133,10 @@ export function createCashConcept(payload: CreateCashConceptRequest): Promise<Ca
   return apiFetch<CashConcept>('/cash/concepts', { method: 'POST', body: payload });
 }
 
-export function updateCashConcept(id: string, payload: UpdateCashConceptRequest): Promise<CashConcept> {
+export function updateCashConcept(
+  id: string,
+  payload: UpdateCashConceptRequest,
+): Promise<CashConcept> {
   return apiFetch<CashConcept>(`/cash/concepts/${id}`, { method: 'PATCH', body: payload });
 }
 
@@ -150,7 +153,9 @@ export function listCashOperations(
   branchId: string | null,
   status = 'PENDING',
 ): Promise<ListCashOperationsResponse> {
-  return apiFetch<ListCashOperationsResponse>(`/cash/operations${toQueryString({ branchId, status })}`);
+  return apiFetch<ListCashOperationsResponse>(
+    `/cash/operations${toQueryString({ branchId, status })}`,
+  );
 }
 
 // ── Daybook ─────────────────────────────────────────────────────────────

@@ -35,7 +35,11 @@ export function Pagination({
       : undefined;
 
   return (
-    <nav aria-label="Paginación" className={cn('flex items-center justify-between gap-4', className)} {...props}>
+    <nav
+      aria-label="Paginación"
+      className={cn('flex items-center justify-between gap-4', className)}
+      {...props}
+    >
       {summary ? <p className="text-(--text-sm) text-(--color-muted)">{summary}</p> : <span />}
       <div className="flex items-center gap-2">
         <Button

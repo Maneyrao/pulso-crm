@@ -23,7 +23,9 @@ export class ApiError extends Error {
   }
 
   /** Error de transporte (sin respuesta del servidor): timeout, offline, DNS, etc. */
-  static network(message = 'No pudimos conectarnos con el servidor. Revisá tu conexión.'): ApiError {
+  static network(
+    message = 'No pudimos conectarnos con el servidor. Revisá tu conexión.',
+  ): ApiError {
     return new ApiError({
       type: 'about:blank',
       code: 'INTERNAL_ERROR',

@@ -8,12 +8,6 @@
     "moduleResolution": "Node",
     "verbatimModuleSyntax": false
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "src/**/*.spec.ts",
-    "node_modules",
-    "dist"
-  ]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts", "node_modules", "dist"]
 }

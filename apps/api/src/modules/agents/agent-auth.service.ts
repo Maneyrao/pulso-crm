@@ -46,13 +46,17 @@ export interface RequestWithAgentAuth {
 }
 
 /** Inyecta en el handler la autenticación resuelta por AuthGuard. */
-export const AgentAuth = createParamDecorator((_data: unknown, ctx: ExecutionContext): AgentAuthInfo => {
-  const req = ctx.switchToHttp().getRequest<RequestWithAgentAuth>();
-  if (!req.agentAuth) {
-    throw new Error('@AgentAuth() usado en un handler sin @AgentOnly(). Es un error de programación.');
-  }
-  return req.agentAuth;
-});
+export const AgentAuth = createParamDecorator(
+  (_data: unknown, ctx: ExecutionContext): AgentAuthInfo => {
+    const req = ctx.switchToHttp().getRequest<RequestWithAgentAuth>();
+    if (!req.agentAuth) {
+      throw new Error(
+        '@AgentAuth() usado en un handler sin @AgentOnly(). Es un error de programación.',
+      );
+    }
+    return req.agentAuth;
+  },
+);
 
 export function generateToken(prefix: string): string {
   return prefix + randomBytes(32).toString('base64url');
@@ -91,12 +95,10 @@ export class AgentAuthService {
     }
 
     if (bearer.startsWith(DEVICE_TOKEN_PREFIX)) {
-      const token = await this.prisma
-        .unscoped('agent-auth')
-        .deviceToken.findUnique({
-          where: { tokenHash: hashToken(bearer) },
-          include: { localAgent: true },
-        });
+      const token = await this.prisma.unscoped('agent-auth').deviceToken.findUnique({
+        where: { tokenHash: hashToken(bearer) },
+        include: { localAgent: true },
+      });
       if (!token || token.usedAt !== null || token.expiresAt.getTime() <= Date.now()) {
         throw this.invalidToken();
       }
@@ -122,7 +124,9 @@ export class AgentAuthService {
    */
   async pair(input: AgentPairRequest): Promise<AgentPairResponse> {
     const db = this.prisma.unscoped('agent-pair');
-    const agent = await db.localAgent.findFirst({ where: { installationId: input.installationId } });
+    const agent = await db.localAgent.findFirst({
+      where: { installationId: input.installationId },
+    });
 
     // Respuesta idéntica para "no existe", "secreto incorrecto" y "ya
     // pareado": distinguirlas le regala información a quien está probando.
@@ -152,6 +156,9 @@ export class AgentAuthService {
   }
 
   private invalidToken(): AppError {
-    return AppError.unauthorized(ErrorCode.INVALID_DEVICE_TOKEN, 'Credencial de dispositivo inválida.');
+    return AppError.unauthorized(
+      ErrorCode.INVALID_DEVICE_TOKEN,
+      'Credencial de dispositivo inválida.',
+    );
   }
 }

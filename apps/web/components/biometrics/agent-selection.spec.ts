@@ -49,14 +49,14 @@ describe('selectOnlineBiometricEndpoint', () => {
 
     const selected = selectOnlineBiometricEndpoint(
       [offline, online],
-      [
-        device(offline.id, { status: 'OFFLINE', lastSeenAt: null }),
-        device(online.id, {}),
-      ],
+      [device(offline.id, { status: 'OFFLINE', lastSeenAt: null }), device(online.id, {})],
       online.branchId,
     );
 
-    expect(selected).toEqual({ agent: online, device: expect.objectContaining({ localAgentId: online.id }) });
+    expect(selected).toEqual({
+      agent: online,
+      device: expect.objectContaining({ localAgentId: online.id }),
+    });
   });
 
   it('no usa lectores de otra sede', () => {

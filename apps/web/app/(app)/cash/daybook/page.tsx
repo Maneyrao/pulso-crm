@@ -40,7 +40,10 @@ export default function DaybookPage() {
     <PermissionGate
       permission="cash:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <DaybookScreen />
@@ -144,10 +147,7 @@ function DaybookScreen() {
         </p>
       ) : null}
 
-      <DaybookContent
-        query={daybookQuery}
-        paymentMethodById={paymentMethodById}
-      />
+      <DaybookContent query={daybookQuery} paymentMethodById={paymentMethodById} />
     </div>
   );
 }
@@ -240,7 +240,8 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
     {
       id: 'method',
       header: 'Método',
-      cell: (m) => paymentMethodById.get(m.paymentMethodId)?.name ?? shortSessionId(m.paymentMethodId),
+      cell: (m) =>
+        paymentMethodById.get(m.paymentMethodId)?.name ?? shortSessionId(m.paymentMethodId),
     },
     {
       id: 'type',
@@ -283,8 +284,8 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-(--text-lg) font-semibold text-(--color-text) tabular-nums">{date}</h2>
         <p className="text-(--text-sm) text-(--color-muted)">
-          {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'} ·{' '}
-          {movements.length} {movements.length === 1 ? 'movimiento' : 'movimientos'}
+          {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'} · {movements.length}{' '}
+          {movements.length === 1 ? 'movimiento' : 'movimientos'}
         </p>
       </header>
 
@@ -298,23 +299,37 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
       />
 
       <div className="overflow-x-auto rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-4">
-        <h3 className="mb-2 text-(--text-sm) font-medium text-(--color-text)">Totales por método</h3>
+        <h3 className="mb-2 text-(--text-sm) font-medium text-(--color-text)">
+          Totales por método
+        </h3>
         <table className="w-full border-collapse text-(--text-sm)">
           <thead>
             <tr className="border-b border-(--color-border)">
-              <th scope="col" className="px-2 py-1.5 text-left font-medium text-(--color-muted)">Método</th>
-              <th scope="col" className="px-2 py-1.5 text-right font-medium text-(--color-muted)">Ingresos</th>
-              <th scope="col" className="px-2 py-1.5 text-right font-medium text-(--color-muted)">Egresos</th>
-              <th scope="col" className="px-2 py-1.5 text-right font-medium text-(--color-muted)">Neto</th>
+              <th scope="col" className="px-2 py-1.5 text-left font-medium text-(--color-muted)">
+                Método
+              </th>
+              <th scope="col" className="px-2 py-1.5 text-right font-medium text-(--color-muted)">
+                Ingresos
+              </th>
+              <th scope="col" className="px-2 py-1.5 text-right font-medium text-(--color-muted)">
+                Egresos
+              </th>
+              <th scope="col" className="px-2 py-1.5 text-right font-medium text-(--color-muted)">
+                Neto
+              </th>
             </tr>
           </thead>
           <tbody>
             {totalsByMethod.map((row) => {
               const net = subMoney(row.income, row.expense);
               return (
-                <tr key={row.paymentMethodId} className="border-b border-(--color-border) last:border-0">
+                <tr
+                  key={row.paymentMethodId}
+                  className="border-b border-(--color-border) last:border-0"
+                >
                   <td className="px-2 py-1.5">
-                    {paymentMethodById.get(row.paymentMethodId)?.name ?? row.paymentMethodId.slice(0, 8)}
+                    {paymentMethodById.get(row.paymentMethodId)?.name ??
+                      row.paymentMethodId.slice(0, 8)}
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     <MoneyDisplay value={row.income} />
@@ -385,4 +400,3 @@ function errorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.detail ?? error.message;
   return 'Ocurrió un error inesperado.';
 }
-

@@ -79,7 +79,9 @@ export function ConfirmDialog({
 
           {requiresText ? (
             <div className="mt-4 flex flex-col gap-1.5">
-              <Label htmlFor={inputId}>{requireTextLabel ?? `Escribí "${requireTextConfirmation}" para confirmar`}</Label>
+              <Label htmlFor={inputId}>
+                {requireTextLabel ?? `Escribí "${requireTextConfirmation}" para confirmar`}
+              </Label>
               <Input
                 id={inputId}
                 value={typedText}

@@ -22,21 +22,54 @@ import {
   UserStatus as PrismaUserStatus,
 } from '@prisma/client';
 
-import { accessCheckRequestSchema, accessDecisionSchema, accessMethodSchema, accessReasonCodeSchema } from './access.js';
+import {
+  accessCheckRequestSchema,
+  accessDecisionSchema,
+  accessMethodSchema,
+  accessReasonCodeSchema,
+} from './access.js';
 import { billingCycleSchema } from './catalog.js';
-import { cashMovementTypeSchema, cashOperationKindSchema, cashOperationStatusSchema, cashSessionStatusSchema, createCashMovementRequestSchema } from './cash.js';
-import { businessDateSchema, isoInstantSchema, moneySchema, problemDetailsSchema, uuidSchema } from './common.js';
+import {
+  cashMovementTypeSchema,
+  cashOperationKindSchema,
+  cashOperationStatusSchema,
+  cashSessionStatusSchema,
+  createCashMovementRequestSchema,
+} from './cash.js';
+import {
+  businessDateSchema,
+  isoInstantSchema,
+  moneySchema,
+  problemDetailsSchema,
+  uuidSchema,
+} from './common.js';
 import { FEATURE_KEYS, DEFAULT_PLAN_FEATURES } from './features.js';
 import { userStatusSchema } from './iam.js';
 import { loginRequestSchema } from './auth.js';
 import { gymStatusSchema } from './tenancy.js';
-import { createMemberRequestSchema, documentTypeSchema, genderSchema, ledgerEntryTypeSchema, ledgerReasonSchema, listMembersQuerySchema, memberDocumentKindSchema, memberStatusSchema } from './members.js';
+import {
+  createMemberRequestSchema,
+  documentTypeSchema,
+  genderSchema,
+  ledgerEntryTypeSchema,
+  ledgerReasonSchema,
+  listMembersQuerySchema,
+  memberDocumentKindSchema,
+  memberStatusSchema,
+} from './members.js';
 import { createMembershipRequestSchema, membershipStatusSchema } from './memberships.js';
-import { messageChannelSchema, messageJobStatusSchema, messageTemplateKindSchema } from './messaging.js';
+import {
+  messageChannelSchema,
+  messageJobStatusSchema,
+  messageTemplateKindSchema,
+} from './messaging.js';
 import { PERMISSIONS, SYSTEM_ROLE_CODES, SYSTEM_ROLE_PERMISSIONS } from './permissions.js';
 
 /** Compara un `z.enum` de contracts contra el objeto de enum generado por Prisma. */
-function expectMatchesPrismaEnum(zodEnum: { options: readonly string[] }, prismaEnum: Record<string, string>) {
+function expectMatchesPrismaEnum(
+  zodEnum: { options: readonly string[] },
+  prismaEnum: Record<string, string>,
+) {
   const fromZod = [...zodEnum.options].sort();
   const fromPrisma = Object.values(prismaEnum).sort();
   expect(fromZod).toEqual(fromPrisma);
@@ -89,7 +122,13 @@ describe('common — problemDetailsSchema', () => {
       status: 409,
       detail: 'El usuario no tiene una sesión de caja abierta en esta sede.',
       requestId: '01J0000000000000000000000',
-      errors: [{ path: 'amount', code: 'invalid_format', message: 'Debe ser decimal con hasta 2 decimales' }],
+      errors: [
+        {
+          path: 'amount',
+          code: 'invalid_format',
+          message: 'Debe ser decimal con hasta 2 decimales',
+        },
+      ],
     });
     expect(result.success).toBe(true);
   });
@@ -107,11 +146,15 @@ describe('common — problemDetailsSchema', () => {
 
 describe('auth — login', () => {
   it('acepta credenciales válidas', () => {
-    expect(loginRequestSchema.safeParse({ email: 'a@b.com', password: '12345678' }).success).toBe(true);
+    expect(loginRequestSchema.safeParse({ email: 'a@b.com', password: '12345678' }).success).toBe(
+      true,
+    );
   });
 
   it('rechaza email inválido', () => {
-    expect(loginRequestSchema.safeParse({ email: 'no-es-un-email', password: '12345678' }).success).toBe(false);
+    expect(
+      loginRequestSchema.safeParse({ email: 'no-es-un-email', password: '12345678' }).success,
+    ).toBe(false);
   });
 
   it('rechaza password corta', () => {
@@ -208,7 +251,9 @@ describe('cash — movimientos', () => {
       cashConceptId: '018f1e2a-0000-7000-8000-000000000000',
       paymentMethodId: '018f1e2a-0000-7000-8000-000000000000',
     };
-    expect(createCashMovementRequestSchema.safeParse({ ...base, amount: '0.00' }).success).toBe(true);
+    expect(createCashMovementRequestSchema.safeParse({ ...base, amount: '0.00' }).success).toBe(
+      true,
+    );
     // moneySchema en sí no impone signo; la regla de negocio (> 0) la aplica el backend.
     // Acá sólo se verifica el formato.
     expect(createCashMovementRequestSchema.safeParse({ ...base, amount: 100 }).success).toBe(false);
@@ -271,22 +316,32 @@ describe('enums — coinciden con schema.prisma', () => {
   it('DocumentType', () => expectMatchesPrismaEnum(documentTypeSchema, PrismaDocumentType));
   it('MemberStatus', () => expectMatchesPrismaEnum(memberStatusSchema, PrismaMemberStatus));
   it('Gender', () => expectMatchesPrismaEnum(genderSchema, PrismaGender));
-  it('MemberDocumentKind', () => expectMatchesPrismaEnum(memberDocumentKindSchema, PrismaMemberDocumentKind));
-  it('LedgerEntryType', () => expectMatchesPrismaEnum(ledgerEntryTypeSchema, PrismaLedgerEntryType));
+  it('MemberDocumentKind', () =>
+    expectMatchesPrismaEnum(memberDocumentKindSchema, PrismaMemberDocumentKind));
+  it('LedgerEntryType', () =>
+    expectMatchesPrismaEnum(ledgerEntryTypeSchema, PrismaLedgerEntryType));
   it('LedgerReason', () => expectMatchesPrismaEnum(ledgerReasonSchema, PrismaLedgerReason));
   it('BillingCycle', () => expectMatchesPrismaEnum(billingCycleSchema, PrismaBillingCycle));
-  it('MembershipStatus', () => expectMatchesPrismaEnum(membershipStatusSchema, PrismaMembershipStatus));
-  it('CashMovementType', () => expectMatchesPrismaEnum(cashMovementTypeSchema, PrismaCashMovementType));
-  it('CashSessionStatus', () => expectMatchesPrismaEnum(cashSessionStatusSchema, PrismaCashSessionStatus));
-  it('CashOperationKind', () => expectMatchesPrismaEnum(cashOperationKindSchema, PrismaCashOperationKind));
-  it('CashOperationStatus', () => expectMatchesPrismaEnum(cashOperationStatusSchema, PrismaCashOperationStatus));
+  it('MembershipStatus', () =>
+    expectMatchesPrismaEnum(membershipStatusSchema, PrismaMembershipStatus));
+  it('CashMovementType', () =>
+    expectMatchesPrismaEnum(cashMovementTypeSchema, PrismaCashMovementType));
+  it('CashSessionStatus', () =>
+    expectMatchesPrismaEnum(cashSessionStatusSchema, PrismaCashSessionStatus));
+  it('CashOperationKind', () =>
+    expectMatchesPrismaEnum(cashOperationKindSchema, PrismaCashOperationKind));
+  it('CashOperationStatus', () =>
+    expectMatchesPrismaEnum(cashOperationStatusSchema, PrismaCashOperationStatus));
   it('AccessMethod', () => expectMatchesPrismaEnum(accessMethodSchema, PrismaAccessMethod));
-  it('AccessReasonCode', () => expectMatchesPrismaEnum(accessReasonCodeSchema, PrismaAccessReasonCode));
+  it('AccessReasonCode', () =>
+    expectMatchesPrismaEnum(accessReasonCodeSchema, PrismaAccessReasonCode));
   it('GymStatus', () => expectMatchesPrismaEnum(gymStatusSchema, PrismaGymStatus));
   it('UserStatus', () => expectMatchesPrismaEnum(userStatusSchema, PrismaUserStatus));
   it('MessageChannel', () => expectMatchesPrismaEnum(messageChannelSchema, PrismaMessageChannel));
-  it('MessageTemplateKind', () => expectMatchesPrismaEnum(messageTemplateKindSchema, PrismaMessageTemplateKind));
-  it('MessageJobStatus', () => expectMatchesPrismaEnum(messageJobStatusSchema, PrismaMessageJobStatus));
+  it('MessageTemplateKind', () =>
+    expectMatchesPrismaEnum(messageTemplateKindSchema, PrismaMessageTemplateKind));
+  it('MessageJobStatus', () =>
+    expectMatchesPrismaEnum(messageJobStatusSchema, PrismaMessageJobStatus));
 
   it('AccessDecision', () => expectMatchesPrismaEnum(accessDecisionSchema, PrismaAccessDecision));
 });

@@ -37,9 +37,7 @@ const DOC_BASE = 90_000_000;
 
 async function main(): Promise<void> {
   if (process.env['NODE_ENV'] === 'production') {
-    throw new Error(
-      'El seed carga usuarios con contraseña conocida. Nunca corre en producción.',
-    );
+    throw new Error('El seed carga usuarios con contraseña conocida. Nunca corre en producción.');
   }
 
   const url = process.env['DATABASE_URL'] ?? '';
@@ -118,9 +116,18 @@ async function main(): Promise<void> {
   // ── Roles ─────────────────────────────────────────────────────────────────
   const ROLE_LABELS: Record<string, { name: string; description: string }> = {
     OWNER: { name: 'Dueño', description: 'Acceso total, incluida configuración y facturación.' },
-    MANAGER: { name: 'Encargado', description: 'Opera y supervisa: aprueba reversas y ve reportes.' },
-    RECEPTIONIST: { name: 'Recepción', description: 'Mostrador: socios, cobros, caja propia y acceso.' },
-    INSTRUCTOR: { name: 'Instructor', description: 'Consulta socios y asistencias. No opera dinero.' },
+    MANAGER: {
+      name: 'Encargado',
+      description: 'Opera y supervisa: aprueba reversas y ve reportes.',
+    },
+    RECEPTIONIST: {
+      name: 'Recepción',
+      description: 'Mostrador: socios, cobros, caja propia y acceso.',
+    },
+    INSTRUCTOR: {
+      name: 'Instructor',
+      description: 'Consulta socios y asistencias. No opera dinero.',
+    },
   };
 
   const roles = new Map<string, string>();
@@ -191,7 +198,12 @@ async function main(): Promise<void> {
   const activities = await Promise.all(
     ['Musculación', 'Funcional', 'Spinning'].map((name, i) =>
       prisma.activity.create({
-        data: { id: fixedId(6, i + 1), gymId: gym.id, name, color: ['#0ea5a4', '#f97316', '#8b5cf6'][i]! },
+        data: {
+          id: fixedId(6, i + 1),
+          gymId: gym.id,
+          name,
+          color: ['#0ea5a4', '#f97316', '#8b5cf6'][i]!,
+        },
       }),
     ),
   );
@@ -272,14 +284,48 @@ async function main(): Promise<void> {
 
   // ── Socios ────────────────────────────────────────────────────────────────
   const firstNames = [
-    'Lucía', 'Mateo', 'Sofía', 'Benjamín', 'Valentina', 'Joaquín', 'Emma', 'Thiago',
-    'Martina', 'Bautista', 'Catalina', 'Lautaro', 'Julieta', 'Santino', 'Renata',
-    'Ignacio', 'Delfina', 'Tomás', 'Isabella', 'Facundo',
+    'Lucía',
+    'Mateo',
+    'Sofía',
+    'Benjamín',
+    'Valentina',
+    'Joaquín',
+    'Emma',
+    'Thiago',
+    'Martina',
+    'Bautista',
+    'Catalina',
+    'Lautaro',
+    'Julieta',
+    'Santino',
+    'Renata',
+    'Ignacio',
+    'Delfina',
+    'Tomás',
+    'Isabella',
+    'Facundo',
   ];
   const lastNames = [
-    'Gómez', 'Fernández', 'Rodríguez', 'López', 'Martínez', 'Pérez', 'García',
-    'Sánchez', 'Romero', 'Torres', 'Álvarez', 'Ruiz', 'Díaz', 'Silva', 'Acosta',
-    'Medina', 'Herrera', 'Aguirre', 'Molina', 'Castro',
+    'Gómez',
+    'Fernández',
+    'Rodríguez',
+    'López',
+    'Martínez',
+    'Pérez',
+    'García',
+    'Sánchez',
+    'Romero',
+    'Torres',
+    'Álvarez',
+    'Ruiz',
+    'Díaz',
+    'Silva',
+    'Acosta',
+    'Medina',
+    'Herrera',
+    'Aguirre',
+    'Molina',
+    'Castro',
   ];
 
   type Cohort = 'ACTIVE' | 'EXPIRED' | 'DEBT' | 'INACTIVE';
@@ -405,7 +451,9 @@ async function main(): Promise<void> {
       const memberId = memberIds[idx]!;
       const branchId = idx % 3 === 0 ? norte.id : centro.id;
       const key = `${memberId}|${branchId}|${date.toISOString().slice(0, 10)}`;
-      if (attendanceRows.some((r) => `${r.memberId}|${r.branchId}|${String(r.occurredOn)}` === key)) {
+      if (
+        attendanceRows.some((r) => `${r.memberId}|${r.branchId}|${String(r.occurredOn)}` === key)
+      ) {
         continue;
       }
       attendanceSeq += 1;

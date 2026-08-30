@@ -27,13 +27,7 @@ import {
   type DataTableColumn,
 } from '@pulso/ui';
 import { listBranches } from '@/lib/api/tenancy';
-import {
-  createPlan,
-  deletePlan,
-  listActivities,
-  listPlans,
-  updatePlan,
-} from '@/lib/api/catalog';
+import { createPlan, deletePlan, listActivities, listPlans, updatePlan } from '@/lib/api/catalog';
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
@@ -54,7 +48,10 @@ export default function PlansPage() {
     <PermissionGate
       permission="plan:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <PlansScreen />
@@ -487,10 +484,13 @@ function PlansScreen() {
           </FormField>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-(--text-sm) font-medium text-(--color-text)">Actividades incluidas</legend>
+            <legend className="text-(--text-sm) font-medium text-(--color-text)">
+              Actividades incluidas
+            </legend>
             {activities.length === 0 ? (
               <p className="text-(--text-xs) text-(--color-muted)">
-                Todavía no hay actividades. Creá alguna desde el menú de actividades para poder asociarla al plan.
+                Todavía no hay actividades. Creá alguna desde el menú de actividades para poder
+                asociarla al plan.
               </p>
             ) : (
               <div className="flex flex-col gap-2">
@@ -511,7 +511,9 @@ function PlansScreen() {
           </fieldset>
 
           <fieldset className="flex flex-col gap-2">
-            <legend className="text-(--text-sm) font-medium text-(--color-text)">Sedes donde se puede usar</legend>
+            <legend className="text-(--text-sm) font-medium text-(--color-text)">
+              Sedes donde se puede usar
+            </legend>
             <p className="text-(--text-xs) text-(--color-muted)">
               Sin selección = todas las sedes del gimnasio.
             </p>

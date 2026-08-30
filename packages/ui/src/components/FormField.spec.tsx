@@ -7,9 +7,7 @@ import { Input } from './Input.js';
 
 describe('FormField', () => {
   it('asocia el label con el control vía id/htmlFor', () => {
-    render(
-      <FormField label="Nombre">{(field) => <Input {...field} />}</FormField>,
-    );
+    render(<FormField label="Nombre">{(field) => <Input {...field} />}</FormField>);
     expect(screen.getByLabelText('Nombre')).toBeInTheDocument();
   });
 

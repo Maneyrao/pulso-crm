@@ -91,7 +91,12 @@ export default function NewPlanPage() {
   return (
     <PermissionGate
       permission="plan:write"
-      fallback={<EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para crear planes." />}
+      fallback={
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para crear planes."
+        />
+      }
     >
       <NewPlanScreen />
     </PermissionGate>
@@ -219,28 +224,43 @@ function NewPlanScreen() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormField label="Nombre" required>
                 {(field) => (
-                  <Input {...field} value={form.name} onChange={(e) => patch({ name: e.target.value })} required />
+                  <Input
+                    {...field}
+                    value={form.name}
+                    onChange={(e) => patch({ name: e.target.value })}
+                    required
+                  />
                 )}
               </FormField>
             </div>
             <FormField label="Descripción">
               {(field) => (
-                <Textarea {...field} value={form.description} onChange={(e) => patch({ description: e.target.value })} />
+                <Textarea
+                  {...field}
+                  value={form.description}
+                  onChange={(e) => patch({ description: e.target.value })}
+                />
               )}
             </FormField>
 
             <fieldset className="flex flex-col gap-2">
-              <legend className="text-(--text-sm) font-medium text-(--color-text)">Actividades incluidas</legend>
+              <legend className="text-(--text-sm) font-medium text-(--color-text)">
+                Actividades incluidas
+              </legend>
               {activitiesQuery.isLoading ? (
                 <p className="text-(--text-xs) text-(--color-muted)">Cargando actividades…</p>
               ) : activities.length === 0 ? (
                 <p className="text-(--text-xs) text-(--color-muted)">
-                  Todavía no hay actividades activas. Podés crear el plan igual y asociarlas después desde el listado.
+                  Todavía no hay actividades activas. Podés crear el plan igual y asociarlas después
+                  desde el listado.
                 </p>
               ) : (
                 <div className="flex flex-col gap-2">
                   {activities.map((activity) => (
-                    <label key={activity.id} className="flex items-center gap-2 text-(--text-sm) text-(--color-text)">
+                    <label
+                      key={activity.id}
+                      className="flex items-center gap-2 text-(--text-sm) text-(--color-text)"
+                    >
                       <Checkbox
                         checked={form.activityIds.includes(activity.id)}
                         onChange={() => toggleId('activityIds', activity.id)}
@@ -253,11 +273,18 @@ function NewPlanScreen() {
             </fieldset>
 
             <fieldset className="flex flex-col gap-2">
-              <legend className="text-(--text-sm) font-medium text-(--color-text)">Sedes donde se puede usar</legend>
-              <p className="text-(--text-xs) text-(--color-muted)">Sin selección = todas las sedes del gimnasio.</p>
+              <legend className="text-(--text-sm) font-medium text-(--color-text)">
+                Sedes donde se puede usar
+              </legend>
+              <p className="text-(--text-xs) text-(--color-muted)">
+                Sin selección = todas las sedes del gimnasio.
+              </p>
               <div className="flex flex-col gap-2">
                 {branches.map((branch) => (
-                  <label key={branch.id} className="flex items-center gap-2 text-(--text-sm) text-(--color-text)">
+                  <label
+                    key={branch.id}
+                    className="flex items-center gap-2 text-(--text-sm) text-(--color-text)"
+                  >
                     <Checkbox
                       checked={form.branchIds.includes(branch.id)}
                       onChange={() => toggleId('branchIds', branch.id)}
@@ -272,7 +299,11 @@ function NewPlanScreen() {
 
         {stepId === 'ciclo' ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <FormField label="Ciclo de facturación" required hint="No se puede cambiar después de crear el plan.">
+            <FormField
+              label="Ciclo de facturación"
+              required
+              hint="No se puede cambiar después de crear el plan."
+            >
               {(field) => (
                 <Select
                   {...field}
@@ -328,11 +359,21 @@ function NewPlanScreen() {
         {stepId === 'precio' ? (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FormField label="Precio" required hint={`Por ciclo (${BILLING_CYCLE_LABELS[form.billingCycle]}).`}>
-                {(field) => <MoneyInput {...field} value={form.price} onChange={(v) => patch({ price: v })} />}
+              <FormField
+                label="Precio"
+                required
+                hint={`Por ciclo (${BILLING_CYCLE_LABELS[form.billingCycle]}).`}
+              >
+                {(field) => (
+                  <MoneyInput {...field} value={form.price} onChange={(v) => patch({ price: v })} />
+                )}
               </FormField>
             </div>
-            <SummaryCard form={form} activityCount={form.activityIds.length} branchCount={form.branchIds.length} />
+            <SummaryCard
+              form={form}
+              activityCount={form.activityIds.length}
+              branchCount={form.branchIds.length}
+            />
           </div>
         ) : null}
       </Card>
@@ -362,7 +403,11 @@ function NewPlanScreen() {
           {stepId === 'datos' ? <Button onClick={handleDatosNext}>Siguiente</Button> : null}
           {stepId === 'ciclo' ? <Button onClick={handleCicloNext}>Siguiente</Button> : null}
           {stepId === 'precio' ? (
-            <Button onClick={handleCreate} loading={createMutation.isPending} disabled={createMutation.isPending}>
+            <Button
+              onClick={handleCreate}
+              loading={createMutation.isPending}
+              disabled={createMutation.isPending}
+            >
               Crear plan
             </Button>
           ) : null}
@@ -390,7 +435,10 @@ function SummaryCard({
         label="Clases"
         value={form.classesIncluded ? `${form.classesIncluded} por ciclo` : 'Acceso libre'}
       />
-      <SummaryRow label="Actividades" value={activityCount > 0 ? String(activityCount) : 'Ninguna asociada'} />
+      <SummaryRow
+        label="Actividades"
+        value={activityCount > 0 ? String(activityCount) : 'Ninguna asociada'}
+      />
       <SummaryRow label="Sedes" value={branchCount > 0 ? String(branchCount) : 'Todas'} />
     </div>
   );

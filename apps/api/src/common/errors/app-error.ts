@@ -47,7 +47,10 @@ export class AppError extends Error {
     });
   }
 
-  static forbidden(code: ErrorCodeValue = ErrorCode.FORBIDDEN, detail = 'No tenés permiso para esta acción.') {
+  static forbidden(
+    code: ErrorCodeValue = ErrorCode.FORBIDDEN,
+    detail = 'No tenés permiso para esta acción.',
+  ) {
     return new AppError(code, HttpStatus.FORBIDDEN, detail, { detail });
   }
 

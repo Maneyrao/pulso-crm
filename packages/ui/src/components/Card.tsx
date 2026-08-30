@@ -23,18 +23,19 @@ export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<
 CardHeader.displayName = 'CardHeader';
 
 /** Título de panel tipo la referencia ("ÚLTIMOS ACCESOS", "CAJA · HOY"): uppercase, chico, muted. */
-export const CardTitle = React.forwardRef<HTMLHeadingElement, React.HTMLAttributes<HTMLHeadingElement>>(
-  ({ className, ...props }, ref) => (
-    <h3
-      ref={ref}
-      className={cn(
-        'text-[11px] font-bold uppercase tracking-[0.1em] text-(--color-muted)',
-        className,
-      )}
-      {...props}
-    />
-  ),
-);
+export const CardTitle = React.forwardRef<
+  HTMLHeadingElement,
+  React.HTMLAttributes<HTMLHeadingElement>
+>(({ className, ...props }, ref) => (
+  <h3
+    ref={ref}
+    className={cn(
+      'text-[11px] font-bold uppercase tracking-[0.1em] text-(--color-muted)',
+      className,
+    )}
+    {...props}
+  />
+));
 CardTitle.displayName = 'CardTitle';
 
 export const CardDescription = React.forwardRef<

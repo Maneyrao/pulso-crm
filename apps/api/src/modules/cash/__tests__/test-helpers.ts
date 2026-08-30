@@ -15,7 +15,9 @@ import type { TenantContext } from '../../../common/auth/tenant-context.js';
  * mock: es el `PulsoPrismaClient` real, contra Postgres real.
  */
 export function fakePrismaService(client: PulsoPrismaClient): PrismaService {
-  const instance = Object.create(PrismaService.prototype) as PrismaService & { client: PulsoPrismaClient };
+  const instance = Object.create(PrismaService.prototype) as PrismaService & {
+    client: PulsoPrismaClient;
+  };
   instance.client = client;
   return instance;
 }

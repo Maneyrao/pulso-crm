@@ -17,7 +17,9 @@ export async function runSerializable<T>(
   fn: (tx: PulsoTransactionClient) => Promise<T>,
 ): Promise<T> {
   try {
-    return await client.$transaction(fn, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    return await client.$transaction(fn, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    });
   } catch (err) {
     throw translateTransactionError(err);
   }
@@ -43,7 +45,10 @@ export function translateTransactionError(err: unknown): unknown {
   }
 
   const message = messageOf(err);
-  if (message.includes(SERIALIZATION_FAILURE_SQLSTATE) || message.includes(DEADLOCK_DETECTED_SQLSTATE)) {
+  if (
+    message.includes(SERIALIZATION_FAILURE_SQLSTATE) ||
+    message.includes(DEADLOCK_DETECTED_SQLSTATE)
+  ) {
     return AppError.conflict(
       ErrorCode.CONFLICT,
       'Otra operación tocó los mismos datos al mismo tiempo. Reintentá.',

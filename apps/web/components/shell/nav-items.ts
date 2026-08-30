@@ -136,7 +136,10 @@ export function splitBrandWordmark(name: string): { base: string; accent: string
  * actual, misma regla de "match más largo gana" que el estado activo del
  * sidebar.
  */
-export function findPageTitle(pathname: string, groups: readonly NavGroup[] = NAV_GROUPS): string | undefined {
+export function findPageTitle(
+  pathname: string,
+  groups: readonly NavGroup[] = NAV_GROUPS,
+): string | undefined {
   let best: NavItem | undefined;
   for (const group of groups) {
     for (const item of group.items) {

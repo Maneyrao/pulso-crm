@@ -40,7 +40,10 @@ export function useMemberFilters() {
   );
 
   const isFiltered =
-    filters.q.length > 0 || filters.status.length > 0 || filters.membershipStatus.length > 0 || filters.hasDebt;
+    filters.q.length > 0 ||
+    filters.status.length > 0 ||
+    filters.membershipStatus.length > 0 ||
+    filters.hasDebt;
 
   const update = useCallback(
     (patch: Partial<MemberFiltersState>, opts: { resetPage?: boolean } = {}) => {
@@ -48,7 +51,8 @@ export function useMemberFilters() {
       const merged = { ...filters, ...patch, page: opts.resetPage === false ? filters.page : 1 };
 
       for (const [key, value] of Object.entries(merged)) {
-        const isDefault = value === DEFAULTS[key as keyof MemberFiltersState] || value === '' || value === false;
+        const isDefault =
+          value === DEFAULTS[key as keyof MemberFiltersState] || value === '' || value === false;
         if (isDefault) next.delete(key);
         else next.set(key, String(value));
       }

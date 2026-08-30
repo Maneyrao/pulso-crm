@@ -12,17 +12,23 @@ const ICON: Record<AlertTone, React.ComponentType<{ className?: string }>> = {
   info: Info,
 };
 
-const alertVariants = cva('flex items-start gap-3 rounded-(--radius-md) border p-4 text-(--text-sm)', {
-  variants: {
-    tone: {
-      success: 'border-(--color-success) bg-(--color-success-subtle) text-(--color-success-subtle-foreground)',
-      warning: 'border-(--color-warning) bg-(--color-warning-subtle) text-(--color-warning-subtle-foreground)',
-      danger: 'border-(--color-danger) bg-(--color-danger-subtle) text-(--color-danger-subtle-foreground)',
-      info: 'border-(--color-info) bg-(--color-info-subtle) text-(--color-info-subtle-foreground)',
+const alertVariants = cva(
+  'flex items-start gap-3 rounded-(--radius-md) border p-4 text-(--text-sm)',
+  {
+    variants: {
+      tone: {
+        success:
+          'border-(--color-success) bg-(--color-success-subtle) text-(--color-success-subtle-foreground)',
+        warning:
+          'border-(--color-warning) bg-(--color-warning-subtle) text-(--color-warning-subtle-foreground)',
+        danger:
+          'border-(--color-danger) bg-(--color-danger-subtle) text-(--color-danger-subtle-foreground)',
+        info: 'border-(--color-info) bg-(--color-info-subtle) text-(--color-info-subtle-foreground)',
+      },
     },
+    defaultVariants: { tone: 'info' },
   },
-  defaultVariants: { tone: 'info' },
-});
+);
 
 export interface AlertProps extends React.HTMLAttributes<HTMLDivElement> {
   tone?: AlertTone;

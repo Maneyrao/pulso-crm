@@ -147,7 +147,13 @@ function makeDaybook(): DaybookResponse {
 async function primeSession(): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u1', firstName: 'Ana', lastName: 'T', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u1',
+      firstName: 'Ana',
+      lastName: 'T',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -160,7 +166,10 @@ beforeEach(async () => {
   getDaybookMock.mockReset();
   listPaymentMethodsMock.mockReset();
   listPaymentMethodsMock.mockResolvedValue({
-    data: [makeMethod(), makeMethod({ id: METHOD_CARD, code: 'CARD', name: 'Tarjeta', countsAsCash: false })],
+    data: [
+      makeMethod(),
+      makeMethod({ id: METHOD_CARD, code: 'CARD', name: 'Tarjeta', countsAsCash: false }),
+    ],
   });
 
   const { useSessionStore } = await import('@/lib/stores/session');

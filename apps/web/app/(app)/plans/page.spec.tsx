@@ -68,7 +68,13 @@ async function primeSession(
 ): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u',
+      firstName: 'Ana',
+      lastName: 'Test',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -168,9 +174,7 @@ describe('PlansPage', () => {
     const { default: PlansPage } = await import('./page');
     render(withQuery(<PlansPage />));
 
-    await waitFor(() =>
-      expect(screen.getByText(/Todavía no hay planes/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/Todavía no hay planes/i)).toBeInTheDocument());
     // El listado de actividades del modal debe estar cargado antes de abrirlo.
     await waitFor(() => expect(listActivitiesMock).toHaveBeenCalled());
     await waitFor(() => expect(listBranchesMock).toHaveBeenCalled());

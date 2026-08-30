@@ -3,7 +3,11 @@
 import * as React from 'react';
 import { Tags } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CashConcept, CreateCashConceptRequest, UpdateCashConceptRequest } from '@pulso/contracts/cash';
+import type {
+  CashConcept,
+  CreateCashConceptRequest,
+  UpdateCashConceptRequest,
+} from '@pulso/contracts/cash';
 import {
   Button,
   DataTable,
@@ -35,7 +39,10 @@ export default function CashConceptsPage() {
     <PermissionGate
       permission="cash:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <CashConceptsScreen />
@@ -101,11 +108,18 @@ function CashConceptsScreen() {
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       updateCashConcept(id, { isActive }),
     onSuccess: (concept) => {
-      toast({ title: concept.isActive ? 'Concepto activado' : 'Concepto desactivado', tone: 'success' });
+      toast({
+        title: concept.isActive ? 'Concepto activado' : 'Concepto desactivado',
+        tone: 'success',
+      });
       invalidate();
     },
     onError: (error: unknown) =>
-      toast({ title: 'No se pudo cambiar el estado', description: errorMessage(error), tone: 'danger' }),
+      toast({
+        title: 'No se pudo cambiar el estado',
+        description: errorMessage(error),
+        tone: 'danger',
+      }),
   });
 
   const openCreate = () => {
@@ -117,7 +131,12 @@ function CashConceptsScreen() {
 
   const openEdit = (concept: CashConcept) => {
     setEditing(concept);
-    setForm({ code: concept.code, name: concept.name, type: concept.type, isActive: concept.isActive });
+    setForm({
+      code: concept.code,
+      name: concept.name,
+      type: concept.type,
+      isActive: concept.isActive,
+    });
     setFormError(undefined);
     setFormOpen(true);
   };
@@ -126,7 +145,10 @@ function CashConceptsScreen() {
     event.preventDefault();
     setFormError(undefined);
     if (editing) {
-      updateMutation.mutate({ id: editing.id, payload: { name: form.name.trim(), isActive: form.isActive } });
+      updateMutation.mutate({
+        id: editing.id,
+        payload: { name: form.name.trim(), isActive: form.isActive },
+      });
       return;
     }
     if (!form.code.trim() || !form.name.trim()) {
@@ -180,7 +202,9 @@ function CashConceptsScreen() {
               variant={c.isActive ? 'danger' : 'outline'}
               size="sm"
               disabled={c.isSystem}
-              loading={toggleActiveMutation.isPending && toggleActiveMutation.variables?.id === c.id}
+              loading={
+                toggleActiveMutation.isPending && toggleActiveMutation.variables?.id === c.id
+              }
               onClick={() => toggleActiveMutation.mutate({ id: c.id, isActive: !c.isActive })}
             >
               {c.isActive ? 'Desactivar' : 'Activar'}
@@ -198,9 +222,7 @@ function CashConceptsScreen() {
         icon={Tags}
         title="Conceptos"
         description="Categorías de ingresos y egresos de caja."
-        actions={
-          canWrite ? <Button onClick={openCreate}>Nuevo concepto</Button> : undefined
-        }
+        actions={canWrite ? <Button onClick={openCreate}>Nuevo concepto</Button> : undefined}
       />
 
       <DataTable
@@ -252,7 +274,11 @@ function CashConceptsScreen() {
             )}
           </FormField>
 
-          <FormField label="Código" required hint={editing ? 'El código no se puede editar.' : undefined}>
+          <FormField
+            label="Código"
+            required
+            hint={editing ? 'El código no se puede editar.' : undefined}
+          >
             {(field) => (
               <Input
                 {...field}
@@ -264,7 +290,11 @@ function CashConceptsScreen() {
             )}
           </FormField>
 
-          <FormField label="Tipo" required hint={editing ? 'El tipo no se puede editar.' : undefined}>
+          <FormField
+            label="Tipo"
+            required
+            hint={editing ? 'El tipo no se puede editar.' : undefined}
+          >
             {(field) => (
               <Select
                 {...field}

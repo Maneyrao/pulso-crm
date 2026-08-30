@@ -6,11 +6,7 @@ import { z } from 'zod';
 import { AppConfig } from '../../common/config/app-config.js';
 import { Public, RequiresPermission, Tenant } from '../../common/auth/decorators.js';
 import type { TenantContext } from '../../common/auth/tenant-context.js';
-import {
-  ACCESS_COOKIE,
-  CSRF_COOKIE,
-  REFRESH_COOKIE,
-} from '../../common/auth/token.service.js';
+import { ACCESS_COOKIE, CSRF_COOKIE, REFRESH_COOKIE } from '../../common/auth/token.service.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
 import { ZodBody } from '../../common/validation/zod.pipe.js';
@@ -130,7 +126,11 @@ export class AuthController {
   }
 
   private setSessionCookies(res: Response, session: AuthenticatedSession): void {
-    res.cookie(ACCESS_COOKIE, session.accessToken, this.cookieOptions(this.config.env.ACCESS_TOKEN_TTL));
+    res.cookie(
+      ACCESS_COOKIE,
+      session.accessToken,
+      this.cookieOptions(this.config.env.ACCESS_TOKEN_TTL),
+    );
 
     // El refresh se acota a la ruta que lo usa: si hubiera un XSS en otra parte
     // de la aplicación, el navegador ni siquiera lo adjunta.

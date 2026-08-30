@@ -26,7 +26,9 @@ export class CashMovementController {
 
   @RequiresPermission('cash:read')
   @Get()
-  list(@ZodQuery(listCashMovementsQuerySchema) query: z.infer<typeof listCashMovementsQuerySchema>) {
+  list(
+    @ZodQuery(listCashMovementsQuerySchema) query: z.infer<typeof listCashMovementsQuerySchema>,
+  ) {
     return this.service.list(query);
   }
 

@@ -29,8 +29,7 @@ const login = async (
   c: TestClient,
   email: string,
   password: string,
-): Promise<{ status: number; body: unknown }> =>
-  c.post('/api/v1/auth/login', { email, password });
+): Promise<{ status: number; body: unknown }> => c.post('/api/v1/auth/login', { email, password });
 
 describe('login', () => {
   it('acepta credenciales válidas y devuelve el contexto de sesión', async () => {
@@ -127,10 +126,16 @@ describe('login', () => {
 
   it('rechaza a un usuario desactivado', async () => {
     const email = gymB.users['INSTRUCTOR']!.email;
-    await ctx.db.raw.user.update({ where: { id: gymB.users['INSTRUCTOR']!.id }, data: { status: 'INACTIVE' } });
+    await ctx.db.raw.user.update({
+      where: { id: gymB.users['INSTRUCTOR']!.id },
+      data: { status: 'INACTIVE' },
+    });
     const res = await login(client(), email, gymB.password);
     expect((res.body as { code: string }).code).toBe('ACCOUNT_INACTIVE');
-    await ctx.db.raw.user.update({ where: { id: gymB.users['INSTRUCTOR']!.id }, data: { status: 'ACTIVE' } });
+    await ctx.db.raw.user.update({
+      where: { id: gymB.users['INSTRUCTOR']!.id },
+      data: { status: 'ACTIVE' },
+    });
   });
 
   it('rechaza el login si el gimnasio está suspendido', async () => {

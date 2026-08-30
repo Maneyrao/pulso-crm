@@ -6,7 +6,15 @@ import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarCheck } from 'lucide-react';
 import type { AccessMethod, Attendance } from '@pulso/contracts/access';
-import { Badge, Card, CardContent, DataTable, EmptyState, Input, type DataTableColumn } from '@pulso/ui';
+import {
+  Badge,
+  Card,
+  CardContent,
+  DataTable,
+  EmptyState,
+  Input,
+  type DataTableColumn,
+} from '@pulso/ui';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { listAttendances } from '@/lib/api/access';
 import { ApiError } from '@/lib/api/errors';
@@ -37,7 +45,10 @@ export default function AttendancePage() {
     <PermissionGate
       permission="attendance:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <AttendanceScreen />
@@ -95,7 +106,10 @@ function AttendanceScreen() {
       header: 'Hora',
       cell: (record) => (
         <span className="tabular-nums">
-          {new Date(record.occurredAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+          {new Date(record.occurredAt).toLocaleTimeString('es-AR', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
         </span>
       ),
     },
@@ -104,10 +118,15 @@ function AttendanceScreen() {
       header: 'Socio',
       cell: (record) => (
         <div className="flex flex-col">
-          <Link href={`/members/${record.memberId}`} className="font-medium text-(--color-text) hover:underline">
+          <Link
+            href={`/members/${record.memberId}`}
+            className="font-medium text-(--color-text) hover:underline"
+          >
             {record.member.lastName}, {record.member.firstName}
           </Link>
-          <span className="text-(--text-xs) text-(--color-muted)">{record.member.documentMasked}</span>
+          <span className="text-(--text-xs) text-(--color-muted)">
+            {record.member.documentMasked}
+          </span>
         </div>
       ),
     },
@@ -142,7 +161,10 @@ function AttendanceScreen() {
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="attendance-date" className="text-(--text-sm) font-medium text-(--color-text)">
+          <label
+            htmlFor="attendance-date"
+            className="text-(--text-sm) font-medium text-(--color-text)"
+          >
             Fecha
           </label>
           <Input
@@ -154,7 +176,10 @@ function AttendanceScreen() {
           />
         </div>
         <div className="flex min-w-56 flex-1 flex-col gap-1.5">
-          <label htmlFor="attendance-search" className="text-(--text-sm) font-medium text-(--color-text)">
+          <label
+            htmlFor="attendance-search"
+            className="text-(--text-sm) font-medium text-(--color-text)"
+          >
             Buscar por nombre, DNI, plan o sede
           </label>
           <Input

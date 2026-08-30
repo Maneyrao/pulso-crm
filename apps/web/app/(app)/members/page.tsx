@@ -39,7 +39,10 @@ export default function MembersPage() {
     <PermissionGate
       permission="member:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <MembersScreen />
@@ -59,7 +62,10 @@ export default function MembersPage() {
  *   backend filtra `hasDebt` con `balance < 0`; ver `members.service.ts`).
  *   Ojo: esto corrige una inversión de signo que tenía esta pantalla antes.
  */
-function memberStatusTag(member: MemberListItem, expiredSegmentActive: boolean): { tone: StatusTone; label: string } {
+function memberStatusTag(
+  member: MemberListItem,
+  expiredSegmentActive: boolean,
+): { tone: StatusTone; label: string } {
   if (expiredSegmentActive) return { tone: 'danger', label: 'Vencido' };
   if (Number(member.balance) < 0) return { tone: 'warning', label: 'En deuda' };
   if (member.status === 'ACTIVE') return { tone: 'success', label: 'Activo' };
@@ -89,7 +95,8 @@ function MembersScreen() {
         const res = await listMembers({
           q: filters.q || undefined,
           status: (filters.status || undefined) as MemberStatus | undefined,
-          membershipStatus: (filters.membershipStatus || undefined) as MemberMembershipFilter | undefined,
+          membershipStatus: (filters.membershipStatus || undefined) as
+            MemberMembershipFilter | undefined,
           hasDebt: filters.hasDebt || undefined,
           page,
           limit: 100,
@@ -102,16 +109,18 @@ function MembersScreen() {
       }
       const csv = toCsv(
         ['N°', 'Apellido', 'Nombre', 'Documento', 'Plan', 'Vence', 'Estado', 'Deuda'],
-        rows.slice(0, EXPORT_MAX_ROWS).map((m) => [
-          String(m.memberNumber),
-          m.lastName,
-          m.firstName,
-          m.documentMasked,
-          m.activeMembership?.planName ?? '',
-          m.activeMembership?.endDate ?? '',
-          m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
-          m.balance,
-        ]),
+        rows
+          .slice(0, EXPORT_MAX_ROWS)
+          .map((m) => [
+            String(m.memberNumber),
+            m.lastName,
+            m.firstName,
+            m.documentMasked,
+            m.activeMembership?.planName ?? '',
+            m.activeMembership?.endDate ?? '',
+            m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
+            m.balance,
+          ]),
       );
       downloadCsv(`socios-${new Date().toISOString().slice(0, 10)}.csv`, csv);
       if (total > EXPORT_MAX_ROWS) {
@@ -122,7 +131,11 @@ function MembersScreen() {
         });
       }
     } catch {
-      toast({ tone: 'danger', title: 'No pudimos exportar', description: 'Probá de nuevo en unos segundos.' });
+      toast({
+        tone: 'danger',
+        title: 'No pudimos exportar',
+        description: 'Probá de nuevo en unos segundos.',
+      });
     } finally {
       setExporting(false);
     }
@@ -132,7 +145,8 @@ function MembersScreen() {
     () => ({
       q: filters.q || undefined,
       status: (filters.status || undefined) as MemberStatus | undefined,
-      membershipStatus: (filters.membershipStatus || undefined) as MemberMembershipFilter | undefined,
+      membershipStatus: (filters.membershipStatus || undefined) as
+        MemberMembershipFilter | undefined,
       hasDebt: filters.hasDebt || undefined,
       page: filters.page,
       limit: PAGE_SIZE,
@@ -175,13 +189,16 @@ function MembersScreen() {
     {
       id: 'plan',
       header: 'Plan',
-      cell: (m) => m.activeMembership?.planName ?? <span className="text-(--color-muted)">Sin plan</span>,
+      cell: (m) =>
+        m.activeMembership?.planName ?? <span className="text-(--color-muted)">Sin plan</span>,
     },
     {
       id: 'endDate',
       header: 'Vence',
       cell: (m) => (
-        <span className="tabular-nums text-(--color-muted)">{m.activeMembership?.endDate ?? '—'}</span>
+        <span className="tabular-nums text-(--color-muted)">
+          {m.activeMembership?.endDate ?? '—'}
+        </span>
       ),
     },
     {
@@ -211,7 +228,11 @@ function MembersScreen() {
       <PageHeader
         icon={Users}
         title="Socios"
-        description={query.data ? `${total} socio${total === 1 ? '' : 's'}` : 'Personas que asisten al gimnasio.'}
+        description={
+          query.data
+            ? `${total} socio${total === 1 ? '' : 's'}`
+            : 'Personas que asisten al gimnasio.'
+        }
         actions={
           <>
             <Button variant="outline" loading={exporting} onClick={() => void handleExport()}>

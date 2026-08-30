@@ -30,7 +30,10 @@ export class RoleController {
 
   @RequiresPermission('user:write')
   @Patch(':id')
-  update(@ZodParam('id', uuidSchema) id: string, @ZodBody(updateRoleRequestSchema) body: UpdateRoleRequest) {
+  update(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodBody(updateRoleRequestSchema) body: UpdateRoleRequest,
+  ) {
     return this.roles.update(id, body);
   }
 }

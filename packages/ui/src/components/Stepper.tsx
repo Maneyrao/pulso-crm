@@ -20,7 +20,13 @@ export interface StepperProps extends React.HTMLAttributes<HTMLOListElement> {
  * activo (FRONTEND_PLAN §6.5). No es un wizard: sólo indica progreso: quien
  * lo usa decide cuándo avanzar.
  */
-export function Stepper({ steps, currentStepId, completedStepIds = [], className, ...props }: StepperProps) {
+export function Stepper({
+  steps,
+  currentStepId,
+  completedStepIds = [],
+  className,
+  ...props
+}: StepperProps) {
   return (
     <ol className={cn('flex items-start gap-2', className)} {...props}>
       {steps.map((step, index) => {
@@ -38,8 +44,12 @@ export function Stepper({ steps, currentStepId, completedStepIds = [], className
                 className={cn(
                   'flex h-6 w-6 shrink-0 items-center justify-center rounded-(--radius-full) text-(--text-xs) font-medium',
                   isCompleted && 'bg-(--color-success) text-(--color-success-foreground)',
-                  isCurrent && !isCompleted && 'bg-(--color-primary) text-(--color-primary-foreground)',
-                  !isCurrent && !isCompleted && 'bg-(--color-muted-subtle) text-(--color-muted-subtle-foreground)',
+                  isCurrent &&
+                    !isCompleted &&
+                    'bg-(--color-primary) text-(--color-primary-foreground)',
+                  !isCurrent &&
+                    !isCompleted &&
+                    'bg-(--color-muted-subtle) text-(--color-muted-subtle-foreground)',
                 )}
               >
                 {isCompleted ? <Check className="h-3.5 w-3.5" /> : index + 1}

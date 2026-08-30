@@ -27,7 +27,16 @@ export interface ModalProps {
  * accesibilidad); si el diseño no quiere mostrarlo, se oculta con `hideTitle`
  * pero se mantiene en el DOM para lectores de pantalla.
  */
-export function Modal({ open, onOpenChange, title, description, children, footer, size = 'md', hideTitle }: ModalProps) {
+export function Modal({
+  open,
+  onOpenChange,
+  title,
+  description,
+  children,
+  footer,
+  size = 'md',
+  hideTitle,
+}: ModalProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -38,7 +47,12 @@ export function Modal({ open, onOpenChange, title, description, children, footer
             SIZES[size],
           )}
         >
-          <DialogPrimitive.Title className={cn('text-(--text-lg) font-semibold text-(--color-text)', hideTitle && 'sr-only')}>
+          <DialogPrimitive.Title
+            className={cn(
+              'text-(--text-lg) font-semibold text-(--color-text)',
+              hideTitle && 'sr-only',
+            )}
+          >
             {title}
           </DialogPrimitive.Title>
           {description ? (

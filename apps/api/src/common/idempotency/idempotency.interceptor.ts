@@ -110,10 +110,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     key: string,
     endpoint: string,
     requestHash: string,
-  ): Promise<
-    | { kind: 'claimed'; id: string }
-    | { kind: 'replay'; status: number; body: unknown }
-  > {
+  ): Promise<{ kind: 'claimed'; id: string } | { kind: 'replay'; status: number; body: unknown }> {
     const db = this.prisma.client;
     const expiresAt = new Date(Date.now() + RETENTION_HOURS * 3_600_000);
 

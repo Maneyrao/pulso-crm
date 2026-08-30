@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { scoped } from '@pulso/db';
-import type { LocalAgent as DbLocalAgent, AccessDevice as DbAccessDevice, AgentAuditEvent as DbAgentAuditEvent } from '@pulso/db';
+import type {
+  LocalAgent as DbLocalAgent,
+  AccessDevice as DbAccessDevice,
+  AgentAuditEvent as DbAgentAuditEvent,
+} from '@pulso/db';
 import type {
   AgentHeartbeatRequest,
   AgentHeartbeatResponse,
@@ -30,7 +34,12 @@ import { AuditService } from '../../common/audit/audit.service.js';
 import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { ErrorCode } from '../../common/errors/error-codes.js';
-import { generateToken, hashToken, PAIRING_SECRET_PREFIX, type AgentAuthInfo } from './agent-auth.service.js';
+import {
+  generateToken,
+  hashToken,
+  PAIRING_SECRET_PREFIX,
+  type AgentAuthInfo,
+} from './agent-auth.service.js';
 
 export function serializeAgent(agent: DbLocalAgent): LocalAgent {
   return {
@@ -138,7 +147,10 @@ export class AgentsService {
     const ctx = TenantContextStore.require();
     const agent = await this.findOwn(id);
     if (agent.status === 'REVOKED') {
-      throw AppError.conflict(ErrorCode.AGENT_REVOKED, 'Un agente revocado no puede aprobarse. Creá uno nuevo.');
+      throw AppError.conflict(
+        ErrorCode.AGENT_REVOKED,
+        'Un agente revocado no puede aprobarse. Creá uno nuevo.',
+      );
     }
     if (agent.status === 'ACTIVE') {
       return { agent: serializeAgent(agent) };
@@ -262,7 +274,10 @@ export class AgentsService {
 
   // ── Superficie agente (credencial de larga vida) ──────────────────────
 
-  async heartbeat(auth: AgentAuthInfo, input: AgentHeartbeatRequest): Promise<AgentHeartbeatResponse> {
+  async heartbeat(
+    auth: AgentAuthInfo,
+    input: AgentHeartbeatRequest,
+  ): Promise<AgentHeartbeatResponse> {
     const now = new Date();
     await this.prisma.client.localAgent.update({
       where: { id: auth.agent.id },
@@ -280,12 +295,14 @@ export class AgentsService {
 
     // DISABLED se reporta como BLOCKED (§5.1 del protocolo del agente):
     // "deshabilitado por el gimnasio" — recuperable, a diferencia de REVOKED.
-    const status =
-      auth.agent.status === 'DISABLED' ? 'BLOCKED' : auth.agent.status;
+    const status = auth.agent.status === 'DISABLED' ? 'BLOCKED' : auth.agent.status;
     return { status, reason: auth.agent.revokeReason };
   }
 
-  async ingestEvents(auth: AgentAuthInfo, input: AgentSendEventsRequest): Promise<AgentSendEventsResponse> {
+  async ingestEvents(
+    auth: AgentAuthInfo,
+    input: AgentSendEventsRequest,
+  ): Promise<AgentSendEventsResponse> {
     const received = new Date();
     await this.prisma.client.agentAuditEvent.createMany({
       data: input.events.map((event) => ({

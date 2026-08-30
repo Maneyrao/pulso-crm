@@ -118,7 +118,7 @@ describe('POST /users/:id/reset-password', () => {
       roleIds: [receptionistRoleId],
       branchIds: [],
     });
-    const { id: userId, } = (created.body as { user: { id: string } }).user;
+    const { id: userId } = (created.body as { user: { id: string } }).user;
     const firstPassword = (created.body as { temporaryPassword: string }).temporaryPassword;
 
     const session = new TestClient(ctx.baseUrl);

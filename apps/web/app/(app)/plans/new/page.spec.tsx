@@ -40,7 +40,9 @@ vi.mock('@/lib/api/tenancy', () => ({
 }));
 
 function withProviders(children: ReactNode): ReactNode {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return (
     <QueryClientProvider client={qc}>
       <ToastProvider>{children}</ToastProvider>
@@ -51,7 +53,13 @@ function withProviders(children: ReactNode): ReactNode {
 async function primeSession(permissions: string[] = ['plan:write', 'plan:read']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u',
+      firstName: 'Ana',
+      lastName: 'Test',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -87,19 +95,49 @@ beforeEach(async () => {
 
   listActivitiesMock.mockResolvedValue({
     data: [
-      { id: 'a1', gymId: 'g1', name: 'Funcional', description: null, isActive: true, createdAt: '', updatedAt: '' },
-      { id: 'a2', gymId: 'g1', name: 'Spinning (baja)', description: null, isActive: false, createdAt: '', updatedAt: '' },
+      {
+        id: 'a1',
+        gymId: 'g1',
+        name: 'Funcional',
+        description: null,
+        isActive: true,
+        createdAt: '',
+        updatedAt: '',
+      },
+      {
+        id: 'a2',
+        gymId: 'g1',
+        name: 'Spinning (baja)',
+        description: null,
+        isActive: false,
+        createdAt: '',
+        updatedAt: '',
+      },
     ],
   });
   listBranchesMock.mockResolvedValue({
-    data: [{ id: 'b1', gymId: 'g1', name: 'Centro', timezone: 'tz', address: null, phone: null, isActive: true, createdAt: '', updatedAt: '' }],
+    data: [
+      {
+        id: 'b1',
+        gymId: 'g1',
+        name: 'Centro',
+        timezone: 'tz',
+        address: null,
+        phone: null,
+        isActive: true,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ],
   });
 
   await primeSession();
 });
 
 async function fillDatosAndAdvance(): Promise<void> {
-  fireEvent.change(await screen.findByLabelText(/^Nombre\b/i), { target: { value: 'Funcional 3x' } });
+  fireEvent.change(await screen.findByLabelText(/^Nombre\b/i), {
+    target: { value: 'Funcional 3x' },
+  });
   fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
   await screen.findByLabelText(/Ciclo de facturación/i);
 }
@@ -153,13 +191,17 @@ describe('NewPlanPage', () => {
     render(withProviders(<NewPlanPage />));
 
     // Paso 1: nombre + actividad + sede.
-    fireEvent.change(await screen.findByLabelText(/^Nombre\b/i), { target: { value: 'Funcional 3x' } });
+    fireEvent.change(await screen.findByLabelText(/^Nombre\b/i), {
+      target: { value: 'Funcional 3x' },
+    });
     fireEvent.click(await screen.findByText('Funcional'));
     fireEvent.click(screen.getByText('Centro'));
     fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
 
     // Paso 2: defaults (Mensual) + clases incluidas.
-    fireEvent.change(await screen.findByLabelText(/Clases incluidas/i), { target: { value: '12' } });
+    fireEvent.change(await screen.findByLabelText(/Clases incluidas/i), {
+      target: { value: '12' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
 
     // Paso 3: precio y crear.
@@ -167,7 +209,10 @@ describe('NewPlanPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Crear plan/i }));
 
     await waitFor(() => expect(createPlanMock).toHaveBeenCalledTimes(1));
-    const [payload, idempotencyKey] = createPlanMock.mock.calls[0] as [Record<string, unknown>, string];
+    const [payload, idempotencyKey] = createPlanMock.mock.calls[0] as [
+      Record<string, unknown>,
+      string,
+    ];
     expect(payload).toMatchObject({
       name: 'Funcional 3x',
       billingCycle: 'MONTHLY',
@@ -214,7 +259,13 @@ describe('NewPlanPage', () => {
   it('ante error del backend muestra el detail y permite reintentar', async () => {
     const { ApiError } = await import('@/lib/api/errors');
     createPlanMock.mockRejectedValueOnce(
-      new ApiError({ type: 'about:blank', code: 'CONFLICT', title: 'Conflicto', status: 409, detail: 'Ya existe un plan con ese nombre.' }),
+      new ApiError({
+        type: 'about:blank',
+        code: 'CONFLICT',
+        title: 'Conflicto',
+        status: 409,
+        detail: 'Ya existe un plan con ese nombre.',
+      }),
     );
     const { default: NewPlanPage } = await import('./page');
     render(withProviders(<NewPlanPage />));
@@ -224,7 +275,9 @@ describe('NewPlanPage', () => {
     fireEvent.change(await screen.findByLabelText(/^Precio\b/i), { target: { value: '24000.00' } });
     fireEvent.click(screen.getByRole('button', { name: /Crear plan/i }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/Ya existe un plan con ese nombre\./i);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /Ya existe un plan con ese nombre\./i,
+    );
 
     createPlanMock.mockResolvedValueOnce(createdPlan());
     fireEvent.click(screen.getByRole('button', { name: /Crear plan/i }));

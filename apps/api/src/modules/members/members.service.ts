@@ -188,7 +188,8 @@ export class MembersService {
     const patch: Partial<Member> = {};
     if (input.firstName !== undefined) patch.firstName = input.firstName.trim();
     if (input.lastName !== undefined) patch.lastName = input.lastName.trim();
-    if (input.email !== undefined) patch.email = input.email ? input.email.trim().toLowerCase() : null;
+    if (input.email !== undefined)
+      patch.email = input.email ? input.email.trim().toLowerCase() : null;
     if (input.phone !== undefined) {
       patch.phone = input.phone === null ? null : this.normalizePhoneOrThrow(input.phone);
     }
@@ -199,18 +200,26 @@ export class MembersService {
     if (input.address !== undefined) patch.address = input.address;
     if (input.cardCode !== undefined) patch.cardCode = input.cardCode;
     if (input.branchId !== undefined) {
-      patch.branchId = input.branchId === null ? null : TenantContextStore.requireBranch(input.branchId);
+      patch.branchId =
+        input.branchId === null ? null : TenantContextStore.requireBranch(input.branchId);
     }
     if (input.medicalClearanceUntil !== undefined) {
-      patch.medicalClearanceUntil = input.medicalClearanceUntil ? fromDateOnly(input.medicalClearanceUntil) : null;
+      patch.medicalClearanceUntil = input.medicalClearanceUntil
+        ? fromDateOnly(input.medicalClearanceUntil)
+        : null;
     }
-    if (input.emergencyContactName !== undefined) patch.emergencyContactName = input.emergencyContactName;
-    if (input.emergencyContactPhone !== undefined) patch.emergencyContactPhone = input.emergencyContactPhone;
+    if (input.emergencyContactName !== undefined)
+      patch.emergencyContactName = input.emergencyContactName;
+    if (input.emergencyContactPhone !== undefined)
+      patch.emergencyContactPhone = input.emergencyContactPhone;
     if (input.notes !== undefined) patch.notes = input.notes;
 
     try {
       const updated = await this.prisma.client.$transaction(async (tx) => {
-        const row = await tx.member.update({ where: { id }, data: patch as Prisma.MemberUpdateInput });
+        const row = await tx.member.update({
+          where: { id },
+          data: patch as Prisma.MemberUpdateInput,
+        });
 
         const { before, after } = diff(existing, patch);
         await this.audit.recordIn(tx, {
@@ -369,7 +378,11 @@ export class MembersService {
     const normalized = normalizePhone(phone);
     if (!normalized) {
       throw AppError.validation([
-        { field: 'phone', code: 'invalid_phone', message: 'El teléfono no tiene un formato reconocible.' },
+        {
+          field: 'phone',
+          code: 'invalid_phone',
+          message: 'El teléfono no tiene un formato reconocible.',
+        },
       ]);
     }
     return normalized;
@@ -484,7 +497,10 @@ export class MembersService {
         );
       }
       if (target.includes('card')) {
-        return AppError.conflict(ErrorCode.DUPLICATE_CARD, 'Esa tarjeta ya está asignada a otro socio.');
+        return AppError.conflict(
+          ErrorCode.DUPLICATE_CARD,
+          'Esa tarjeta ya está asignada a otro socio.',
+        );
       }
     }
     return err;

@@ -29,7 +29,10 @@ describe('Tabs', () => {
     const user = userEvent.setup();
     render(<DemoTabs />);
     await user.click(screen.getByRole('tab', { name: 'Membresías' }));
-    expect(screen.getByRole('tab', { name: 'Membresías' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Membresías' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
     expect(screen.getByText('Contenido membresías')).toBeInTheDocument();
   });
 
@@ -39,7 +42,10 @@ describe('Tabs', () => {
     screen.getByRole('tab', { name: 'Resumen' }).focus();
     await user.keyboard('{ArrowRight}');
     expect(screen.getByRole('tab', { name: 'Membresías' })).toHaveFocus();
-    expect(screen.getByRole('tab', { name: 'Membresías' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Membresías' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
   });
 
   it('ArrowLeft desde la primera pestaña vuelve (wrap) a la última', async () => {

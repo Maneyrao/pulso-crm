@@ -36,7 +36,10 @@ export default function StatsPage() {
     <PermissionGate
       permission="stats:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <StatsScreen />
@@ -57,9 +60,20 @@ function StatsScreen() {
   });
 
   const todayAttendances = useQuery({
-    queryKey: qk.attendances(gymId, branchId, { from: today, to: today, page: 1, limit: TODAY_ATTENDANCE_LIMIT }),
+    queryKey: qk.attendances(gymId, branchId, {
+      from: today,
+      to: today,
+      page: 1,
+      limit: TODAY_ATTENDANCE_LIMIT,
+    }),
     queryFn: () =>
-      listAttendances({ branchId: branchId ?? undefined, from: today, to: today, page: 1, limit: TODAY_ATTENDANCE_LIMIT }),
+      listAttendances({
+        branchId: branchId ?? undefined,
+        from: today,
+        to: today,
+        page: 1,
+        limit: TODAY_ATTENDANCE_LIMIT,
+      }),
     enabled: canReadAttendance,
   });
 
@@ -88,13 +102,19 @@ function StatsScreen() {
           </>
         ) : dashboard.data ? (
           <>
-            <KpiCard title="Ingresos hoy" value={<MoneyDisplay value={dashboard.data.todayIncome} />} />
+            <KpiCard
+              title="Ingresos hoy"
+              value={<MoneyDisplay value={dashboard.data.todayIncome} />}
+            />
             <KpiCard title="Asistencias hoy" value={dashboard.data.todayAttendances} />
             <KpiCard
               title="Deuda total"
               value={<MoneyDisplay value={dashboard.data.totalDebt} emphasizeNegative />}
             />
-            <KpiCard title="Membresías por vencer (7 días)" value={dashboard.data.expiringMembershipsNext7Days} />
+            <KpiCard
+              title="Membresías por vencer (7 días)"
+              value={dashboard.data.expiringMembershipsNext7Days}
+            />
           </>
         ) : null}
       </div>

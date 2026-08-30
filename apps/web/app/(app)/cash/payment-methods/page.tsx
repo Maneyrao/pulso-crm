@@ -41,7 +41,10 @@ export default function PaymentMethodsPage() {
     <PermissionGate
       permission="cash:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <PaymentMethodsScreen />
@@ -106,7 +109,11 @@ function PaymentMethodsScreen() {
       invalidate();
     },
     onError: (error: unknown) =>
-      toast({ title: 'No se pudo cambiar el estado', description: errorMessage(error), tone: 'danger' }),
+      toast({
+        title: 'No se pudo cambiar el estado',
+        description: errorMessage(error),
+        tone: 'danger',
+      }),
   });
 
   const openCreate = () => {
@@ -134,7 +141,11 @@ function PaymentMethodsScreen() {
     if (editing) {
       updateMutation.mutate({
         id: editing.id,
-        payload: { name: form.name.trim(), countsAsCash: form.countsAsCash, isActive: form.isActive },
+        payload: {
+          name: form.name.trim(),
+          countsAsCash: form.countsAsCash,
+          isActive: form.isActive,
+        },
       });
       return;
     }
@@ -193,7 +204,9 @@ function PaymentMethodsScreen() {
             <Button
               variant={m.isActive ? 'danger' : 'outline'}
               size="sm"
-              loading={toggleActiveMutation.isPending && toggleActiveMutation.variables?.id === m.id}
+              loading={
+                toggleActiveMutation.isPending && toggleActiveMutation.variables?.id === m.id
+              }
               onClick={() => toggleActiveMutation.mutate({ id: m.id, isActive: !m.isActive })}
             >
               {m.isActive ? 'Desactivar' : 'Activar'}
@@ -263,7 +276,11 @@ function PaymentMethodsScreen() {
             )}
           </FormField>
 
-          <FormField label="Código" required hint={editing ? 'El código no se puede editar.' : undefined}>
+          <FormField
+            label="Código"
+            required
+            hint={editing ? 'El código no se puede editar.' : undefined}
+          >
             {(field) => (
               <Input
                 {...field}

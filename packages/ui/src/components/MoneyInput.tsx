@@ -10,8 +10,10 @@ import { cn } from '../lib/cn.js';
  */
 const TYPING_RE = /^-?\d{0,12}(\.\d{0,2})?$/;
 
-export interface MoneyInputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> {
+export interface MoneyInputProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  'value' | 'onChange' | 'type'
+> {
   /**
    * Importe como string decimal ("1234.50"). NUNCA `number`: ver ADR-010 y
    * `@pulso/config/money`. Este componente no hace una sola conversión a

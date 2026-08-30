@@ -21,10 +21,12 @@ export const qk = {
 
   gym: (gymId: string) => ['gym', gymId] as const,
   branches: (gymId: string) => ['branches', gymId] as const,
-  users: (gymId: string, filters: Readonly<Record<string, unknown>>) => ['users', gymId, filters] as const,
+  users: (gymId: string, filters: Readonly<Record<string, unknown>>) =>
+    ['users', gymId, filters] as const,
   roles: (gymId: string) => ['roles', gymId] as const,
 
-  cashSession: (gymId: string, branchId: string | null) => ['cash-session', gymId, branchId] as const,
+  cashSession: (gymId: string, branchId: string | null) =>
+    ['cash-session', gymId, branchId] as const,
   cashSessions: (
     gymId: string,
     branchId: string | null,
@@ -32,17 +34,25 @@ export const qk = {
   ) => ['cash-sessions', gymId, branchId, filters] as const,
   cashRegisters: (gymId: string, branchId: string | null) =>
     ['cash-registers', gymId, branchId] as const,
-  cashMovements: (gymId: string, cashSessionId: string) => ['cash-movements', gymId, cashSessionId] as const,
-  cashOperations: (gymId: string, branchId: string | null) => ['cash-operations', gymId, branchId] as const,
+  cashMovements: (gymId: string, cashSessionId: string) =>
+    ['cash-movements', gymId, cashSessionId] as const,
+  cashOperations: (gymId: string, branchId: string | null) =>
+    ['cash-operations', gymId, branchId] as const,
   paymentMethods: (gymId: string) => ['payment-methods', gymId] as const,
   cashConcepts: (gymId: string) => ['cash-concepts', gymId] as const,
   daybook: (gymId: string, branchId: string | null, from: string, to: string) =>
     ['daybook', gymId, branchId, from, to] as const,
 
-  accessAttempts: (gymId: string, branchId: string | null, filters: Readonly<Record<string, unknown>>) =>
-    ['access-attempts', gymId, branchId, filters] as const,
-  attendances: (gymId: string, branchId: string | null, filters: Readonly<Record<string, unknown>>) =>
-    ['attendances', gymId, branchId, filters] as const,
+  accessAttempts: (
+    gymId: string,
+    branchId: string | null,
+    filters: Readonly<Record<string, unknown>>,
+  ) => ['access-attempts', gymId, branchId, filters] as const,
+  attendances: (
+    gymId: string,
+    branchId: string | null,
+    filters: Readonly<Record<string, unknown>>,
+  ) => ['attendances', gymId, branchId, filters] as const,
 
   dashboard: (gymId: string, branchId: string | null) => ['dashboard', gymId, branchId] as const,
 } as const;

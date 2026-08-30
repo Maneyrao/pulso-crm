@@ -159,7 +159,8 @@ describe('cross-tenant: acceder o mutar un recurso de otro gimnasio', () => {
     }
 
     if (!fixture) {
-      it.skip(`${label} — sin fixture (cubierto por la allowlist, no por un recurso)`, () => undefined);
+      it.skip(`${label} — sin fixture (cubierto por la allowlist, no por un recurso)`, () =>
+        undefined);
       continue;
     }
 

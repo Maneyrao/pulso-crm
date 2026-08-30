@@ -40,8 +40,7 @@ export const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   /** Renderiza el componente hijo en vez de un `<button>` (patrón Radix Slot). */
   asChild?: boolean;
   /** Muestra spinner y bloquea la interacción, preservando el layout del botón. */
@@ -52,7 +51,17 @@ export interface ButtonProps
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
-    { className, variant, size, asChild = false, loading = false, loadingText, disabled, children, ...props },
+    {
+      className,
+      variant,
+      size,
+      asChild = false,
+      loading = false,
+      loadingText,
+      disabled,
+      children,
+      ...props
+    },
     ref,
   ) => {
     const Comp = asChild ? Slot : 'button';

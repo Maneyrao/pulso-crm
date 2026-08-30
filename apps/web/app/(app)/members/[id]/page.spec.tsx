@@ -186,7 +186,13 @@ async function primeSession(
 ): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u',
+      firstName: 'Ana',
+      lastName: 'Test',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -333,10 +339,9 @@ describe('MemberDetailPage', () => {
     fireEvent.click(confirmBtn);
 
     await waitFor(() => expect(cancelMembershipMock).toHaveBeenCalledTimes(1));
-    expect(cancelMembershipMock).toHaveBeenCalledWith(
-      '00000000-0000-0000-0000-000000000m01',
-      { reason: 'baja voluntaria' },
-    );
+    expect(cancelMembershipMock).toHaveBeenCalledWith('00000000-0000-0000-0000-000000000m01', {
+      reason: 'baja voluntaria',
+    });
   });
 
   it('tab Membresías: alta en modo DEBT arma el payload con charge.mode = "DEBT" e Idempotency-Key', async () => {
@@ -371,7 +376,9 @@ describe('MemberDetailPage', () => {
     // que es lo que ve un usuario cuando además ya conoce dónde vive el CTA
     // principal en el shell.
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: /Asignar membresía/i }).length).toBeGreaterThan(0),
+      expect(screen.getAllByRole('button', { name: /Asignar membresía/i }).length).toBeGreaterThan(
+        0,
+      ),
     );
     const openBtn = screen.getAllByRole('button', { name: /Asignar membresía/i })[0]!;
     fireEvent.click(openBtn);

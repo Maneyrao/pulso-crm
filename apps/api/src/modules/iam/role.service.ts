@@ -92,7 +92,10 @@ export class RoleService {
 
   private translateWriteError(err: unknown): unknown {
     if (isUniqueViolation(err)) {
-      return AppError.conflict(ErrorCode.CONFLICT, 'Ya existe un rol con ese código en este gimnasio.');
+      return AppError.conflict(
+        ErrorCode.CONFLICT,
+        'Ya existe un rol con ese código en este gimnasio.',
+      );
     }
     return err;
   }

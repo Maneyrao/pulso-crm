@@ -46,7 +46,10 @@ export default function UsersSettingsPage() {
     <PermissionGate
       permission="user:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <UsersScreen />
@@ -84,9 +87,10 @@ function UsersScreen() {
   const [toDeactivate, setToDeactivate] = React.useState<User | null>(null);
   const [toResetPassword, setToResetPassword] = React.useState<User | null>(null);
   /** Se muestra UNA vez y se descarta — nunca se persiste en la query cache ni en localStorage. */
-  const [revealedPassword, setRevealedPassword] = React.useState<{ email: string; password: string } | null>(
-    null,
-  );
+  const [revealedPassword, setRevealedPassword] = React.useState<{
+    email: string;
+    password: string;
+  } | null>(null);
 
   const usersQuery = useQuery({
     queryKey: qk.users(gymId ?? '', {}),
@@ -126,7 +130,8 @@ function UsersScreen() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateUserRequest }) => updateUser(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateUserRequest }) =>
+      updateUser(id, payload),
     onSuccess: () => {
       toast({ title: 'Usuario actualizado', tone: 'success' });
       setFormOpen(false);
@@ -159,7 +164,11 @@ function UsersScreen() {
       invalidateUsers();
     },
     onError: (error: unknown) => {
-      toast({ title: 'No se pudo resetear la contraseña', description: errorMessage(error), tone: 'danger' });
+      toast({
+        title: 'No se pudo resetear la contraseña',
+        description: errorMessage(error),
+        tone: 'danger',
+      });
       setToResetPassword(null);
     },
   });
@@ -188,7 +197,9 @@ function UsersScreen() {
   const toggleRole = (roleId: string) => {
     setForm((f) => ({
       ...f,
-      roleIds: f.roleIds.includes(roleId) ? f.roleIds.filter((id) => id !== roleId) : [...f.roleIds, roleId],
+      roleIds: f.roleIds.includes(roleId)
+        ? f.roleIds.filter((id) => id !== roleId)
+        : [...f.roleIds, roleId],
     }));
   };
   const toggleBranch = (branchId: string) => {
@@ -255,7 +266,9 @@ function UsersScreen() {
           {u.roleIds.length === 0 ? (
             <span className="text-(--color-muted)">—</span>
           ) : (
-            u.roleIds.map((roleId) => <StatusBadge key={roleId} tone="info" label={roleName(roleId)} />)
+            u.roleIds.map((roleId) => (
+              <StatusBadge key={roleId} tone="info" label={roleName(roleId)} />
+            ))
           )}
         </div>
       ),
@@ -385,7 +398,11 @@ function UsersScreen() {
             </FormField>
           </div>
 
-          <FormField label="Email" required hint={editing ? 'El email no se puede editar.' : undefined}>
+          <FormField
+            label="Email"
+            required
+            hint={editing ? 'El email no se puede editar.' : undefined}
+          >
             {(field) => (
               <Input
                 {...field}
@@ -412,8 +429,14 @@ function UsersScreen() {
             <legend className="text-(--text-sm) font-medium text-(--color-text)">Roles</legend>
             <div className="flex flex-col gap-2">
               {(rolesQuery.data?.data ?? []).map((role) => (
-                <label key={role.id} className="flex items-center gap-2 text-(--text-sm) text-(--color-text)">
-                  <Checkbox checked={form.roleIds.includes(role.id)} onChange={() => toggleRole(role.id)} />
+                <label
+                  key={role.id}
+                  className="flex items-center gap-2 text-(--text-sm) text-(--color-text)"
+                >
+                  <Checkbox
+                    checked={form.roleIds.includes(role.id)}
+                    onChange={() => toggleRole(role.id)}
+                  />
                   {role.name}
                 </label>
               ))}
@@ -427,7 +450,10 @@ function UsersScreen() {
             </p>
             <div className="flex flex-col gap-2">
               {(branchesQuery.data?.data ?? []).map((branch) => (
-                <label key={branch.id} className="flex items-center gap-2 text-(--text-sm) text-(--color-text)">
+                <label
+                  key={branch.id}
+                  className="flex items-center gap-2 text-(--text-sm) text-(--color-text)"
+                >
                   <Checkbox
                     checked={form.branchIds.includes(branch.id)}
                     onChange={() => toggleBranch(branch.id)}

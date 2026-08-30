@@ -10,7 +10,12 @@
  * `dedupeKey` y se encola (regla explícita del documento).
  */
 import { z } from 'zod';
-import { isoInstantSchema, offsetPaginatedResponseSchema, offsetPaginationQuerySchema, uuidSchema } from './common.js';
+import {
+  isoInstantSchema,
+  offsetPaginatedResponseSchema,
+  offsetPaginationQuerySchema,
+  uuidSchema,
+} from './common.js';
 import { memberMembershipFilterSchema, memberStatusSchema } from './members.js';
 
 export const MESSAGE_CHANNELS = ['WHATSAPP', 'EMAIL'] as const;
@@ -65,7 +70,9 @@ export const messageTemplateSchema = z.object({
 });
 export type MessageTemplate = z.infer<typeof messageTemplateSchema>;
 
-export const listMessageTemplatesResponseSchema = z.object({ data: z.array(messageTemplateSchema) });
+export const listMessageTemplatesResponseSchema = z.object({
+  data: z.array(messageTemplateSchema),
+});
 export type ListMessageTemplatesResponse = z.infer<typeof listMessageTemplatesResponseSchema>;
 
 export const updateMessageTemplateRequestSchema = z.object({

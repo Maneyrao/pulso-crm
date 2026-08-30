@@ -72,7 +72,10 @@ describe('POST /branches', () => {
 
   it('rechaza un nombre duplicado en el mismo gimnasio (409)', async () => {
     const owner = await loginAs('OWNER');
-    await owner.post('/api/v1/branches', { name: 'Sede Sur', timezone: 'America/Argentina/Buenos_Aires' });
+    await owner.post('/api/v1/branches', {
+      name: 'Sede Sur',
+      timezone: 'America/Argentina/Buenos_Aires',
+    });
     const dup = await owner.post('/api/v1/branches', {
       name: 'Sede Sur',
       timezone: 'America/Argentina/Buenos_Aires',
@@ -120,7 +123,10 @@ describe('POST /branches', () => {
     expect((overLimit.body as { code: string }).code).toBe('PLAN_LIMIT_REACHED');
 
     // Se restaura para no interferir con otros tests de este archivo.
-    await ctx.db.raw.saasPlan.update({ where: { id: gym.gym.saasPlanId }, data: { maxBranches: 10 } });
+    await ctx.db.raw.saasPlan.update({
+      where: { id: gym.gym.saasPlanId },
+      data: { maxBranches: 10 },
+    });
   });
 
   it('concurrencia: N creates simultáneos sobre un límite ajustado — sólo entran los que caben', async () => {
@@ -162,7 +168,10 @@ describe('POST /branches', () => {
     });
     expect(afterActive).toBe(activeCount + room);
 
-    await ctx.db.raw.saasPlan.update({ where: { id: gym.gym.saasPlanId }, data: { maxBranches: 10 } });
+    await ctx.db.raw.saasPlan.update({
+      where: { id: gym.gym.saasPlanId },
+      data: { maxBranches: 10 },
+    });
   });
 });
 

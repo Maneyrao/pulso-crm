@@ -38,7 +38,10 @@ export default function ActivitiesPage() {
     <PermissionGate
       permission="plan:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <ActivitiesScreen />
@@ -180,9 +183,7 @@ function ActivitiesScreen() {
     {
       id: 'description',
       header: 'Descripción',
-      cell: (a) => (
-        <span className="text-(--color-muted)">{a.description ?? '—'}</span>
-      ),
+      cell: (a) => <span className="text-(--color-muted)">{a.description ?? '—'}</span>,
     },
     {
       id: 'color',
@@ -220,7 +221,8 @@ function ActivitiesScreen() {
               size="sm"
               onClick={() => toggleMutation.mutate({ id: a.id, isActive: !a.isActive })}
               loading={
-                toggleMutation.isPending && (toggleMutation.variables as { id: string } | undefined)?.id === a.id
+                toggleMutation.isPending &&
+                (toggleMutation.variables as { id: string } | undefined)?.id === a.id
               }
             >
               {a.isActive ? 'Desactivar' : 'Reactivar'}
@@ -307,7 +309,10 @@ function ActivitiesScreen() {
               />
             )}
           </FormField>
-          <FormField label="Color" hint="Se usa para identificar la actividad en listados y calendarios.">
+          <FormField
+            label="Color"
+            hint="Se usa para identificar la actividad en listados y calendarios."
+          >
             {(field) => (
               <div className="flex items-center gap-2">
                 <input

@@ -27,7 +27,10 @@ test.describe('caja', () => {
   test('un ingreso aparece en el listado y suma al total', async ({ page }) => {
     await page.goto('/cash');
 
-    await page.getByRole('button', { name: /ingreso/i }).first().click();
+    await page
+      .getByRole('button', { name: /ingreso/i })
+      .first()
+      .click();
     await page.getByLabel(/importe|monto/i).fill('1500.50');
     await page.getByRole('button', { name: /registrar|confirmar|guardar/i }).click();
 
@@ -37,14 +40,23 @@ test.describe('caja', () => {
   test('la reversa deja los dos movimientos visibles, no borra el original', async ({ page }) => {
     await page.goto('/cash');
 
-    await page.getByRole('button', { name: /ingreso/i }).first().click();
+    await page
+      .getByRole('button', { name: /ingreso/i })
+      .first()
+      .click();
     await page.getByLabel(/importe|monto/i).fill('2000.00');
     await page.getByRole('button', { name: /registrar|confirmar|guardar/i }).click();
     await expect(page.getByText('2.000,00').first()).toBeVisible();
 
-    await page.getByRole('button', { name: /revertir/i }).first().click();
+    await page
+      .getByRole('button', { name: /revertir/i })
+      .first()
+      .click();
     await page.getByLabel(/motivo/i).fill('Cobro cargado por error al socio equivocado');
-    await page.getByRole('button', { name: /confirmar|revertir/i }).last().click();
+    await page
+      .getByRole('button', { name: /confirmar|revertir/i })
+      .last()
+      .click();
 
     // Quedan dos movimientos: el original marcado como revertido y la reversa.
     // Un sistema de caja auditable no borra: corrige con un asiento opuesto.
@@ -68,7 +80,10 @@ test.describe('caja', () => {
 
   test('un importe de cero se rechaza', async ({ page }) => {
     await page.goto('/cash');
-    await page.getByRole('button', { name: /ingreso/i }).first().click();
+    await page
+      .getByRole('button', { name: /ingreso/i })
+      .first()
+      .click();
     await page.getByLabel(/importe|monto/i).fill('0');
     await page.getByRole('button', { name: /registrar|confirmar|guardar/i }).click();
 

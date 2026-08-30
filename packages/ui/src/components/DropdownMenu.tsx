@@ -107,7 +107,11 @@ export const DropdownMenuSeparator = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Separator>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>
 >(({ className, ...props }, ref) => (
-  <DropdownMenuPrimitive.Separator ref={ref} className={cn('my-1 h-px bg-(--color-border)', className)} {...props} />
+  <DropdownMenuPrimitive.Separator
+    ref={ref}
+    className={cn('my-1 h-px bg-(--color-border)', className)}
+    {...props}
+  />
 ));
 DropdownMenuSeparator.displayName = 'DropdownMenuSeparator';
 

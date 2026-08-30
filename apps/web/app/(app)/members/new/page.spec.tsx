@@ -59,7 +59,9 @@ vi.mock('@/lib/api/cash', () => ({
 }));
 
 function withQuery(children: ReactNode): ReactNode {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return (
     <QueryClientProvider client={qc}>
       <ToastProvider>{children}</ToastProvider>
@@ -67,10 +69,18 @@ function withQuery(children: ReactNode): ReactNode {
   );
 }
 
-async function primeSession(permissions: string[] = ['member:write', 'member:read']): Promise<void> {
+async function primeSession(
+  permissions: string[] = ['member:write', 'member:read'],
+): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u',
+      firstName: 'Ana',
+      lastName: 'Test',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -125,7 +135,9 @@ const CREATED_MEMBER = {
   updatedAt: '2026-01-01T12:00:00.000Z',
 };
 
-function membershipResponse(overrides: Partial<CreateMembershipResponse> = {}): CreateMembershipResponse {
+function membershipResponse(
+  overrides: Partial<CreateMembershipResponse> = {},
+): CreateMembershipResponse {
   return {
     membership: {
       id: 'ms1',
@@ -170,7 +182,9 @@ async function selectPlan(name: RegExp = /Mensual/i): Promise<void> {
 }
 
 async function fillPersonalStep(): Promise<void> {
-  fireEvent.change(screen.getByLabelText(/Número de documento/i), { target: { value: '20123456' } });
+  fireEvent.change(screen.getByLabelText(/Número de documento/i), {
+    target: { value: '20123456' },
+  });
   // /^Nombre\b/: el label real es "Nombre *" (asterisco de `required` en el text content).
   fireEvent.change(screen.getByLabelText(/^Nombre\b/i), { target: { value: 'Lucía' } });
   fireEvent.change(screen.getByLabelText(/Apellido/i), { target: { value: 'Pérez' } });
@@ -186,7 +200,21 @@ beforeEach(async () => {
   listPaymentMethodsMock.mockReset();
 
   listPlansMock.mockResolvedValue({ data: [makePlan()] });
-  listBranchesMock.mockResolvedValue({ data: [{ id: 'b1', gymId: 'g1', name: 'Centro', timezone: 'tz', address: null, phone: null, isActive: true, createdAt: '', updatedAt: '' }] });
+  listBranchesMock.mockResolvedValue({
+    data: [
+      {
+        id: 'b1',
+        gymId: 'g1',
+        name: 'Centro',
+        timezone: 'tz',
+        address: null,
+        phone: null,
+        isActive: true,
+        createdAt: '',
+        updatedAt: '',
+      },
+    ],
+  });
   getCurrentCashSessionMock.mockResolvedValue(null);
   listPaymentMethodsMock.mockResolvedValue({ data: [] });
 
@@ -204,8 +232,16 @@ describe('NewMemberPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Crear socio y continuar/i }));
 
     await waitFor(() => expect(createMemberMock).toHaveBeenCalledTimes(1));
-    const [payload, idempotencyKey] = createMemberMock.mock.calls[0] as [Record<string, unknown>, string];
-    expect(payload).toMatchObject({ firstName: 'Lucía', lastName: 'Pérez', documentNumber: '20123456', branchId: 'b1' });
+    const [payload, idempotencyKey] = createMemberMock.mock.calls[0] as [
+      Record<string, unknown>,
+      string,
+    ];
+    expect(payload).toMatchObject({
+      firstName: 'Lucía',
+      lastName: 'Pérez',
+      documentNumber: '20123456',
+      branchId: 'b1',
+    });
     expect(idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
 
     await waitFor(() => expect(screen.getByText(/Plan y membresía/i)).toBeInTheDocument());
@@ -238,7 +274,13 @@ describe('NewMemberPage', () => {
   it('ante error del backend en el paso 1 muestra el detail y no navega', async () => {
     const { ApiError } = await import('@/lib/api/errors');
     createMemberMock.mockRejectedValueOnce(
-      new ApiError({ type: 'about:blank', code: 'DUPLICATE_DOCUMENT', title: 'Conflicto', status: 409, detail: 'Ya existe un socio con ese documento.' }),
+      new ApiError({
+        type: 'about:blank',
+        code: 'DUPLICATE_DOCUMENT',
+        title: 'Conflicto',
+        status: 409,
+        detail: 'Ya existe un socio con ese documento.',
+      }),
     );
     const { default: NewMemberPage } = await import('./page');
     render(withQuery(<NewMemberPage />));
@@ -316,7 +358,10 @@ describe('NewMemberPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Confirmar/i }));
 
     await waitFor(() => expect(createMembershipMock).toHaveBeenCalledTimes(1));
-    const [memberId, payload] = createMembershipMock.mock.calls[0] as [string, Record<string, unknown>];
+    const [memberId, payload] = createMembershipMock.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
     expect(memberId).toBe('m1');
     expect(payload).toMatchObject({ planId: 'p1', charge: { mode: 'DEBT' } });
 
@@ -366,7 +411,17 @@ describe('NewMemberPage', () => {
       businessDate: '2026-08-20',
     });
     listPaymentMethodsMock.mockResolvedValue({
-      data: [{ id: 'pm1', gymId: 'g1', code: 'CASH', name: 'Efectivo', countsAsCash: true, isActive: true, sortOrder: 0 }],
+      data: [
+        {
+          id: 'pm1',
+          gymId: 'g1',
+          code: 'CASH',
+          name: 'Efectivo',
+          countsAsCash: true,
+          isActive: true,
+          sortOrder: 0,
+        },
+      ],
     });
 
     const { default: NewMemberPage } = await import('./page');
@@ -386,7 +441,10 @@ describe('NewMemberPage', () => {
 
     await waitFor(() => expect(createMembershipMock).toHaveBeenCalledTimes(1));
     const [, payload] = createMembershipMock.mock.calls[0] as [string, Record<string, unknown>];
-    expect(payload).toMatchObject({ planId: 'p1', charge: { mode: 'NOW', paymentMethodId: 'pm1', amount: '20000.00' } });
+    expect(payload).toMatchObject({
+      planId: 'p1',
+      charge: { mode: 'NOW', paymentMethodId: 'pm1', amount: '20000.00' },
+    });
 
     await waitFor(() => expect(screen.getByText('El socio quedó activo')).toBeInTheDocument());
     // Dos filas con "Sí —": membresía activa y pago cobrado. La ausencia del texto de deuda
@@ -399,7 +457,13 @@ describe('NewMemberPage', () => {
     createMemberMock.mockResolvedValueOnce(CREATED_MEMBER);
     const { ApiError } = await import('@/lib/api/errors');
     createMembershipMock.mockRejectedValueOnce(
-      new ApiError({ type: 'about:blank', code: 'INTERNAL_ERROR', title: 'Error', status: 500, detail: 'La membresía explotó.' }),
+      new ApiError({
+        type: 'about:blank',
+        code: 'INTERNAL_ERROR',
+        title: 'Error',
+        status: 500,
+        detail: 'La membresía explotó.',
+      }),
     );
     getCurrentCashSessionMock.mockResolvedValue(null);
     const { default: NewMemberPage } = await import('./page');

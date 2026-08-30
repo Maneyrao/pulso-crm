@@ -94,7 +94,13 @@ export class CashSessionService {
     // lo cubre en la base. No usar `assertPositiveMoney` — abrir con 0 es válido.
     if (input.openingAmount.startsWith('-')) {
       throw AppError.validation(
-        [{ field: 'openingAmount', code: 'too_small', message: 'El fondo inicial no puede ser negativo.' }],
+        [
+          {
+            field: 'openingAmount',
+            code: 'too_small',
+            message: 'El fondo inicial no puede ser negativo.',
+          },
+        ],
         'El fondo inicial no puede ser negativo.',
       );
     }
@@ -250,10 +256,7 @@ export class CashSessionService {
           throw AppError.notFound('La sesión de caja');
         }
         if (session.status !== 'OPEN') {
-          throw AppError.conflict(
-            ErrorCode.CASH_SESSION_CLOSED,
-            'La sesión ya estaba cerrada.',
-          );
+          throw AppError.conflict(ErrorCode.CASH_SESSION_CLOSED, 'La sesión ya estaba cerrada.');
         }
 
         // Sumar movements por (paymentMethodId, type). Se hace en SQL, no
@@ -269,9 +272,8 @@ export class CashSessionService {
         const expectedByMethod = new Map<string, string>();
         for (const row of rows) {
           const current = expectedByMethod.get(row.paymentMethodId) ?? ZERO_MONEY;
-          const next = row.type === 'INCOME'
-            ? addMoney(current, row.total)
-            : subMoney(current, row.total);
+          const next =
+            row.type === 'INCOME' ? addMoney(current, row.total) : subMoney(current, row.total);
           expectedByMethod.set(row.paymentMethodId, next);
         }
 
@@ -343,14 +345,10 @@ export class CashSessionService {
           paymentMethods.filter((p) => p.countsAsCash).map((p) => p.id),
         );
         const expectedCash = sumMoney(
-          [...expectedByMethod.entries()]
-            .filter(([id]) => cashMethodIds.has(id))
-            .map(([, v]) => v),
+          [...expectedByMethod.entries()].filter(([id]) => cashMethodIds.has(id)).map(([, v]) => v),
         );
         const declaredCash = sumMoney(
-          input.declared
-            .filter((d) => cashMethodIds.has(d.paymentMethodId))
-            .map((d) => d.amount),
+          input.declared.filter((d) => cashMethodIds.has(d.paymentMethodId)).map((d) => d.amount),
         );
         const cashDifference = subMoney(declaredCash, expectedCash);
         const differenceTotal = sumMoney(details.map((d) => d.difference.toFixed(2)));

@@ -15,16 +15,16 @@ En construcción. El plan completo está en [`docs/`](docs/); empezá por
 
 ## Stack
 
-| Pieza | Tecnología |
-|---|---|
-| `apps/web` | Next.js 15 App Router, React 19, Tailwind v4, TanStack Query, Zustand |
-| `apps/api` | NestJS 11 (monolito modular), REST `/api/v1`, Socket.IO |
-| `apps/worker` | BullMQ: outbox, mensajería, vencimientos |
+| Pieza              | Tecnología                                                                                                   |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `apps/web`         | Next.js 15 App Router, React 19, Tailwind v4, TanStack Query, Zustand                                        |
+| `apps/api`         | NestJS 11 (monolito modular), REST `/api/v1`, Socket.IO                                                      |
+| `apps/worker`      | BullMQ: outbox, mensajería, vencimientos                                                                     |
 | `apps/local-agent` | C#/.NET 8, puente biométrico local con `FakeSensor`; adaptadores de hardware pendientes de validación física |
-| Base | PostgreSQL 16 + Prisma |
-| Colas y caché | Redis |
-| Contratos | Zod compartido en `packages/contracts` |
-| Diseño | `packages/ui`, tokens propios sobre Tailwind |
+| Base               | PostgreSQL 16 + Prisma                                                                                       |
+| Colas y caché      | Redis                                                                                                        |
+| Contratos          | Zod compartido en `packages/contracts`                                                                       |
+| Diseño             | `packages/ui`, tokens propios sobre Tailwind                                                                 |
 
 Las decisiones y sus alternativas descartadas están en [`docs/ADRS.md`](docs/ADRS.md).
 
@@ -48,11 +48,11 @@ pnpm dev              # api :4001 · web :4000 · worker
 
 Sólo existen en desarrollo. El seed se niega a correr con `NODE_ENV=production`.
 
-| Email | Rol |
-|---|---|
-| `admin@demo.local` | Dueño |
-| `recepcion@demo.local` | Recepción |
-| `profe@demo.local` | Instructor |
+| Email                  | Rol        |
+| ---------------------- | ---------- |
+| `admin@demo.local`     | Dueño      |
+| `recepcion@demo.local` | Recepción  |
+| `profe@demo.local`     | Instructor |
 
 Contraseña de los tres: `Demo.1234`.
 

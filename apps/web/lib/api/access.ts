@@ -26,6 +26,8 @@ export function getAccessAttemptResult(id: string): Promise<AccessCheckResponse>
   return apiFetch<AccessCheckResponse>(`/access/attempts/${id}/result`);
 }
 
-export function listAttendances(query: Partial<ListAttendancesQuery>): Promise<ListAttendancesResponse> {
+export function listAttendances(
+  query: Partial<ListAttendancesQuery>,
+): Promise<ListAttendancesResponse> {
   return apiFetch<ListAttendancesResponse>(`/attendances${toQueryString(query)}`);
 }

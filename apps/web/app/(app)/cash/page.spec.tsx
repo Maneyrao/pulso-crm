@@ -159,12 +159,16 @@ function makeConcept(overrides: Partial<CashConcept> = {}): CashConcept {
   };
 }
 
-async function primeSession(
-  permissions: string[] = ['cash:read', 'cash:operate'],
-): Promise<void> {
+async function primeSession(permissions: string[] = ['cash:read', 'cash:operate']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u1', firstName: 'Ana', lastName: 'T', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u1',
+      firstName: 'Ana',
+      lastName: 'T',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -222,9 +226,7 @@ describe('CashPage', () => {
     const { default: CashPage } = await import('./page');
     render(withProviders(<CashPage />));
 
-    await waitFor(() =>
-      expect(screen.getByText(/No hay caja abierta/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/No hay caja abierta/i)).toBeInTheDocument());
     // Botones "Abrir caja": el del header + el del EmptyState.
     expect(screen.getAllByRole('button', { name: /Abrir caja/i }).length).toBeGreaterThan(0);
     // Y no aparece "Cerrar caja" porque no hay sesión.
@@ -326,7 +328,9 @@ describe('CashPage', () => {
     const { default: CashPage } = await import('./page');
     render(withProviders(<CashPage />));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /Nuevo movimiento/i })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Nuevo movimiento/i })).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Nuevo movimiento/i }));
 
     // Concepto: elegir "Ingreso varios" (INCOME por default).
@@ -389,7 +393,9 @@ describe('CashPage', () => {
     const { default: CashPage } = await import('./page');
     render(withProviders(<CashPage />));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /Revertir/i })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Revertir/i })).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Revertir/i }));
 
     // El diálogo pide un motivo — el botón Confirmar queda disabled con < 10 chars.
@@ -436,7 +442,9 @@ describe('CashPage', () => {
     const { default: CashPage } = await import('./page');
     render(withProviders(<CashPage />));
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /Cerrar caja/i })).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Cerrar caja/i })).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Cerrar caja/i }));
 
     // Modal de cierre: hay MoneyInput por cada método declarable. Cambiamos el

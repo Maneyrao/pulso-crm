@@ -19,7 +19,7 @@ Estas reglas se aplican a toda sesión de Claude Code (u otro asistente) en
   vos en esta sesión. Antes: `git status --short`, `git diff` y entender.
 - Prohibido en cualquier situación: `git reset --hard`, `git clean -f`,
   `git checkout .`, `git restore .` sobre archivos no tuyos, `prisma migrate
-  reset` contra una base que no sea `pulso_dev` local, `DROP DATABASE`,
+reset` contra una base que no sea `pulso_dev` local, `DROP DATABASE`,
   `TRUNCATE` fuera de tests aislados, `rm -rf` fuera del scratchpad de la sesión.
 
 ## Frontend / backend / contratos
@@ -47,8 +47,8 @@ Estas reglas se aplican a toda sesión de Claude Code (u otro asistente) en
   un `@Injectable()` / `@Controller()` / guard / interceptor: `emitDecoratorMetadata`
   descarta los tipos-only y NestJS deja el parámetro sin resolver. Convención
   del repo: import de VALOR con `// eslint-disable-next-line
-  @typescript-eslint/consistent-type-imports -- ver nota en
-  infra/redis/redis.service.ts`.
+@typescript-eslint/consistent-type-imports -- ver nota en
+infra/redis/redis.service.ts`.
 - `import type` es OK y preferido para tipos NO inyectados (parámetros de
   método, DTOs, `Prisma`, `PulsoTransactionClient`, `Request`, etc.).
 
@@ -78,7 +78,7 @@ Estas reglas se aplican a toda sesión de Claude Code (u otro asistente) en
 
 - No declarar una función terminada sólo porque compila. Ejecutar y verificar.
 - Antes de commit / entrega: `pnpm lint && pnpm typecheck && pnpm build &&
-  pnpm test` en verde. Si alguno falla, PARAR y arreglar; no avanzar al
+pnpm test` en verde. Si alguno falla, PARAR y arreglar; no avanzar al
   siguiente milestone.
 - No ejecutar autofix global (`eslint --fix`, `prettier --write .`) sin
   revisar el diff. Fix acotado al archivo tocado.

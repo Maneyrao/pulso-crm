@@ -14,8 +14,11 @@ export type PulsoPrismaClient = ReturnType<typeof createPrismaClient>;
  * cualquier helper que reciba un `tx` de una transacción de
  * `PulsoPrismaClient` tenga el tipo correcto en vez de `Prisma.TransactionClient`.
  */
-export type PulsoTransactionClient =
-  Parameters<PulsoPrismaClient['$transaction']>[0] extends (tx: infer TX) => unknown ? TX : never;
+export type PulsoTransactionClient = Parameters<PulsoPrismaClient['$transaction']>[0] extends (
+  tx: infer TX,
+) => unknown
+  ? TX
+  : never;
 
 export interface CreatePrismaOptions {
   /** Devuelve el gymId activo. Null fuera de un request con sesión. */

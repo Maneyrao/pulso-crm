@@ -14,7 +14,10 @@ import { AuditService } from '../../common/audit/audit.service.js';
 import { AppError } from '../../common/errors/app-error.js';
 import { TenantContextStore } from '../../common/auth/tenant-context.js';
 import { translateCashConstraintError } from './lib/pg-errors.js';
-import type { CreateCashRegisterRequest, UpdateCashRegisterRequest } from './schemas/cash-register.schemas.js';
+import type {
+  CreateCashRegisterRequest,
+  UpdateCashRegisterRequest,
+} from './schemas/cash-register.schemas.js';
 
 /**
  * Configuración de caja: `PaymentMethod`, `CashConcept`, `CashRegister`.
@@ -128,7 +131,9 @@ export class CashConfigService {
   async createCashRegister(input: CreateCashRegisterRequest) {
     const branchId = TenantContextStore.requireBranch(input.branchId);
     try {
-      const created = await this.db.cashRegister.create({ data: scoped({ branchId, name: input.name }) });
+      const created = await this.db.cashRegister.create({
+        data: scoped({ branchId, name: input.name }),
+      });
       await this.audit.record({
         action: 'CASH_CONFIG_CHANGED',
         resourceType: 'CashRegister',

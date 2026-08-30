@@ -38,7 +38,10 @@ export default function InactiveMembersPage() {
     <PermissionGate
       permission="member:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <InactiveMembersScreen />
@@ -132,7 +135,8 @@ function InactiveMembersScreen() {
   const debtors = debtorsQuery.data?.data ?? [];
   const inactiveMembers = inactiveQuery.data?.data ?? [];
   const selectedDebtors = debtors.filter((member) => selected.has(member.id));
-  const allDebtorsSelected = debtors.length > 0 && debtors.every((member) => selected.has(member.id));
+  const allDebtorsSelected =
+    debtors.length > 0 && debtors.every((member) => selected.has(member.id));
 
   const toggleOne = (id: string) => {
     setSelected((prev) => {
@@ -182,7 +186,10 @@ function InactiveMembersScreen() {
       header: 'Socio',
       cell: (member) => (
         <div className="flex flex-col">
-          <Link href={`/members/${member.id}`} className="font-medium text-(--color-text) hover:underline">
+          <Link
+            href={`/members/${member.id}`}
+            className="font-medium text-(--color-text) hover:underline"
+          >
             {member.lastName}, {member.firstName}
           </Link>
           <span className="text-(--text-xs) text-(--color-muted)">{member.documentMasked}</span>
@@ -247,7 +254,10 @@ function InactiveMembersScreen() {
       header: 'Socio',
       cell: (member) => (
         <div className="flex flex-col">
-          <Link href={`/members/${member.id}`} className="font-medium text-(--color-text) hover:underline">
+          <Link
+            href={`/members/${member.id}`}
+            className="font-medium text-(--color-text) hover:underline"
+          >
             {member.lastName}, {member.firstName}
           </Link>
           <span className="text-(--text-xs) text-(--color-muted)">{member.documentMasked}</span>
@@ -315,7 +325,11 @@ function InactiveMembersScreen() {
                 {selectedDebtors.length} socio{selectedDebtors.length === 1 ? '' : 's'} seleccionado
                 {selectedDebtors.length === 1 ? '' : 's'}
               </span>
-              <Button variant="danger" size="sm" onClick={() => openConfirm(selectedDebtors.map((member) => member.id))}>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => openConfirm(selectedDebtors.map((member) => member.id))}
+              >
                 Dar de baja {selectedDebtors.length} socios
               </Button>
             </div>
@@ -327,7 +341,9 @@ function InactiveMembersScreen() {
                 aria-label="Seleccionar todos los deudores visibles"
                 disabled={debtors.length === 0}
               />
-              <span className="text-(--text-sm) text-(--color-muted)">Seleccionar todos los deudores visibles</span>
+              <span className="text-(--text-sm) text-(--color-muted)">
+                Seleccionar todos los deudores visibles
+              </span>
             </div>
           )
         ) : null}
@@ -363,7 +379,11 @@ function InactiveMembersScreen() {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={pendingIds.length === 1 ? 'Dar de baja a este socio' : `Dar de baja a ${pendingIds.length} socios`}
+        title={
+          pendingIds.length === 1
+            ? 'Dar de baja a este socio'
+            : `Dar de baja a ${pendingIds.length} socios`
+        }
         description="La baja deja al socio como inactivo y queda auditada. Si tiene deuda, no se borra: sigue visible en su cuenta corriente."
         confirmLabel="Dar de baja"
         tone="danger"

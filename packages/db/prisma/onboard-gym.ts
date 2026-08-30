@@ -104,9 +104,18 @@ async function main(): Promise<void> {
 
   const ROLE_LABELS: Record<string, { name: string; description: string }> = {
     OWNER: { name: 'Dueño', description: 'Acceso total, incluida configuración y facturación.' },
-    MANAGER: { name: 'Encargado', description: 'Opera y supervisa: aprueba reversas y ve reportes.' },
-    RECEPTIONIST: { name: 'Recepción', description: 'Mostrador: socios, cobros, caja propia y acceso.' },
-    INSTRUCTOR: { name: 'Instructor', description: 'Consulta socios y asistencias. No opera dinero.' },
+    MANAGER: {
+      name: 'Encargado',
+      description: 'Opera y supervisa: aprueba reversas y ve reportes.',
+    },
+    RECEPTIONIST: {
+      name: 'Recepción',
+      description: 'Mostrador: socios, cobros, caja propia y acceso.',
+    },
+    INSTRUCTOR: {
+      name: 'Instructor',
+      description: 'Consulta socios y asistencias. No opera dinero.',
+    },
   };
 
   const roles = new Map<string, string>();
@@ -162,7 +171,9 @@ async function main(): Promise<void> {
     { code: 'CLEANING', name: 'Limpieza', type: 'EXPENSE' as const, isSystem: false },
     { code: 'OTHER_EXPENSE', name: 'Otro egreso', type: 'EXPENSE' as const, isSystem: false },
   ];
-  await Promise.all(conceptDefs.map((c) => prisma.cashConcept.create({ data: { gymId: gym.id, ...c } })));
+  await Promise.all(
+    conceptDefs.map((c) => prisma.cashConcept.create({ data: { gymId: gym.id, ...c } })),
+  );
 
   await prisma.cashRegister.create({
     data: { gymId: gym.id, branchId: branch.id, name: `Caja ${branch.name}` },

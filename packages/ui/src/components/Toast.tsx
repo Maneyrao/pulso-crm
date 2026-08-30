@@ -40,7 +40,10 @@ function generateId(): string {
     : `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-const TONE_ICON: Record<ToastTone, React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }> | null> = {
+const TONE_ICON: Record<
+  ToastTone,
+  React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }> | null
+> = {
   default: null,
   success: CheckCircle2,
   warning: AlertTriangle,
@@ -50,9 +53,12 @@ const TONE_ICON: Record<ToastTone, React.ComponentType<{ className?: string; 'ar
 
 const TONE_CLASS: Record<ToastTone, string> = {
   default: 'border-(--color-border) bg-(--color-surface) text-(--color-text)',
-  success: 'border-(--color-success) bg-(--color-success-subtle) text-(--color-success-subtle-foreground)',
-  warning: 'border-(--color-warning) bg-(--color-warning-subtle) text-(--color-warning-subtle-foreground)',
-  danger: 'border-(--color-danger) bg-(--color-danger-subtle) text-(--color-danger-subtle-foreground)',
+  success:
+    'border-(--color-success) bg-(--color-success-subtle) text-(--color-success-subtle-foreground)',
+  warning:
+    'border-(--color-warning) bg-(--color-warning-subtle) text-(--color-warning-subtle-foreground)',
+  danger:
+    'border-(--color-danger) bg-(--color-danger-subtle) text-(--color-danger-subtle-foreground)',
   info: 'border-(--color-info) bg-(--color-info-subtle) text-(--color-info-subtle-foreground)',
 };
 
@@ -76,7 +82,10 @@ export function ToastProvider({ children }: ToastProviderProps) {
 
   const toast = React.useCallback((options: ToastOptions) => {
     const id = generateId();
-    setToasts((current) => [...current, { id, tone: 'default', duration: DEFAULT_DURATION, ...options }]);
+    setToasts((current) => [
+      ...current,
+      { id, tone: 'default', duration: DEFAULT_DURATION, ...options },
+    ]);
     return id;
   }, []);
 
@@ -109,7 +118,13 @@ function Toaster({ toasts, onDismiss }: ToasterProps) {
   );
 }
 
-function ToastItem({ toastItem, onDismiss }: { toastItem: ToastRecord; onDismiss: (id: string) => void }) {
+function ToastItem({
+  toastItem,
+  onDismiss,
+}: {
+  toastItem: ToastRecord;
+  onDismiss: (id: string) => void;
+}) {
   const { id, title, description, tone = 'default', duration = DEFAULT_DURATION } = toastItem;
   const Icon = TONE_ICON[tone];
 

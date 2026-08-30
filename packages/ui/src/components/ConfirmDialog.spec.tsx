@@ -21,7 +21,14 @@ function ControlledConfirmDialog(props: Partial<React.ComponentProps<typeof Conf
 
 describe('ConfirmDialog', () => {
   it('no renderiza el contenido cuando está cerrado', () => {
-    render(<ConfirmDialog open={false} onOpenChange={() => {}} title="Eliminar plan" onConfirm={() => {}} />);
+    render(
+      <ConfirmDialog
+        open={false}
+        onOpenChange={() => {}}
+        title="Eliminar plan"
+        onConfirm={() => {}}
+      />,
+    );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -80,7 +87,11 @@ describe('ConfirmDialog', () => {
     it('sigue deshabilitado si el texto no coincide exactamente', async () => {
       const user = userEvent.setup();
       render(
-        <ControlledConfirmDialog confirmLabel="Eliminar" tone="danger" requireTextConfirmation="ELIMINAR" />,
+        <ControlledConfirmDialog
+          confirmLabel="Eliminar"
+          tone="danger"
+          requireTextConfirmation="ELIMINAR"
+        />,
       );
       await user.type(screen.getByRole('textbox'), 'eliminar');
       expect(screen.getByRole('button', { name: 'Eliminar' })).toBeDisabled();

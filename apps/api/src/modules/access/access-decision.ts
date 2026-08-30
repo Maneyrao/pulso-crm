@@ -112,7 +112,10 @@ export function evaluateAccess(snapshot: AccessCheckSnapshot): AccessDecisionRes
 
   // EXPIRED, SUSPENDED, o ACTIVE-pero-vencida (defensivo: el job de
   // vencimientos debería haberla pasado a EXPIRED, pero no se confía en eso).
-  if (membership.status !== 'ACTIVE' || (membership.endDate !== null && membership.endDate < today)) {
+  if (
+    membership.status !== 'ACTIVE' ||
+    (membership.endDate !== null && membership.endDate < today)
+  ) {
     return denied('MEMBERSHIP_EXPIRED', 'La membresía está vencida.');
   }
 

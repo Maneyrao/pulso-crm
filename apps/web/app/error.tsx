@@ -2,7 +2,13 @@
 
 import { Button, ErrorState } from '@pulso/ui';
 
-export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function GlobalError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-(--color-bg) p-6">
       <div className="w-full max-w-md">

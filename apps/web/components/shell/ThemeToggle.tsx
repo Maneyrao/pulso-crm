@@ -52,7 +52,11 @@ export function ThemeToggle() {
       title={dark ? 'Tema claro' : 'Tema oscuro'}
       className="rounded-(--radius-md) p-2 text-(--color-muted) transition-colors hover:bg-(--color-muted-subtle) hover:text-(--color-text)"
     >
-      {dark ? <Sun className="h-4 w-4" aria-hidden={true} /> : <Moon className="h-4 w-4" aria-hidden={true} />}
+      {dark ? (
+        <Sun className="h-4 w-4" aria-hidden={true} />
+      ) : (
+        <Moon className="h-4 w-4" aria-hidden={true} />
+      )}
     </button>
   );
 }

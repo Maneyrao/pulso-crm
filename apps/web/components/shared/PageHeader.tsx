@@ -14,7 +14,14 @@ export interface PageHeaderProps {
 }
 
 /** Encabezado de página: icono en tile, título, subtítulo y acciones. */
-export function PageHeader({ title, description, icon: Icon, actions, mock, className }: PageHeaderProps) {
+export function PageHeader({
+  title,
+  description,
+  icon: Icon,
+  actions,
+  mock,
+  className,
+}: PageHeaderProps) {
   return (
     <div className={cn('mb-6 flex flex-wrap items-start justify-between gap-3', className)}>
       <div className="flex min-w-0 items-center gap-3">
@@ -28,7 +35,9 @@ export function PageHeader({ title, description, icon: Icon, actions, mock, clas
             {title}
             {mock ? <MockBadge /> : null}
           </h1>
-          {description ? <p className="mt-0.5 text-(--text-sm) text-(--color-muted)">{description}</p> : null}
+          {description ? (
+            <p className="mt-0.5 text-(--text-sm) text-(--color-muted)">{description}</p>
+          ) : null}
         </div>
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

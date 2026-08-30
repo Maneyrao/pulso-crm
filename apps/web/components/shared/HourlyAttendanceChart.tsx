@@ -55,7 +55,11 @@ export function HourlyAttendanceChart({
   );
 
   if (total === 0) {
-    return <p className="py-6 text-center text-(--text-sm) text-(--color-muted)">Todavía no hay ingresos hoy.</p>;
+    return (
+      <p className="py-6 text-center text-(--text-sm) text-(--color-muted)">
+        Todavía no hay ingresos hoy.
+      </p>
+    );
   }
 
   return (
@@ -73,7 +77,10 @@ export function HourlyAttendanceChart({
       </div>
       <div className="mt-1.5 flex gap-1">
         {buckets.map((b) => (
-          <span key={b.hour} className="flex-1 text-center text-(--text-xs) tabular-nums text-(--color-muted)">
+          <span
+            key={b.hour}
+            className="flex-1 text-center text-(--text-xs) tabular-nums text-(--color-muted)"
+          >
             {LABELED_HOURS.has(b.hour) ? String(b.hour).padStart(2, '0') : ''}
           </span>
         ))}

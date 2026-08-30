@@ -205,9 +205,7 @@ export class AccessService {
     // el segundo choca y se cae al `catch`, se marca `attendanceRegistered:
     // false` con el DUPLICATE_WINDOW reason del snapshot.
     const shouldRecordAttendance =
-      decision.decision === 'ALLOWED' &&
-      params.registerAttendance &&
-      decision.reasonCode === 'OK'; // DUPLICATE_WINDOW no crea otra fila
+      decision.decision === 'ALLOWED' && params.registerAttendance && decision.reasonCode === 'OK'; // DUPLICATE_WINDOW no crea otra fila
 
     try {
       const result = await this.prisma.client.$transaction(async (tx) => {
@@ -307,9 +305,9 @@ export class AccessService {
             firstName: member.firstName,
             lastName: member.lastName,
             // photoKey es un identificador de S3, no una URL — el frontend puede
-          // pedir la URL prefirmada aparte cuando exista ese endpoint. Por
-          // ahora se devuelve null.
-          photoUrl: null,
+            // pedir la URL prefirmada aparte cuando exista ese endpoint. Por
+            // ahora se devuelve null.
+            photoUrl: null,
             status: member.status,
           },
           membership: membership

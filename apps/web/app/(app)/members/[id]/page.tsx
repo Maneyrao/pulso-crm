@@ -43,11 +43,7 @@ import {
 import { deactivateMember, getMember, getMemberLedger, updateMember } from '@/lib/api/members';
 import { listPlans } from '@/lib/api/catalog';
 import { listBranches } from '@/lib/api/tenancy';
-import {
-  cancelMembership,
-  createMembership,
-  listMemberMemberships,
-} from '@/lib/api/memberships';
+import { cancelMembership, createMembership, listMemberMemberships } from '@/lib/api/memberships';
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
@@ -193,8 +189,7 @@ function MemberDetailScreen() {
 
   const hasDebt = Number(member.balance) > 0;
   const reasonRequired = hasDebt;
-  const canConfirmDeactivate =
-    !reasonRequired || deactivateReason.trim().length >= 5;
+  const canConfirmDeactivate = !reasonRequired || deactivateReason.trim().length >= 5;
 
   return (
     <div className="flex flex-col gap-6">
@@ -210,9 +205,7 @@ function MemberDetailScreen() {
             ) : (
               <StatusBadge tone="neutral" label="Inactivo" />
             )}
-            {hasDebt ? (
-              <StatusBadge tone="warning" label="Con deuda" />
-            ) : null}
+            {hasDebt ? <StatusBadge tone="warning" label="Con deuda" /> : null}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -431,7 +424,9 @@ function SummarySection({ member }: { member: MemberDetail }) {
         <SummaryRow label="Fecha de nacimiento" value={member.birthDate ?? '—'} />
         <SummaryRow label="Estado" value={member.status === 'ACTIVE' ? 'Activo' : 'Inactivo'} />
         <div>
-          <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Deuda actual</dt>
+          <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">
+            Deuda actual
+          </dt>
           <dd className="mt-0.5 text-(--text-lg) font-semibold">
             <MoneyDisplay value={member.balance} emphasizeNegative />
           </dd>
@@ -882,8 +877,8 @@ function MembershipsSection({ memberId, gymId }: { memberId: string; gymId: stri
           ) : null}
 
           <Alert tone="info" title="Cobro por caja llega en el próximo milestone">
-            La membresía se registra como deuda en la cuenta corriente del socio (modo DEBT).
-            En M5 se agrega el cobro directo por caja.
+            La membresía se registra como deuda en la cuenta corriente del socio (modo DEBT). En M5
+            se agrega el cobro directo por caja.
           </Alert>
 
           <FormField label="Plan" required>
@@ -923,7 +918,10 @@ function MembershipsSection({ memberId, gymId }: { memberId: string; gymId: stri
                 />
               )}
             </FormField>
-            <FormField label="Precio" hint="Sobrescribe el precio del plan (descuento, beca, etc.).">
+            <FormField
+              label="Precio"
+              hint="Sobrescribe el precio del plan (descuento, beca, etc.)."
+            >
               {(field) => (
                 <MoneyInput
                   {...field}

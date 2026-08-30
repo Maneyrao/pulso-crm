@@ -204,7 +204,12 @@ describe('ciclo completo de caja + membresía mode NOW', () => {
     expect(closeRes.status).toBe(200);
     const closeBody = closeRes.body as {
       session: { status: string };
-      details: Array<{ paymentMethodId: string; expectedAmount: string; declaredAmount: string; difference: string }>;
+      details: Array<{
+        paymentMethodId: string;
+        expectedAmount: string;
+        declaredAmount: string;
+        difference: string;
+      }>;
       differenceTotal: string;
     };
     expect(closeBody.session.status).toBe('CLOSED');

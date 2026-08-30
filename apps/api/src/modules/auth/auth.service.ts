@@ -85,10 +85,7 @@ export class AuthService {
       // Se consume el mismo tiempo que una verificación real para que no se
       // pueda enumerar qué emails existen midiendo la respuesta.
       await this.passwords.verifyDummy(input.password);
-      throw AppError.unauthorized(
-        ErrorCode.INVALID_CREDENTIALS,
-        'Email o contraseña incorrectos.',
-      );
+      throw AppError.unauthorized(ErrorCode.INVALID_CREDENTIALS, 'Email o contraseña incorrectos.');
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
@@ -101,10 +98,7 @@ export class AuthService {
     const valid = await this.passwords.verify(user.passwordHash, input.password);
     if (!valid) {
       await this.registerFailedAttempt(db, user.id, user.failedLoginCount);
-      throw AppError.unauthorized(
-        ErrorCode.INVALID_CREDENTIALS,
-        'Email o contraseña incorrectos.',
-      );
+      throw AppError.unauthorized(ErrorCode.INVALID_CREDENTIALS, 'Email o contraseña incorrectos.');
     }
 
     // El orden importa: primero la contraseña, después el estado. Si se

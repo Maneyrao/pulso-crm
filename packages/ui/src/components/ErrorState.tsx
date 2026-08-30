@@ -26,12 +26,20 @@ export const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
     <div
       ref={ref}
       role="alert"
-      className={cn('flex flex-col items-center gap-3 rounded-(--radius-lg) border border-(--color-danger) bg-(--color-danger-subtle) p-10 text-center', className)}
+      className={cn(
+        'flex flex-col items-center gap-3 rounded-(--radius-lg) border border-(--color-danger) bg-(--color-danger-subtle) p-10 text-center',
+        className,
+      )}
       {...props}
     >
-      <AlertTriangle aria-hidden="true" className="h-10 w-10 text-(--color-danger-subtle-foreground)" />
+      <AlertTriangle
+        aria-hidden="true"
+        className="h-10 w-10 text-(--color-danger-subtle-foreground)"
+      />
       <div className="flex flex-col gap-1">
-        <p className="text-(--text-base) font-medium text-(--color-danger-subtle-foreground)">{title}</p>
+        <p className="text-(--text-base) font-medium text-(--color-danger-subtle-foreground)">
+          {title}
+        </p>
         <p className="text-(--text-sm) text-(--color-danger-subtle-foreground)">{description}</p>
       </div>
       {onRetry ? (

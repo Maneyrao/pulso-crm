@@ -51,7 +51,10 @@ const INSTANT = '2026-08-21T10:00:00.000-03:00';
 // SHA-256 en base64 — largo típico de un template del FakeSensor.
 const TEMPLATE_B64 = 'q83vEjRWeJq83vEjRWeJq83vEjRWeJq83vEjRWeJq82rzQ==';
 
-function expectMatchesPrismaEnum(zodEnum: { options: readonly string[] }, prismaEnum: Record<string, string>) {
+function expectMatchesPrismaEnum(
+  zodEnum: { options: readonly string[] },
+  prismaEnum: Record<string, string>,
+) {
   expect([...zodEnum.options].sort()).toEqual(Object.values(prismaEnum).sort());
 }
 
@@ -74,8 +77,12 @@ describe('biometrics — enums 1:1 con Prisma (DATA_MODEL.md §7)', () => {
 
 describe('biometrics — superficie CRM', () => {
   it('createAgentRequest exige branchId uuid y nombre razonable', () => {
-    expect(createAgentRequestSchema.safeParse({ branchId: UUID, name: 'Recepción principal' }).success).toBe(true);
-    expect(createAgentRequestSchema.safeParse({ branchId: 'no-uuid', name: 'Recepción' }).success).toBe(false);
+    expect(
+      createAgentRequestSchema.safeParse({ branchId: UUID, name: 'Recepción principal' }).success,
+    ).toBe(true);
+    expect(
+      createAgentRequestSchema.safeParse({ branchId: 'no-uuid', name: 'Recepción' }).success,
+    ).toBe(false);
     expect(createAgentRequestSchema.safeParse({ branchId: UUID, name: 'x' }).success).toBe(false);
   });
 
@@ -87,7 +94,8 @@ describe('biometrics — superficie CRM', () => {
 
   it('grantConsentRequest acepta con y sin documentKey', () => {
     expect(
-      grantConsentRequestSchema.safeParse({ version: 'v1', grantedMethod: 'IN_PERSON_SIGNED' }).success,
+      grantConsentRequestSchema.safeParse({ version: 'v1', grantedMethod: 'IN_PERSON_SIGNED' })
+        .success,
     ).toBe(true);
     expect(
       grantConsentRequestSchema.safeParse({
@@ -96,7 +104,9 @@ describe('biometrics — superficie CRM', () => {
         documentKey: 'consents/2026/abc.pdf',
       }).success,
     ).toBe(true);
-    expect(grantConsentRequestSchema.safeParse({ version: 'v1', grantedMethod: 'ORAL' }).success).toBe(false);
+    expect(
+      grantConsentRequestSchema.safeParse({ version: 'v1', grantedMethod: 'ORAL' }).success,
+    ).toBe(false);
   });
 
   it('revokeConsentResponse informa cuántas credenciales cayeron en cascada', () => {
@@ -121,12 +131,18 @@ describe('biometrics — superficie CRM', () => {
 
   it('startEnrollmentRequest exige agente, lector y dedo del catálogo', () => {
     expect(
-      startEnrollmentRequestSchema.safeParse({ localAgentId: UUID, deviceId: UUID, fingerPosition: 'RIGHT_INDEX' })
-        .success,
+      startEnrollmentRequestSchema.safeParse({
+        localAgentId: UUID,
+        deviceId: UUID,
+        fingerPosition: 'RIGHT_INDEX',
+      }).success,
     ).toBe(true);
     expect(
-      startEnrollmentRequestSchema.safeParse({ localAgentId: UUID, deviceId: UUID, fingerPosition: 'RIGHT_EAR' })
-        .success,
+      startEnrollmentRequestSchema.safeParse({
+        localAgentId: UUID,
+        deviceId: UUID,
+        fingerPosition: 'RIGHT_EAR',
+      }).success,
     ).toBe(false);
   });
 
@@ -175,7 +191,14 @@ describe('biometrics — superficie CRM', () => {
 
   it('biometricCredential expone sólo metadatos — sin campos de template', () => {
     const shape = biometricCredentialSchema.shape as Record<string, unknown>;
-    for (const forbidden of ['templateCiphertext', 'templateNonce', 'templateAuthTag', 'dekWrapped', 'templateHash', 'template']) {
+    for (const forbidden of [
+      'templateCiphertext',
+      'templateNonce',
+      'templateAuthTag',
+      'dekWrapped',
+      'templateHash',
+      'template',
+    ]) {
       expect(shape[forbidden], `el schema no debe exponer '${forbidden}'`).toBeUndefined();
     }
   });
@@ -204,16 +227,26 @@ describe('biometrics — superficie agente (espejo de HttpDtos.cs)', () => {
   });
 
   it('heartbeat acepta deviceStatus opcional', () => {
-    expect(agentHeartbeatRequestSchema.safeParse({ agentState: 'Ready', agentVersion: '1.0.0' }).success).toBe(true);
     expect(
-      agentHeartbeatRequestSchema.safeParse({ agentState: 'Ready', agentVersion: '1.0.0', deviceStatus: 'ONLINE' })
-        .success,
+      agentHeartbeatRequestSchema.safeParse({ agentState: 'Ready', agentVersion: '1.0.0' }).success,
+    ).toBe(true);
+    expect(
+      agentHeartbeatRequestSchema.safeParse({
+        agentState: 'Ready',
+        agentVersion: '1.0.0',
+        deviceStatus: 'ONLINE',
+      }).success,
     ).toBe(true);
     expect(agentHeartbeatRequestSchema.safeParse({ agentVersion: '1.0.0' }).success).toBe(false);
   });
 
   it('events exige lote de 1 a 100 con tipos del catálogo', () => {
-    const event = { type: 'AGENT_STARTED', severity: 'INFO', message: 'arrancó', occurredAt: INSTANT };
+    const event = {
+      type: 'AGENT_STARTED',
+      severity: 'INFO',
+      message: 'arrancó',
+      occurredAt: INSTANT,
+    };
     expect(agentSendEventsRequestSchema.safeParse({ events: [event] }).success).toBe(true);
     expect(agentSendEventsRequestSchema.safeParse({ events: [] }).success).toBe(false);
     expect(
@@ -229,8 +262,12 @@ describe('biometrics — superficie agente (espejo de HttpDtos.cs)', () => {
       quality: 80,
     };
     expect(agentEnrollCompleteRequestSchema.safeParse(valid).success).toBe(true);
-    expect(agentEnrollCompleteRequestSchema.safeParse({ ...valid, template: 'no es base64!!!' }).success).toBe(false);
-    expect(agentEnrollCompleteRequestSchema.safeParse({ ...valid, quality: 101 }).success).toBe(false);
+    expect(
+      agentEnrollCompleteRequestSchema.safeParse({ ...valid, template: 'no es base64!!!' }).success,
+    ).toBe(false);
+    expect(agentEnrollCompleteRequestSchema.safeParse({ ...valid, quality: 101 }).success).toBe(
+      false,
+    );
   });
 
   it('identify exige sede, lector, template y capturedAt con offset', () => {
@@ -243,7 +280,9 @@ describe('biometrics — superficie agente (espejo de HttpDtos.cs)', () => {
       capturedAt: INSTANT,
     };
     expect(agentIdentifyRequestSchema.safeParse(valid).success).toBe(true);
-    expect(agentIdentifyRequestSchema.safeParse({ ...valid, capturedAt: '2026-08-21' }).success).toBe(false);
+    expect(
+      agentIdentifyRequestSchema.safeParse({ ...valid, capturedAt: '2026-08-21' }).success,
+    ).toBe(false);
   });
 
   it('la respuesta de identify es {resolved:true} y nada más — sin PII', () => {

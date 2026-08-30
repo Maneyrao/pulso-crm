@@ -7,7 +7,8 @@ import { create } from 'zustand';
  * (`lib/agent/fake-agent.ts`) puede llevarlo a los demás estados para
  * ejercitar la UI de enrolamiento e identificación.
  */
-export type AgentStatus = 'no-agent' | 'connecting' | 'ready' | 'no-device' | 'busy' | 'backend-down';
+export type AgentStatus =
+  'no-agent' | 'connecting' | 'ready' | 'no-device' | 'busy' | 'backend-down';
 
 export const AGENT_STATUS_LABEL: Record<AgentStatus, string> = {
   'no-agent': 'Sin agente',
@@ -29,5 +30,8 @@ export const useAgentStore = create<AgentState>((set) => ({
   status: 'no-agent',
   deviceName: null,
   setStatus: (status, deviceName) =>
-    set((prev) => ({ status, deviceName: deviceName === undefined ? prev.deviceName : deviceName })),
+    set((prev) => ({
+      status,
+      deviceName: deviceName === undefined ? prev.deviceName : deviceName,
+    })),
 }));

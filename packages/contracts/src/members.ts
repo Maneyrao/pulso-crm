@@ -69,7 +69,13 @@ export type MemberMembershipFilter = z.infer<typeof memberMembershipFilterSchema
 // GET /members
 // ─────────────────────────────────────────────────────────────────────────
 
-const MEMBER_SORTABLE_FIELDS = ['lastName', 'firstName', 'createdAt', 'memberNumber', 'balance'] as const;
+const MEMBER_SORTABLE_FIELDS = [
+  'lastName',
+  'firstName',
+  'createdAt',
+  'memberNumber',
+  'balance',
+] as const;
 
 export const listMembersQuerySchema = offsetPaginationQuerySchema.extend({
   q: searchQuerySchema.optional(),
@@ -147,7 +153,9 @@ export type CreateMemberRequest = z.infer<typeof createMemberRequestSchema>;
  * (`normalizePhone` en `@pulso/config/phone`). Se usa en las respuestas,
  * donde el dato ya pasó la normalización.
  */
-export const e164PhoneSchema = z.string().refine(isE164, { message: 'Debe ser E.164, ej. "+5491155555555"' });
+export const e164PhoneSchema = z
+  .string()
+  .refine(isE164, { message: 'Debe ser E.164, ej. "+5491155555555"' });
 
 export const memberSchema = z.object({
   id: uuidSchema,

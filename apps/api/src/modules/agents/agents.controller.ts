@@ -54,13 +54,19 @@ export class AgentsController {
   @RequiresPermission('device:manage')
   @Post(':id/revoke')
   @HttpCode(HttpStatus.OK)
-  revoke(@ZodParam('id', uuidSchema) id: string, @ZodBody(revokeAgentRequestSchema) body: RevokeAgentRequest) {
+  revoke(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodBody(revokeAgentRequestSchema) body: RevokeAgentRequest,
+  ) {
     return this.agents.revoke(id, body);
   }
 
   @RequiresPermission('device:manage')
   @Get(':id/events')
-  events(@ZodParam('id', uuidSchema) id: string, @ZodQuery(listAgentEventsQuerySchema) query: ListAgentEventsQuery) {
+  events(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodQuery(listAgentEventsQuerySchema) query: ListAgentEventsQuery,
+  ) {
     return this.agents.listEvents(id, query);
   }
 }
@@ -99,14 +105,20 @@ export class AgentGatewayController {
   @AgentOnly()
   @Post('heartbeat')
   @HttpCode(HttpStatus.OK)
-  heartbeat(@AgentAuth() auth: AgentAuthInfo, @ZodBody(agentHeartbeatRequestSchema) body: AgentHeartbeatRequest) {
+  heartbeat(
+    @AgentAuth() auth: AgentAuthInfo,
+    @ZodBody(agentHeartbeatRequestSchema) body: AgentHeartbeatRequest,
+  ) {
     return this.agents.heartbeat(auth, body);
   }
 
   @AgentOnly()
   @Post('events')
   @HttpCode(HttpStatus.OK)
-  events(@AgentAuth() auth: AgentAuthInfo, @ZodBody(agentSendEventsRequestSchema) body: AgentSendEventsRequest) {
+  events(
+    @AgentAuth() auth: AgentAuthInfo,
+    @ZodBody(agentSendEventsRequestSchema) body: AgentSendEventsRequest,
+  ) {
     return this.agents.ingestEvents(auth, body);
   }
 }

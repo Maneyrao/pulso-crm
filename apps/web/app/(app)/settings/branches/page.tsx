@@ -35,7 +35,10 @@ export default function BranchesSettingsPage() {
     <PermissionGate
       permission="config:read"
       fallback={
-        <EmptyState title="Sin acceso" description="Tu usuario no tiene permiso para ver esta pantalla." />
+        <EmptyState
+          title="Sin acceso"
+          description="Tu usuario no tiene permiso para ver esta pantalla."
+        />
       }
     >
       <BranchesScreen />
@@ -50,7 +53,12 @@ interface BranchFormState {
   phone: string;
 }
 
-const EMPTY_FORM: BranchFormState = { name: '', timezone: 'America/Argentina/Buenos_Aires', address: '', phone: '' };
+const EMPTY_FORM: BranchFormState = {
+  name: '',
+  timezone: 'America/Argentina/Buenos_Aires',
+  address: '',
+  phone: '',
+};
 
 function BranchesScreen() {
   const gymId = useSessionStore((s) => s.gym?.id);
@@ -84,7 +92,8 @@ function BranchesScreen() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: UpdateBranchRequest }) => updateBranch(id, payload),
+    mutationFn: ({ id, payload }: { id: string; payload: UpdateBranchRequest }) =>
+      updateBranch(id, payload),
     onSuccess: () => {
       toast({ title: 'Sede actualizada', tone: 'success' });
       setFormOpen(false);
@@ -106,7 +115,11 @@ function BranchesScreen() {
       invalidate();
     },
     onError: (error: unknown) => {
-      toast({ title: 'No se pudo desactivar la sede', description: errorMessage(error), tone: 'danger' });
+      toast({
+        title: 'No se pudo desactivar la sede',
+        description: errorMessage(error),
+        tone: 'danger',
+      });
       setToDeactivate(null);
     },
   });
@@ -118,7 +131,11 @@ function BranchesScreen() {
       invalidate();
     },
     onError: (error: unknown) => {
-      toast({ title: 'No se pudo reactivar la sede', description: errorMessage(error), tone: 'danger' });
+      toast({
+        title: 'No se pudo reactivar la sede',
+        description: errorMessage(error),
+        tone: 'danger',
+      });
     },
   });
 
@@ -272,7 +289,11 @@ function BranchesScreen() {
               />
             )}
           </FormField>
-          <FormField label="Zona horaria" required hint="Identificador IANA, ej. America/Argentina/Buenos_Aires">
+          <FormField
+            label="Zona horaria"
+            required
+            hint="Identificador IANA, ej. America/Argentina/Buenos_Aires"
+          >
             {(field) => (
               <Input
                 {...field}

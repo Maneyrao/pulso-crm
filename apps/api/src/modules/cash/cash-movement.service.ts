@@ -65,13 +65,7 @@ export class CashMovementService {
     // por default listamos SOLO la sesión OPEN del usuario. Esto evita
     // devolver el histórico entero al toque de un botón "movimientos".
     let sessionScope = sessionFilter;
-    if (
-      !query.cashSessionId &&
-      !query.branchId &&
-      !query.memberId &&
-      !query.from &&
-      !query.to
-    ) {
+    if (!query.cashSessionId && !query.branchId && !query.memberId && !query.from && !query.to) {
       const open = await this.prisma.client.cashSession.findFirst({
         where: { openedByUserId: ctx.userId, status: 'OPEN' },
         select: { id: true },

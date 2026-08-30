@@ -79,7 +79,11 @@ describe('parseAgentMessage — reglas del sobre (mirror de MessageCodec.TryPars
 
   it('versión mayor incompatible → PROTOCOL_VERSION_UNSUPPORTED y shouldClose', () => {
     const result = parseAgentMessage(envelope({ v: '2.0' }));
-    expect(result).toMatchObject({ success: false, code: 'PROTOCOL_VERSION_UNSUPPORTED', shouldClose: true });
+    expect(result).toMatchObject({
+      success: false,
+      code: 'PROTOCOL_VERSION_UNSUPPORTED',
+      shouldClose: true,
+    });
   });
 
   it('versión menor distinta dentro de 1.x se acepta', () => {
@@ -88,7 +92,11 @@ describe('parseAgentMessage — reglas del sobre (mirror de MessageCodec.TryPars
 
   it('tipo desconocido → UNKNOWN_MESSAGE_TYPE sin cerrar la conexión', () => {
     const result = parseAgentMessage(envelope({ type: 'no.existe' }));
-    expect(result).toMatchObject({ success: false, code: 'UNKNOWN_MESSAGE_TYPE', shouldClose: false });
+    expect(result).toMatchObject({
+      success: false,
+      code: 'UNKNOWN_MESSAGE_TYPE',
+      shouldClose: false,
+    });
   });
 
   it('tipo con payload obligatorio sin payload → INVALID_PAYLOAD', () => {

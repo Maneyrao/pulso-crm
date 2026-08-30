@@ -81,12 +81,18 @@ export default function AccountPage() {
 
           <dl className="grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
             <div>
-              <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Gimnasio</dt>
+              <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">
+                Gimnasio
+              </dt>
               <dd className="mt-0.5 text-(--text-base) text-(--color-text)">{gym?.name ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">Sede activa</dt>
-              <dd className="mt-0.5 text-(--text-base) text-(--color-text)">{activeBranch?.name ?? '—'}</dd>
+              <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">
+                Sede activa
+              </dt>
+              <dd className="mt-0.5 text-(--text-base) text-(--color-text)">
+                {activeBranch?.name ?? '—'}
+              </dd>
             </div>
             <div className="md:col-span-2">
               <dt className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">
@@ -144,7 +150,9 @@ function AccordionSection({
           aria-hidden={true}
         />
       </summary>
-      <div className="flex flex-col gap-4 border-t border-(--color-border) px-4 py-4">{children}</div>
+      <div className="flex flex-col gap-4 border-t border-(--color-border) px-4 py-4">
+        {children}
+      </div>
     </details>
   );
 }

@@ -72,7 +72,9 @@ describe('evaluateAccess — un test por reasonCode', () => {
   });
 
   it('MEMBERSHIP_CANCELLED: la membresía fue cancelada', () => {
-    const result = evaluateAccess(baseSnapshot({ membership: membership({ status: 'CANCELLED' }) }));
+    const result = evaluateAccess(
+      baseSnapshot({ membership: membership({ status: 'CANCELLED' }) }),
+    );
     expect(result.decision).toBe('DENIED');
     expect(result.reasonCode).toBe('MEMBERSHIP_CANCELLED');
   });
@@ -84,7 +86,9 @@ describe('evaluateAccess — un test por reasonCode', () => {
   });
 
   it('MEMBERSHIP_EXPIRED: status SUSPENDED se trata como no vigente', () => {
-    const result = evaluateAccess(baseSnapshot({ membership: membership({ status: 'SUSPENDED' }) }));
+    const result = evaluateAccess(
+      baseSnapshot({ membership: membership({ status: 'SUSPENDED' }) }),
+    );
     expect(result.decision).toBe('DENIED');
     expect(result.reasonCode).toBe('MEMBERSHIP_EXPIRED');
   });
@@ -184,7 +188,9 @@ describe('evaluateAccess — un test por reasonCode', () => {
   });
 
   it('medicalClearanceUntil null no exige apto médico', () => {
-    const result = evaluateAccess(baseSnapshot({ member: member({ medicalClearanceUntil: null }) }));
+    const result = evaluateAccess(
+      baseSnapshot({ member: member({ medicalClearanceUntil: null }) }),
+    );
     expect(result.decision).toBe('ALLOWED');
   });
 

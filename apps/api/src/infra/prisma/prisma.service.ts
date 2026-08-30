@@ -42,7 +42,17 @@ export class PrismaService implements OnModuleInit, OnModuleDestroy {
    *
    * Cualquier uso nuevo requiere justificarlo acá.
    */
-  unscoped(reason: 'login' | 'refresh' | 'session' | 'health' | 'platform-job' | 'seed' | 'agent-pair' | 'agent-auth') {
+  unscoped(
+    reason:
+      | 'login'
+      | 'refresh'
+      | 'session'
+      | 'health'
+      | 'platform-job'
+      | 'seed'
+      | 'agent-pair'
+      | 'agent-auth',
+  ) {
     getLogger().debug({ reason }, 'Acceso sin filtro de tenant');
     return this.client.unscoped;
   }

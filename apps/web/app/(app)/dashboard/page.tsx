@@ -4,7 +4,16 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { LayoutDashboard } from 'lucide-react';
-import { Button, Card, CardContent, CardHeader, CardTitle, EmptyState, MoneyDisplay, Skeleton } from '@pulso/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  MoneyDisplay,
+  Skeleton,
+} from '@pulso/ui';
 import { subMoney, sumMoney } from '@pulso/config/money';
 import { listAccessAttempts, listAttendances } from '@/lib/api/access';
 import { getCurrentCashSession, getDaybook, listCashConcepts } from '@/lib/api/cash';
@@ -23,7 +32,9 @@ const TODAY_ATTENDANCE_LIMIT = 100;
 export default function DashboardPage() {
   const gymId = useSessionStore((s) => s.gym?.id ?? '');
   const branchId = useSessionStore((s) => s.activeBranchId);
-  const branchName = useSessionStore((s) => s.branches.find((b) => b.id === s.activeBranchId)?.name);
+  const branchName = useSessionStore(
+    (s) => s.branches.find((b) => b.id === s.activeBranchId)?.name,
+  );
 
   const canReadStats = usePermission('stats:read');
   const canReadMembers = usePermission('member:read');
@@ -47,9 +58,20 @@ export default function DashboardPage() {
   });
 
   const todayAttendances = useQuery({
-    queryKey: qk.attendances(gymId, branchId, { from: today, to: today, page: 1, limit: TODAY_ATTENDANCE_LIMIT }),
+    queryKey: qk.attendances(gymId, branchId, {
+      from: today,
+      to: today,
+      page: 1,
+      limit: TODAY_ATTENDANCE_LIMIT,
+    }),
     queryFn: () =>
-      listAttendances({ branchId: branchId ?? undefined, from: today, to: today, page: 1, limit: TODAY_ATTENDANCE_LIMIT }),
+      listAttendances({
+        branchId: branchId ?? undefined,
+        from: today,
+        to: today,
+        page: 1,
+        limit: TODAY_ATTENDANCE_LIMIT,
+      }),
     enabled: canReadAttendance,
   });
 
@@ -63,7 +85,8 @@ export default function DashboardPage() {
     queryKey: qk.debtors(gymId, branchId, { limit: 4, sort: 'balance', order: 'asc' }),
     // Saldos deudores son negativos: balance:asc = más negativo primero =
     // "mayor deuda primero" (misma semántica que /members/debt).
-    queryFn: () => listDebtors({ limit: 4, sort: 'balance', order: 'asc', branchId: branchId ?? undefined }),
+    queryFn: () =>
+      listDebtors({ limit: 4, sort: 'balance', order: 'asc', branchId: branchId ?? undefined }),
     enabled: canReadMembers,
   });
 
@@ -79,11 +102,12 @@ export default function DashboardPage() {
     enabled: canReadCash,
   });
 
-  const cajaSuffix = canReadCash && cashSession.isSuccess
-    ? cashSession.data
-      ? ` · caja abierta desde ${formatTime(cashSession.data.openedAt)}`
-      : ' · caja cerrada'
-    : '';
+  const cajaSuffix =
+    canReadCash && cashSession.isSuccess
+      ? cashSession.data
+        ? ` · caja abierta desde ${formatTime(cashSession.data.openedAt)}`
+        : ' · caja cerrada'
+      : '';
 
   return (
     <div className="flex flex-col gap-6">
@@ -108,17 +132,26 @@ export default function DashboardPage() {
               <KpiCard title="Ingresos hoy" error="No pudimos cargar este dato." />
               <KpiCard title="Asistencias hoy" error="No pudimos cargar este dato." />
               <KpiCard title="Deuda total" error="No pudimos cargar este dato." />
-              <KpiCard title="Membresías por vencer (7 días)" error="No pudimos cargar este dato." />
+              <KpiCard
+                title="Membresías por vencer (7 días)"
+                error="No pudimos cargar este dato."
+              />
             </>
           ) : dashboard.data ? (
             <>
-              <KpiCard title="Ingresos hoy" value={<MoneyDisplay value={dashboard.data.todayIncome} />} />
+              <KpiCard
+                title="Ingresos hoy"
+                value={<MoneyDisplay value={dashboard.data.todayIncome} />}
+              />
               <KpiCard title="Asistencias hoy" value={dashboard.data.todayAttendances} />
               <KpiCard
                 title="Deuda total"
                 value={<MoneyDisplay value={dashboard.data.totalDebt} emphasizeNegative />}
               />
-              <KpiCard title="Membresías por vencer (7 días)" value={dashboard.data.expiringMembershipsNext7Days} />
+              <KpiCard
+                title="Membresías por vencer (7 días)"
+                value={dashboard.data.expiringMembershipsNext7Days}
+              />
             </>
           ) : null}
         </div>
@@ -181,7 +214,9 @@ export default function DashboardPage() {
                           <p className="truncate font-bold text-(--color-text)">
                             {attempt.rawInputMasked ?? config.title}
                           </p>
-                          <p className="truncate text-(--text-xs) text-(--color-muted)">{config.title}</p>
+                          <p className="truncate text-(--text-xs) text-(--color-muted)">
+                            {config.title}
+                          </p>
                         </div>
                         <span className="shrink-0 text-(--text-xs) tabular-nums text-(--color-muted)">
                           {formatTime(attempt.occurredAt)}
@@ -191,7 +226,9 @@ export default function DashboardPage() {
                   })}
                 </ul>
               ) : (
-                <p className="py-4 text-center text-(--text-sm) text-(--color-muted)">Todavía no hay accesos.</p>
+                <p className="py-4 text-center text-(--text-sm) text-(--color-muted)">
+                  Todavía no hay accesos.
+                </p>
               )}
               <div className="mt-3">
                 <Link
@@ -262,7 +299,9 @@ export default function DashboardPage() {
               <CajaHoySummary
                 loading={daybook.isLoading || cashConcepts.isLoading}
                 error={daybook.isError}
-                movements={daybook.data?.data.find((d) => d.businessDate === today)?.movements ?? []}
+                movements={
+                  daybook.data?.data.find((d) => d.businessDate === today)?.movements ?? []
+                }
                 concepts={cashConcepts.data?.data ?? []}
               />
               <div className="mt-4 flex flex-wrap gap-2">
@@ -280,7 +319,11 @@ export default function DashboardPage() {
         ) : null}
       </div>
 
-      {!canReadMembers && !canReadStats && !canReadAttendance && !canReadAccessHistory && !canReadCash ? (
+      {!canReadMembers &&
+      !canReadStats &&
+      !canReadAttendance &&
+      !canReadAccessHistory &&
+      !canReadCash ? (
         <EmptyState
           title="Sin indicadores para mostrar"
           description="Tu usuario no tiene permisos para ver indicadores en esta pantalla."
@@ -315,11 +358,17 @@ function CajaHoySummary({ loading, error, movements, concepts }: CajaHoySummaryP
   }
 
   if (error) {
-    return <p role="alert" className="text-(--text-sm) text-(--color-danger)">No pudimos cargar la caja de hoy.</p>;
+    return (
+      <p role="alert" className="text-(--text-sm) text-(--color-danger)">
+        No pudimos cargar la caja de hoy.
+      </p>
+    );
   }
 
   if (movements.length === 0) {
-    return <p className="py-2 text-(--text-sm) text-(--color-muted)">Todavía no hay movimientos hoy.</p>;
+    return (
+      <p className="py-2 text-(--text-sm) text-(--color-muted)">Todavía no hay movimientos hoy.</p>
+    );
   }
 
   const conceptById = new Map(concepts.map((c) => [c.id, c.name]));
@@ -335,10 +384,16 @@ function CajaHoySummary({ loading, error, movements, concepts }: CajaHoySummaryP
     <table className="w-full border-collapse text-(--text-sm)">
       <thead>
         <tr className="border-b border-(--color-border)">
-          <th scope="col" className="px-0 py-1.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)">
+          <th
+            scope="col"
+            className="px-0 py-1.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)"
+          >
             Concepto
           </th>
-          <th scope="col" className="px-0 py-1.5 text-right text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)">
+          <th
+            scope="col"
+            className="px-0 py-1.5 text-right text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)"
+          >
             Monto
           </th>
         </tr>
@@ -348,7 +403,9 @@ function CajaHoySummary({ loading, error, movements, concepts }: CajaHoySummaryP
           const net = subMoney(sumMoney(bucket.income), sumMoney(bucket.expense));
           return (
             <tr key={conceptId} className="border-b border-(--color-border) last:border-0">
-              <td className="px-0 py-1.5 text-(--color-text)">{conceptById.get(conceptId) ?? conceptId.slice(0, 8)}</td>
+              <td className="px-0 py-1.5 text-(--color-text)">
+                {conceptById.get(conceptId) ?? conceptId.slice(0, 8)}
+              </td>
               <td className="px-0 py-1.5 text-right">
                 <MoneyDisplay value={net} emphasizeNegative />
               </td>

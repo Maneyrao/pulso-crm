@@ -28,13 +28,22 @@ export function translateCashConstraintError(err: unknown): AppError | null {
     );
   }
   if (message.includes('cash_movements_reversalOfId_key') || message.includes('reversalOfId')) {
-    return AppError.conflict(ErrorCode.MOVEMENT_ALREADY_REVERSED, 'Ese movimiento ya fue revertido.');
+    return AppError.conflict(
+      ErrorCode.MOVEMENT_ALREADY_REVERSED,
+      'Ese movimiento ya fue revertido.',
+    );
   }
   if (message.includes('cash_movements_amount_positive')) {
-    return AppError.unprocessable(ErrorCode.VALIDATION_ERROR, 'El importe tiene que ser mayor a cero.');
+    return AppError.unprocessable(
+      ErrorCode.VALIDATION_ERROR,
+      'El importe tiene que ser mayor a cero.',
+    );
   }
   if (message.includes('append-only') || message.includes('inmutable')) {
-    return AppError.conflict(ErrorCode.CONFLICT, 'Ese registro es inmutable. Corregilo con una reversa.');
+    return AppError.conflict(
+      ErrorCode.CONFLICT,
+      'Ese registro es inmutable. Corregilo con una reversa.',
+    );
   }
   if (message.includes('_gymId_code_key') || message.includes('_gymId_branchId_name_key')) {
     return AppError.conflict(ErrorCode.CONFLICT, 'Ya existe un registro con ese código.');

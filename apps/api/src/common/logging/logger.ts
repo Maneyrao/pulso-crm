@@ -50,7 +50,12 @@ export function createRootLogger(opts: { level: string; pretty: boolean }): Logg
       return ctx ? { requestId: ctx.requestId, gymId: ctx.gymId, userId: ctx.userId } : {};
     },
     ...(opts.pretty
-      ? { transport: { target: 'pino-pretty', options: { colorize: true, translateTime: 'SYS:HH:MM:ss' } } }
+      ? {
+          transport: {
+            target: 'pino-pretty',
+            options: { colorize: true, translateTime: 'SYS:HH:MM:ss' },
+          },
+        }
       : {}),
   });
   return root;

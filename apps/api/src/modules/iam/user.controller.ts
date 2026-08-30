@@ -38,7 +38,10 @@ export class UserController {
 
   @RequiresPermission('user:write')
   @Patch(':id')
-  update(@ZodParam('id', uuidSchema) id: string, @ZodBody(updateUserRequestSchema) body: UpdateUserRequest) {
+  update(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodBody(updateUserRequestSchema) body: UpdateUserRequest,
+  ) {
     return this.users.update(id, body);
   }
 

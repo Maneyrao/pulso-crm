@@ -12,7 +12,17 @@ export type AgentEvent =
   | { type: 'hello.ack'; payload: { agentVersion: string; deviceName: string | null } }
   | { type: 'device.connected'; payload: { deviceName: string } }
   | { type: 'device.disconnected'; payload: { reason: string } }
-  | { type: 'enroll.progress'; payload: { opId: string; captured: number; required: number; quality: number | null; warning?: string; prompt: string } }
+  | {
+      type: 'enroll.progress';
+      payload: {
+        opId: string;
+        captured: number;
+        required: number;
+        quality: number | null;
+        warning?: string;
+        prompt: string;
+      };
+    }
   | { type: 'enroll.completed'; payload: { opId: string; finalQuality: number } }
   | { type: 'enroll.failed'; payload: { opId: string; code: string } }
   | { type: 'identify.captured'; payload: { opId: string; quality: number } }
@@ -68,7 +78,9 @@ export function setAgentClient(client: AgentClient | null): void {
 export function getAgentClient(): AgentClient {
   if (!instance) {
     if (!factory) {
-      throw new Error('No hay cliente de agente registrado. Importá lib/agent (index) o inyectá uno con setAgentClient().');
+      throw new Error(
+        'No hay cliente de agente registrado. Importá lib/agent (index) o inyectá uno con setAgentClient().',
+      );
     }
     instance = factory();
   }

@@ -38,7 +38,9 @@ vi.mock('@/lib/api/tenancy', () => ({
 }));
 
 function withProviders(children: ReactNode): ReactNode {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return (
     <QueryClientProvider client={qc}>
       <ToastProvider>{children}</ToastProvider>
@@ -173,7 +175,9 @@ describe('ConfigPage', () => {
   it('tab Sedes: lista las sedes reales de GET /branches con link a /settings/branches', async () => {
     await primeSession(['config:read']);
     getGymMock.mockResolvedValue(makeGym());
-    listBranchesMock.mockResolvedValue({ data: [makeBranch(), makeBranch({ id: 'b2', name: 'Sede Norte', isActive: false })] });
+    listBranchesMock.mockResolvedValue({
+      data: [makeBranch(), makeBranch({ id: 'b2', name: 'Sede Norte', isActive: false })],
+    });
 
     const { default: ConfigPage } = await import('./page');
     render(withProviders(<ConfigPage />));

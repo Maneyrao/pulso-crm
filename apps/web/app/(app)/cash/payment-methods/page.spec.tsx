@@ -175,13 +175,19 @@ describe('PaymentMethodsPage', () => {
     await primeSession(['cash:read', 'config:write']);
     listPaymentMethodsMock.mockResolvedValue({ data: [] });
     createPaymentMethodMock.mockResolvedValueOnce(
-      makeMethod({ id: '00000000-0000-0000-0000-000000000003', code: 'TRANSFER', name: 'Transferencia' }),
+      makeMethod({
+        id: '00000000-0000-0000-0000-000000000003',
+        code: 'TRANSFER',
+        name: 'Transferencia',
+      }),
     );
 
     const { default: PaymentMethodsPage } = await import('./page');
     render(withQuery(<PaymentMethodsPage />));
 
-    await waitFor(() => expect(screen.getByText(/Todavía no hay métodos de pago/i)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByText(/Todavía no hay métodos de pago/i)).toBeInTheDocument(),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Nuevo método/i }));
 
     const nameInput = await screen.findByLabelText(/^Nombre\b/i);

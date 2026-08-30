@@ -1,8 +1,4 @@
-import {
-  type CanActivate,
-  type ExecutionContext,
-  Injectable,
-} from '@nestjs/common';
+import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/common';
 // Los tres imports de abajo son de VALOR a propósito, no `type`: son
 // dependencias del constructor y Nest las resuelve por metadata de decorador
 // en runtime. Un import `type` se borra en la compilación y el inyector ve
@@ -15,16 +11,15 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AppError } from '../errors/app-error.js';
 import { ErrorCode } from '../errors/error-codes.js';
 import { RequestContextStore } from '../logging/logger.js';
-import {
-  AGENT_ONLY_KEY,
-  PERMISSIONS_KEY,
-  PUBLIC_KEY,
-} from './decorators.js';
+import { AGENT_ONLY_KEY, PERMISSIONS_KEY, PUBLIC_KEY } from './decorators.js';
 import { TenantContextStore, type TenantContext } from './tenant-context.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
 import { ACCESS_COOKIE, CSRF_COOKIE, TokenService } from './token.service.js';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
-import { AgentAuthService, type RequestWithAgentAuth } from '../../modules/agents/agent-auth.service.js';
+import {
+  AgentAuthService,
+  type RequestWithAgentAuth,
+} from '../../modules/agents/agent-auth.service.js';
 
 const WRITE_METHODS: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const CSRF_HEADER = 'x-csrf-token';
@@ -74,7 +69,10 @@ export class AuthGuard implements CanActivate {
       const agentReq = context.switchToHttp().getRequest<Request & RequestWithAgentAuth>();
       const header = agentReq.headers.authorization;
       if (!header?.startsWith('Bearer ')) {
-        throw AppError.unauthorized(ErrorCode.INVALID_DEVICE_TOKEN, 'Credencial de dispositivo inválida.');
+        throw AppError.unauthorized(
+          ErrorCode.INVALID_DEVICE_TOKEN,
+          'Credencial de dispositivo inválida.',
+        );
       }
       const auth = await this.agentAuth.authenticate(header.slice(7));
       agentReq.agentAuth = auth;
@@ -107,7 +105,9 @@ export class AuthGuard implements CanActivate {
     if (extracted.source === 'cookie' && WRITE_METHODS.has(req.method)) {
       const headerCsrf = req.headers[CSRF_HEADER];
       const headerValue = Array.isArray(headerCsrf) ? headerCsrf[0] : headerCsrf;
-      const cookieCsrf = (req as Request & { cookies?: Record<string, string> }).cookies?.[CSRF_COOKIE];
+      const cookieCsrf = (req as Request & { cookies?: Record<string, string> }).cookies?.[
+        CSRF_COOKIE
+      ];
       if (!headerValue || !cookieCsrf || !timingSafeEquals(headerValue, cookieCsrf)) {
         throw AppError.forbidden(
           ErrorCode.CSRF_INVALID,
@@ -146,10 +146,7 @@ export class AuthGuard implements CanActivate {
 
     const missing = required.filter((p) => !ctx.permissions.has(p));
     if (missing.length > 0) {
-      throw AppError.forbidden(
-        ErrorCode.MISSING_PERMISSION,
-        'No tenés permiso para esta acción.',
-      );
+      throw AppError.forbidden(ErrorCode.MISSING_PERMISSION, 'No tenés permiso para esta acción.');
     }
 
     // El store ya está abierto por RequestContextMiddleware; acá sólo se

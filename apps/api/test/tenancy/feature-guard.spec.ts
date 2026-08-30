@@ -21,7 +21,14 @@ let ctx: TestApp;
 let gym: Awaited<ReturnType<typeof seedGymWithUsers>>;
 let redis: Redis;
 
-const FEATURES_WITHOUT_MULTI_BRANCH = ['members', 'catalog', 'cash', 'access', 'messaging', 'reports'];
+const FEATURES_WITHOUT_MULTI_BRANCH = [
+  'members',
+  'catalog',
+  'cash',
+  'access',
+  'messaging',
+  'reports',
+];
 const FEATURES_WITH_MULTI_BRANCH = [...FEATURES_WITHOUT_MULTI_BRANCH, 'multi_branch'];
 
 beforeAll(async () => {

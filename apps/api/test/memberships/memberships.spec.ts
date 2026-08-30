@@ -163,9 +163,9 @@ describe('POST /members/:id/memberships (mode: DEBT)', () => {
       idem(),
     );
     expect(withOverride.status).toBe(201);
-    expect(
-      (withOverride.body as { membership: { pricePaid: string } }).membership.pricePaid,
-    ).toBe('8000.00');
+    expect((withOverride.body as { membership: { pricePaid: string } }).membership.pricePaid).toBe(
+      '8000.00',
+    );
 
     // Sin override → Plan.price.
     const m2 = await createMember(gymA);

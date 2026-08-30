@@ -40,7 +40,13 @@ function withQuery(children: ReactNode): ReactNode {
 async function primeSession(): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
-    user: { id: 'u', firstName: 'Ana', lastName: 'Test', email: 'a@t.com', mustChangePassword: false },
+    user: {
+      id: 'u',
+      firstName: 'Ana',
+      lastName: 'Test',
+      email: 'a@t.com',
+      mustChangePassword: false,
+    },
     gym: { id: 'g1', name: 'Demo', slug: 'demo', country: 'AR', currency: 'ARS', features: [] },
     branches: [{ id: 'b1', name: 'Centro', timezone: 'America/Argentina/Buenos_Aires' }],
     activeBranchId: 'b1',
@@ -109,9 +115,7 @@ describe('DebtorsPage', () => {
     const { default: DebtorsPage } = await import('./page');
     render(withQuery(<DebtorsPage />));
 
-    await waitFor(() =>
-      expect(screen.getByText(/Ningún socio con deuda/i)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText(/Ningún socio con deuda/i)).toBeInTheDocument());
   });
 
   it('loading pinta la tabla en estado busy', async () => {

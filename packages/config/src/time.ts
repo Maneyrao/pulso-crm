@@ -59,10 +59,7 @@ function offsetMinutes(instant: Date, timeZone: string): number {
 }
 
 /** Instante UTC del comienzo (00:00:00.000) de un día de negocio en esa zona. */
-export function startOfBusinessDay(
-  date: BusinessDate,
-  timeZone: string = DEFAULT_TIMEZONE,
-): Date {
+export function startOfBusinessDay(date: BusinessDate, timeZone: string = DEFAULT_TIMEZONE): Date {
   if (!isBusinessDate(date)) throw new Error(`Fecha inválida: ${date}. Se espera YYYY-MM-DD.`);
   const [y, m, d] = date.split('-').map(Number) as [number, number, number];
   const naive = Date.UTC(y, m - 1, d, 0, 0, 0, 0);

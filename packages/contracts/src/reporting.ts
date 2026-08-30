@@ -39,10 +39,17 @@ export type DashboardResponse = z.infer<typeof dashboardResponseSchema>;
 
 export const attendanceReportResponseSchema = z.object({
   total: z.number().int(),
-  byWeekday: z.array(z.object({ weekday: z.number().int().min(0).max(6), count: z.number().int() })),
+  byWeekday: z.array(
+    z.object({ weekday: z.number().int().min(0).max(6), count: z.number().int() }),
+  ),
   byHour: z.array(z.object({ hour: z.number().int().min(0).max(23), count: z.number().int() })),
   ranking: z.array(
-    z.object({ memberId: uuidSchema, fullName: z.string(), documentMasked: z.string(), count: z.number().int() }),
+    z.object({
+      memberId: uuidSchema,
+      fullName: z.string(),
+      documentMasked: z.string(),
+      count: z.number().int(),
+    }),
   ),
   timezoneUsed: z.string(),
 });
@@ -53,7 +60,9 @@ export type AttendanceReportResponse = z.infer<typeof attendanceReportResponseSc
 // ─────────────────────────────────────────────────────────────────────────
 
 export const financeReportResponseSchema = z.object({
-  byPaymentMethod: z.array(z.object({ paymentMethodId: uuidSchema, name: z.string(), total: moneySchema })),
+  byPaymentMethod: z.array(
+    z.object({ paymentMethodId: uuidSchema, name: z.string(), total: moneySchema }),
+  ),
   byConcept: z.array(z.object({ cashConceptId: uuidSchema, name: z.string(), total: moneySchema })),
   byBranch: z.array(z.object({ branchId: uuidSchema, name: z.string(), total: moneySchema })),
   series: z.array(z.object({ date: businessDateSchema, amount: moneySchema })),

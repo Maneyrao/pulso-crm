@@ -87,7 +87,9 @@ async function ensureTemplate(): Promise<void> {
         stdio: 'pipe',
       });
     } finally {
-      await admin.$executeRaw`SELECT pg_advisory_unlock(${TEMPLATE_LOCK_KEY})`.catch(() => undefined);
+      await admin.$executeRaw`SELECT pg_advisory_unlock(${TEMPLATE_LOCK_KEY})`.catch(
+        () => undefined,
+      );
       await admin.$disconnect();
     }
   })();
@@ -125,7 +127,10 @@ let counter = 0;
 export async function createTestDatabase(label = 'test'): Promise<TestDatabase> {
   await ensureTemplate();
 
-  const safeLabel = label.replace(/[^a-z0-9_]/gi, '_').slice(0, 20).toLowerCase();
+  const safeLabel = label
+    .replace(/[^a-z0-9_]/gi, '_')
+    .slice(0, 20)
+    .toLowerCase();
   const dbName = `t_${safeLabel}_${process.pid}_${counter++}`;
   const url = urlForDatabase(dbName);
 

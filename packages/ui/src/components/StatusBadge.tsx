@@ -5,7 +5,10 @@ import { badgeVariants } from './Badge.js';
 
 export type StatusTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
-const DEFAULT_ICON: Record<StatusTone, React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>> = {
+const DEFAULT_ICON: Record<
+  StatusTone,
+  React.ComponentType<{ className?: string; 'aria-hidden'?: boolean }>
+> = {
   success: CheckCircle2,
   warning: AlertTriangle,
   danger: XCircle,

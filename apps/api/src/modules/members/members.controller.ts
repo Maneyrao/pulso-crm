@@ -51,7 +51,10 @@ export class MembersController {
 
   @RequiresPermission('member:write')
   @Patch(':id')
-  update(@ZodParam('id', uuidSchema) id: string, @ZodBody(updateMemberRequestSchema) body: UpdateMemberRequest) {
+  update(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodBody(updateMemberRequestSchema) body: UpdateMemberRequest,
+  ) {
     return this.members.update(id, body);
   }
 

@@ -29,7 +29,14 @@ describe('DataTable', () => {
   });
 
   it('incluye un <caption> semántico', () => {
-    render(<DataTable columns={columns} data={members} rowKey={(m) => m.id} caption="Listado de socios" />);
+    render(
+      <DataTable
+        columns={columns}
+        data={members}
+        rowKey={(m) => m.id}
+        caption="Listado de socios"
+      />,
+    );
     expect(screen.getByText('Listado de socios')).toBeInTheDocument();
   });
 
@@ -40,7 +47,15 @@ describe('DataTable', () => {
   });
 
   it('estado "sin datos": gimnasio sin socios aún, sin filtros activos', () => {
-    render(<DataTable columns={columns} data={[]} rowKey={(m) => m.id} caption="Socios" emptyTitle="Todavía no hay socios" />);
+    render(
+      <DataTable
+        columns={columns}
+        data={[]}
+        rowKey={(m) => m.id}
+        caption="Socios"
+        emptyTitle="Todavía no hay socios"
+      />,
+    );
     expect(screen.getByText('Todavía no hay socios')).toBeInTheDocument();
     expect(screen.queryByText('Sin resultados')).not.toBeInTheDocument();
   });
@@ -66,7 +81,14 @@ describe('DataTable', () => {
     const onClearFilters = vi.fn();
     const user = userEvent.setup();
     render(
-      <DataTable columns={columns} data={[]} rowKey={(m) => m.id} caption="Socios" isFiltered onClearFilters={onClearFilters} />,
+      <DataTable
+        columns={columns}
+        data={[]}
+        rowKey={(m) => m.id}
+        caption="Socios"
+        isFiltered
+        onClearFilters={onClearFilters}
+      />,
     );
     await user.click(screen.getByRole('button', { name: 'Limpiar filtros' }));
     expect(onClearFilters).toHaveBeenCalledTimes(1);
@@ -76,7 +98,14 @@ describe('DataTable', () => {
     const onRetry = vi.fn();
     const user = userEvent.setup();
     render(
-      <DataTable columns={columns} data={[]} rowKey={(m) => m.id} caption="Socios" error="Falló la carga" onRetry={onRetry} />,
+      <DataTable
+        columns={columns}
+        data={[]}
+        rowKey={(m) => m.id}
+        caption="Socios"
+        error="Falló la carga"
+        onRetry={onRetry}
+      />,
     );
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toBeInTheDocument();
@@ -85,7 +114,9 @@ describe('DataTable', () => {
   });
 
   it('no tiene violaciones de accesibilidad detectables (axe) con datos', async () => {
-    const { container } = render(<DataTable columns={columns} data={members} rowKey={(m) => m.id} caption="Socios" />);
+    const { container } = render(
+      <DataTable columns={columns} data={members} rowKey={(m) => m.id} caption="Socios" />,
+    );
     const results = await axe(container);
     expectNoAxeViolations(results);
   });

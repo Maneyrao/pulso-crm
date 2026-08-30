@@ -32,7 +32,15 @@ export interface FormFieldProps {
  * completo: `aria-describedby` apunta a hint y/o error, `aria-invalid` sólo se
  * activa cuando hay error real (no por la sola presencia de la prop).
  */
-export function FormField({ label, error, hint, required, className, id, children }: FormFieldProps) {
+export function FormField({
+  label,
+  error,
+  hint,
+  required,
+  className,
+  id,
+  children,
+}: FormFieldProps) {
   const generatedId = React.useId();
   const controlId = id ?? generatedId;
   const hintId = hint ? `${controlId}-hint` : undefined;

@@ -63,7 +63,10 @@ export const AGENT_TO_CLIENT_TYPES = [
   'pong',
 ] as const;
 
-export const AGENT_MESSAGE_TYPES = [...AGENT_CLIENT_TO_AGENT_TYPES, ...AGENT_TO_CLIENT_TYPES] as const;
+export const AGENT_MESSAGE_TYPES = [
+  ...AGENT_CLIENT_TO_AGENT_TYPES,
+  ...AGENT_TO_CLIENT_TYPES,
+] as const;
 export type AgentMessageType = (typeof AGENT_MESSAGE_TYPES)[number];
 
 /** Tipos permitidos sobre ws:// sin TLS (§2); el resto exige TLS_REQUIRED. */
@@ -284,7 +287,9 @@ export const AGENT_PAYLOAD_SCHEMAS: Partial<Record<AgentMessageType, z.ZodTypeAn
 // Sobre y parser (MessageEnvelope.cs + MessageCodec.TryParse)
 // ─────────────────────────────────────────────────────────────────────────
 
-const nonBlankSchema = z.string().refine((s) => s.trim().length > 0, { message: 'No puede estar en blanco' });
+const nonBlankSchema = z
+  .string()
+  .refine((s) => s.trim().length > 0, { message: 'No puede estar en blanco' });
 
 /** Sobre crudo (§5): la validación de versión/tipo/payload la hace parseAgentMessage. */
 export const agentEnvelopeSchema = z.object({
@@ -364,7 +369,10 @@ export function parseAgentMessage(input: unknown): AgentParseResult {
 
   const payloadResult = payloadSchema.safeParse(envelope.payload);
   if (!payloadResult.success) {
-    return fail('INVALID_PAYLOAD', payloadResult.error.issues[0]?.message ?? `Payload inválido para '${type}'.`);
+    return fail(
+      'INVALID_PAYLOAD',
+      payloadResult.error.issues[0]?.message ?? `Payload inválido para '${type}'.`,
+    );
   }
 
   return { success: true, message: { envelope, type, payload: payloadResult.data } };

@@ -81,7 +81,12 @@ export function DataTable<T>({
   }
 
   return (
-    <div className={cn('overflow-x-auto rounded-(--radius-lg) border-2 border-(--color-border)', className)}>
+    <div
+      className={cn(
+        'overflow-x-auto rounded-(--radius-lg) border-2 border-(--color-border)',
+        className,
+      )}
+    >
       <table aria-busy={loading || undefined} className="w-full border-collapse text-[12.5px]">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -118,7 +123,10 @@ export function DataTable<T>({
                   className="border-b border-(--color-border) last:border-0 hover:bg-(--color-muted-subtle)"
                 >
                   {columns.map((column) => (
-                    <td key={column.id} className={cn('px-3.5 py-2.5 text-(--color-text)', column.cellClassName)}>
+                    <td
+                      key={column.id}
+                      className={cn('px-3.5 py-2.5 text-(--color-text)', column.cellClassName)}
+                    >
                       {column.cell(row)}
                     </td>
                   ))}
