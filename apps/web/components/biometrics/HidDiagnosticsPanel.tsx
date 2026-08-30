@@ -41,11 +41,14 @@ export function HidDiagnosticsPanel({
   session = getHidCaptureSession(),
   diagnostics = getHidDiagnostics(),
   probeMsPerFormat,
+  probeBlocked = false,
 }: {
   session?: HidCaptureSession;
   diagnostics?: HidDiagnostics;
   /** Segundos por formato en el sondeo. Sólo se ajusta en tests. */
   probeMsPerFormat?: number;
+  /** Evita que el sondeo interrumpa una captura manual que ya está esperando una huella. */
+  probeBlocked?: boolean;
 }) {
   const snapshot = useHidSessionSnapshot(session);
   const [entries, setEntries] = React.useState<HidDiagnosticEntry[]>(() => diagnostics.entries());
@@ -69,13 +72,16 @@ export function HidDiagnosticsPanel({
     setProbing(true);
     setProbeError(null);
     setProbe(null);
+    const ownsDiagnosticSession = !session.isActive();
     try {
+      if (ownsDiagnosticSession) await session.start({ mode: 'manual' });
       setProbe(
         await session.probeSampleFormats(probeMsPerFormat ? { perFormatMs: probeMsPerFormat } : {}),
       );
     } catch (reason) {
       setProbeError(reason instanceof Error ? reason.message : 'No se pudo sondear el lector.');
     } finally {
+      if (ownsDiagnosticSession) await session.stop();
       setProbing(false);
     }
   };
@@ -130,7 +136,7 @@ export function HidDiagnosticsPanel({
             type="button"
             size="sm"
             variant="outline"
-            disabled={probing || !snapshot.reader}
+            disabled={probing || probeBlocked}
             onClick={() => void runProbe()}
           >
             {probing ? (
@@ -167,6 +173,12 @@ export function HidDiagnosticsPanel({
       {probing ? (
         <p className="text-(--text-sm) text-(--color-muted)" role="status">
           Sondeando cada formato contra el lector. Mantené el dedo apoyado hasta que termine.
+        </p>
+      ) : null}
+
+      {probeBlocked ? (
+        <p className="text-(--text-sm) text-(--color-warning)">
+          Cancelá la captura actual antes de sondear formatos.
         </p>
       ) : null}
 

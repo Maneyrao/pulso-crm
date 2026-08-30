@@ -124,6 +124,33 @@ describe('HidDiagnosticsPanel', () => {
     expect(screen.getByText(/Intermediate \(2\)/)).toBeInTheDocument();
   });
 
+  it('inicia y cierra una sesión diagnóstica propia cuando el lector estaba inactivo', async () => {
+    render(
+      <HidDiagnosticsPanel session={session} diagnostics={diagnostics} probeMsPerFormat={60} />,
+    );
+    const unsubscribe = diagnostics.subscribe((entry) => {
+      if (entry.type === 'probe.armed') adc.placeFinger();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /sondear formatos/i }));
+
+    expect(
+      await screen.findByText(/captura funciona a nivel dispositivo/i, undefined, {
+        timeout: 5_000,
+      }),
+    ).toBeInTheDocument();
+    await waitUntil(() => !session.isActive());
+    unsubscribe();
+    expect(session.getSnapshot().state).toBe('DISCONNECTED');
+  });
+
+  it('no permite que el sondeo interrumpa una captura manual activa', () => {
+    render(<HidDiagnosticsPanel session={session} diagnostics={diagnostics} probeBlocked={true} />);
+
+    expect(screen.getByRole('button', { name: /sondear formatos/i })).toBeDisabled();
+    expect(screen.getByText(/cancelá la captura actual/i)).toBeInTheDocument();
+  });
+
   it('sin eventos todavía lo dice en vez de mostrar una lista vacía', () => {
     render(<HidDiagnosticsPanel session={session} diagnostics={diagnostics} />);
     expect(screen.getByText(/todavía no se registraron eventos/i)).toBeInTheDocument();

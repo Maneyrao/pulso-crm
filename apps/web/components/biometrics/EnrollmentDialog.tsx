@@ -294,7 +294,7 @@ export function EnrollmentDialog({
 
       {showDiagnostics ? (
         <div className="mt-4">
-          <HidDiagnosticsPanel session={session} />
+          <HidDiagnosticsPanel session={session} probeBlocked={busy} />
         </div>
       ) : null}
 
