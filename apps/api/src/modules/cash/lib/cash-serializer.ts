@@ -69,6 +69,7 @@ export interface CashMovementDto {
   cashConceptId: string;
   description: string | null;
   memberId: string | null;
+  member: { id: string; firstName: string; lastName: string } | null;
   membershipId: string | null;
   reversalOfId: string | null;
   isReversed: boolean;
@@ -77,7 +78,11 @@ export interface CashMovementDto {
   createdAt: Date;
 }
 
-export function serializeCashMovement(m: PrismaCashMovement): CashMovementDto {
+type CashMovementWithMember = PrismaCashMovement & {
+  member?: { id: string; firstName: string; lastName: string } | null;
+};
+
+export function serializeCashMovement(m: CashMovementWithMember): CashMovementDto {
   return {
     id: m.id,
     gymId: m.gymId,
@@ -88,6 +93,7 @@ export function serializeCashMovement(m: PrismaCashMovement): CashMovementDto {
     cashConceptId: m.cashConceptId,
     description: m.description,
     memberId: m.memberId,
+    member: m.member ?? null,
     membershipId: m.membershipId,
     reversalOfId: m.reversalOfId,
     isReversed: m.isReversed,

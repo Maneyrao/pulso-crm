@@ -261,6 +261,8 @@ export class AccessService {
           id: member.id,
           firstName: member.firstName,
           lastName: member.lastName,
+          birthDate: member.birthDate ? dbDateToBusinessDate(member.birthDate) : null,
+          joinedAt: member.createdAt.toISOString(),
           // photoKey es un identificador de S3, no una URL — el frontend puede
           // pedir la URL prefirmada aparte cuando exista ese endpoint. Por
           // ahora se devuelve null.
@@ -304,6 +306,8 @@ export class AccessService {
             id: member.id,
             firstName: member.firstName,
             lastName: member.lastName,
+            birthDate: member.birthDate ? dbDateToBusinessDate(member.birthDate) : null,
+            joinedAt: member.createdAt.toISOString(),
             // photoKey es un identificador de S3, no una URL — el frontend puede
             // pedir la URL prefirmada aparte cuando exista ese endpoint. Por
             // ahora se devuelve null.
@@ -419,6 +423,10 @@ export class AccessService {
             id: attempt.member.id,
             firstName: attempt.member.firstName,
             lastName: attempt.member.lastName,
+            birthDate: attempt.member.birthDate
+              ? dbDateToBusinessDate(attempt.member.birthDate)
+              : null,
+            joinedAt: attempt.member.createdAt.toISOString(),
             photoUrl: null,
             status: attempt.member.status,
           }

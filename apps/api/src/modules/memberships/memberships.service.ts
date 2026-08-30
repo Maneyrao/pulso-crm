@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, scoped } from '@pulso/db';
+import { compareMoney, quoteEnrollmentPrice } from '@pulso/config';
 import type { BillingCycle, Plan as PrismaPlan } from '@pulso/db';
 import type {
   CancelMembershipRequest,
@@ -99,8 +100,28 @@ export class MembershipsService {
     // Un branchId ajeno responde 404, mismo criterio que arriba.
     const branchId = TenantContextStore.requireBranch(input.branchId);
 
-    const pricePaid = input.priceOverride ?? plan.price.toFixed(2);
     const startDate = fromDateOnly(input.startDate);
+    const selectedPaymentMethod =
+      input.charge.mode === 'NOW'
+        ? await this.prisma.client.paymentMethod.findFirst({
+            where: { id: input.charge.paymentMethodId, isActive: true },
+          })
+        : null;
+    if (input.charge.mode === 'NOW' && !selectedPaymentMethod) {
+      throw AppError.notFound('El método de pago');
+    }
+    const priceQuote = quoteEnrollmentPrice(
+      input.priceOverride ?? plan.price.toFixed(2),
+      input.startDate,
+      selectedPaymentMethod?.code,
+    );
+    const pricePaid = priceQuote.total;
+    if (input.charge.mode === 'NOW' && compareMoney(input.charge.amount!, priceQuote.total) !== 0) {
+      throw AppError.unprocessable(
+        ErrorCode.VALIDATION_ERROR,
+        `El importe correcto para esta fecha y método es ${priceQuote.total}.`,
+      );
+    }
     const endDate = computeEndDate(startDate, plan);
     const classesIncluded = plan.classesIncluded;
     const classesRemaining = plan.classesIncluded;
@@ -150,7 +171,7 @@ export class MembershipsService {
         if (input.charge.mode === 'NOW') {
           const openSession = await requireOpenSessionForUser(tx, ctx.userId);
           const paymentMethodId = input.charge.paymentMethodId!;
-          const chargeAmount = input.charge.amount!;
+          const chargeAmount = priceQuote.total;
 
           const [paymentMethod, concept] = await Promise.all([
             tx.paymentMethod.findFirst({ where: { id: paymentMethodId, isActive: true } }),

@@ -21,6 +21,8 @@ const RESULT: AccessCheckResponse = {
     id: '00000000-0000-0000-0000-000000000010',
     firstName: 'Ada',
     lastName: 'Lovelace',
+    birthDate: '1990-01-15',
+    joinedAt: '2026-01-10T12:00:00.000Z',
     photoUrl: null,
     status: 'ACTIVE',
   },
@@ -49,7 +51,7 @@ describe('AccessResultOverlay', () => {
     expect(screen.getByText('Asistencia registrada')).toBeInTheDocument();
     expect(playAccessToneMock).toHaveBeenCalledWith('ALLOWED');
 
-    act(() => vi.advanceTimersByTime(4_500));
+    act(() => vi.advanceTimersByTime(7_000));
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 

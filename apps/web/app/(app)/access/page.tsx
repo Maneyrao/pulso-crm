@@ -21,7 +21,6 @@ import { useDelayedFlag } from '@/lib/hooks/useDelayedFlag';
 import { useSessionStore } from '@/lib/stores/session';
 import { ACCESS_REASON_CONFIG } from '@/components/access/reason-config';
 import { AccessResultOverlay } from '@/components/access/AccessResultOverlay';
-import { FingerprintAccessPanel } from '@/components/access/FingerprintAccessPanel';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { qk } from '@/lib/query/keys';
 
@@ -166,12 +165,6 @@ function AccessScreen() {
           Registrar
         </Button>
       </form>
-
-      <FingerprintAccessPanel
-        branchId={activeBranchId}
-        onResult={setLastResult}
-        onAttemptRecorded={() => void recentAttempts.refetch()}
-      />
 
       {isNetworkError ? (
         <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">

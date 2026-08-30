@@ -203,6 +203,14 @@ export const cashMovementSchema = z.object({
   cashConceptId: uuidSchema,
   description: z.string().nullable(),
   memberId: uuidSchema.nullable(),
+  member: z
+    .object({
+      id: uuidSchema,
+      firstName: z.string(),
+      lastName: z.string(),
+    })
+    .nullable()
+    .optional(),
   membershipId: uuidSchema.nullable(),
   reversalOfId: uuidSchema.nullable(),
   isReversed: z.boolean(),

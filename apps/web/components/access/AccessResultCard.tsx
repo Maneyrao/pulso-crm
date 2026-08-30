@@ -42,6 +42,7 @@ export function AccessResultCard({ result }: AccessResultCardProps) {
   const canCreateMember = usePermission('member:write');
 
   const fullName = result.member ? `${result.member.firstName} ${result.member.lastName}` : null;
+  const expiry = membershipExpiry(result.membership?.endDate ?? null);
 
   return (
     <section
@@ -70,7 +71,7 @@ export function AccessResultCard({ result }: AccessResultCardProps) {
               className="h-16 w-16 shrink-0 rounded-(--radius-full) object-cover"
             />
           ) : null}
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-(--text-access-result) font-semibold text-(--color-text)">
               {fullName}
             </p>
@@ -83,6 +84,24 @@ export function AccessResultCard({ result }: AccessResultCardProps) {
                   : ''}
               </p>
             ) : null}
+            <dl className="mt-3 grid gap-2 text-(--text-sm) sm:grid-cols-3">
+              <div>
+                <dt className="text-(--color-muted)">Fecha de nacimiento</dt>
+                <dd className="font-semibold text-(--color-text)">
+                  {formatDate(result.member.birthDate)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-(--color-muted)">Fecha de ingreso</dt>
+                <dd className="font-semibold text-(--color-text)">
+                  {formatDate(result.member.joinedAt)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-(--color-muted)">Vencimiento de cuota</dt>
+                <dd className={`font-bold ${expiry.className}`}>{expiry.label}</dd>
+              </div>
+            </dl>
           </div>
         </div>
       ) : null}
@@ -117,4 +136,33 @@ export function AccessResultCard({ result }: AccessResultCardProps) {
       ) : null}
     </section>
   );
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return 'Sin informar';
+  const dateOnly = value.slice(0, 10).split('-');
+  if (dateOnly.length !== 3) return 'Sin informar';
+  return `${dateOnly[2]}/${dateOnly[1]}/${dateOnly[0]}`;
+}
+
+function membershipExpiry(endDate: string | null): { label: string; className: string } {
+  if (!endDate) return { label: 'Sin vencimiento', className: 'text-(--color-muted)' };
+  const [year, month, day] = endDate.split('-').map(Number);
+  if (!year || !month || !day) return { label: 'Sin informar', className: 'text-(--color-muted)' };
+  const now = new Date();
+  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const endUtc = Date.UTC(year, month - 1, day);
+  const days = Math.round((endUtc - todayUtc) / 86_400_000);
+  if (days < 0) {
+    const overdue = Math.abs(days);
+    return {
+      label: `Vencida · ${overdue} ${overdue === 1 ? 'día' : 'días'} de atraso`,
+      className: 'text-(--color-danger)',
+    };
+  }
+  if (days === 0) return { label: 'Vence hoy', className: 'text-(--color-warning)' };
+  return {
+    label: `${days} ${days === 1 ? 'día pendiente' : 'días pendientes'}`,
+    className: days > 10 ? 'text-(--color-success)' : 'text-(--color-warning)',
+  };
 }

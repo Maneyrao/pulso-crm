@@ -32,6 +32,8 @@ const ALLOWED: AccessCheckResponse = {
     id: '00000000-0000-4000-8000-000000000010',
     firstName: 'Ada',
     lastName: 'Lovelace',
+    birthDate: '1990-01-15',
+    joinedAt: '2026-01-10T12:00:00.000Z',
     photoUrl: null,
     status: 'ACTIVE',
   },

@@ -4,6 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { DOCUMENT_TYPES, documentHint } from '@pulso/config/document';
+import { enrollmentPriceBandLabel, quoteEnrollmentPrice } from '@pulso/config/billing';
 import type { CreateMemberRequest, Member, MemberDocumentType } from '@pulso/contracts/members';
 import type {
   CreateMembershipRequest,
@@ -19,7 +20,6 @@ import {
   FormField,
   Input,
   MoneyDisplay,
-  MoneyInput,
   Select,
   Stepper,
   type StepperStep,
@@ -134,7 +134,6 @@ function NewMemberScreen() {
     branchId: branchId ?? '',
     startDate: todayYmd(),
   }));
-  const [priceOverride, setPriceOverride] = React.useState('');
   const [planError, setPlanError] = React.useState<string | undefined>();
 
   const [paymentMethodId, setPaymentMethodId] = React.useState('');
@@ -185,6 +184,20 @@ function NewMemberScreen() {
     [paymentMethodsQuery.data],
   );
   const selectedPlan: Plan | undefined = activePlans.find((p) => p.id === planForm.planId);
+  const selectedPaymentMethod = (paymentMethodsQuery.data?.data ?? []).find(
+    (method) => method.id === paymentMethodId,
+  );
+  const priceQuote = React.useMemo(
+    () =>
+      selectedPlan
+        ? quoteEnrollmentPrice(selectedPlan.price, planForm.startDate, selectedPaymentMethod?.code)
+        : null,
+    [planForm.startDate, selectedPaymentMethod?.code, selectedPlan],
+  );
+
+  React.useEffect(() => {
+    if (priceQuote) setChargeAmount(priceQuote.total);
+  }, [priceQuote]);
 
   const createMemberMutation = useMutation({
     mutationFn: (payload: CreateMemberRequest) => createMember(payload, memberIdempotency.getKey()),
@@ -266,8 +279,7 @@ function NewMemberScreen() {
   const onPlanChange = (planId: string) => {
     const plan = activePlans.find((p) => p.id === planId);
     setPlanForm((f) => ({ ...f, planId }));
-    setPriceOverride('');
-    setChargeAmount(plan?.price ?? '');
+    setChargeAmount(plan ? quoteEnrollmentPrice(plan.price, planForm.startDate).total : '');
   };
 
   const handlePlanNext = (): void => {
@@ -302,17 +314,15 @@ function NewMemberScreen() {
   const submitMembership = (charge: MembershipCharge): void => {
     if (createMembershipMutation.isPending) return;
     setPaymentError(undefined);
-    const price = priceOverride.trim() || selectedPlan?.price || '';
+    const price = selectedPlan?.price || '';
     if (!price) {
       setPaymentError('El plan elegido no tiene precio.');
       return;
     }
-    const useOverride = selectedPlan && price !== selectedPlan.price;
     const payload: CreateMembershipRequest = {
       planId: planForm.planId,
       branchId: planForm.branchId,
       startDate: planForm.startDate,
-      ...(useOverride ? { priceOverride: price } : {}),
       charge,
     };
     createMembershipMutation.mutate(payload);
@@ -381,10 +391,7 @@ function NewMemberScreen() {
             paymentMethodId={paymentMethodId}
             onPaymentMethodChange={setPaymentMethodId}
             chargeAmount={chargeAmount || selectedPlan?.price || ''}
-            onChargeAmountChange={(v) => {
-              setChargeAmount(v);
-              setPriceOverride(v);
-            }}
+            priceQuote={priceQuote}
           />
         ) : null}
       </Card>
@@ -627,7 +634,7 @@ interface PaymentStepProps {
   paymentMethodId: string;
   onPaymentMethodChange: (id: string) => void;
   chargeAmount: string;
-  onChargeAmountChange: (value: string) => void;
+  priceQuote: ReturnType<typeof quoteEnrollmentPrice> | null;
 }
 
 /** Este paso sólo se muestra con un plan ya elegido (§handlePlanNext lo exige). */
@@ -639,7 +646,7 @@ function PaymentStep({
   paymentMethodId,
   onPaymentMethodChange,
   chargeAmount,
-  onChargeAmountChange,
+  priceQuote,
 }: PaymentStepProps) {
   if (cashSessionLoading) {
     return (
@@ -667,9 +674,18 @@ function PaymentStep({
           />
         )}
       </FormField>
-      <FormField label="Monto" required hint="Prellenado con el precio del plan; se puede ajustar.">
-        {(field) => <MoneyInput {...field} value={chargeAmount} onChange={onChargeAmountChange} />}
-      </FormField>
+      <div className="grid gap-1.5">
+        <span className="text-(--text-sm) font-medium text-(--color-text)">Monto calculado</span>
+        <div className="flex h-10 items-center border-2 border-(--color-border) px-3 font-bold text-(--color-text)">
+          <MoneyDisplay value={chargeAmount} />
+        </div>
+        {priceQuote ? (
+          <p className="text-(--text-xs) text-(--color-muted)">
+            {enrollmentPriceBandLabel(priceQuote.band)}
+            {priceQuote.transferSurcharge !== '0.00' ? ' · incluye $5.000 por transferencia' : ''}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

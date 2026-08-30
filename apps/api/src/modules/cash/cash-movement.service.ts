@@ -85,6 +85,7 @@ export class CashMovementService {
       },
       orderBy: [{ createdAt: 'asc' }],
       take: 500,
+      include: { member: { select: { id: true, firstName: true, lastName: true } } },
     });
     return { data: rows.map(serializeCashMovement) };
   }

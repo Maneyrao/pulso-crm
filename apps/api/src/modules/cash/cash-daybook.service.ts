@@ -82,6 +82,7 @@ export class CashDaybookService {
       ? await this.prisma.client.cashMovement.findMany({
           where: { cashSessionId: { in: sessionIds } },
           orderBy: [{ createdAt: 'asc' }],
+          include: { member: { select: { id: true, firstName: true, lastName: true } } },
         })
       : [];
 

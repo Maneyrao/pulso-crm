@@ -7,7 +7,7 @@ import { AccessResultCard } from './AccessResultCard';
 import { playAccessTone } from './access-feedback';
 import { ACCESS_REASON_CONFIG } from './reason-config';
 
-const RESULT_VISIBLE_MS = 4_500;
+const RESULT_VISIBLE_MS = 7_000;
 
 const OVERLAY_TONE: Record<string, string> = {
   success: 'bg-[#071b0c]/95',

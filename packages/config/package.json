@@ -17,6 +17,10 @@
       "types": "./dist/money.d.ts",
       "default": "./dist/money.js"
     },
+    "./billing": {
+      "types": "./dist/billing.d.ts",
+      "default": "./dist/billing.js"
+    },
     "./time": {
       "types": "./dist/time.d.ts",
       "default": "./dist/time.js"

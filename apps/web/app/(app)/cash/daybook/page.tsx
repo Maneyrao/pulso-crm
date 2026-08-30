@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { BookOpen } from 'lucide-react';
 import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import type {
@@ -19,6 +20,7 @@ import {
   FormField,
   Input,
   MoneyDisplay,
+  Select,
   StatusBadge,
   type DataTableColumn,
 } from '@pulso/ui';
@@ -59,6 +61,9 @@ function DaybookScreen() {
   const todayIso = React.useMemo(() => toIsoDate(today), [today]);
   const [from, setFrom] = React.useState(() => toIsoDate(startOfMonth(today)));
   const [to, setTo] = React.useState(todayIso);
+  const [methodId, setMethodId] = React.useState('ALL');
+  const [movementType, setMovementType] = React.useState('ALL');
+  const [memberQuery, setMemberQuery] = React.useState('');
 
   const daybookQuery = useQuery({
     queryKey: qk.daybook(gymId ?? '', activeBranchId, from, to),
@@ -77,7 +82,46 @@ function DaybookScreen() {
     [paymentMethodsQuery.data],
   );
 
-  const days = React.useMemo(() => daybookQuery.data?.data ?? [], [daybookQuery.data]);
+  const days = React.useMemo(() => {
+    const query = memberQuery.trim().toLocaleLowerCase('es-AR');
+    return (daybookQuery.data?.data ?? []).map((day) => {
+      const movements = day.movements.filter((movement) => {
+        if (methodId !== 'ALL' && movement.paymentMethodId !== methodId) return false;
+        if (movementType !== 'ALL' && movement.type !== movementType) return false;
+        if (query) {
+          const name = movement.member
+            ? `${movement.member.firstName} ${movement.member.lastName}`.toLocaleLowerCase('es-AR')
+            : '';
+          if (!name.includes(query)) return false;
+        }
+        return true;
+      });
+      const methodIds = [...new Set(movements.map((movement) => movement.paymentMethodId))];
+      return {
+        ...day,
+        movements,
+        totalsByMethod: methodIds.map((paymentMethodId) => ({
+          paymentMethodId,
+          income: sumMoney(
+            movements
+              .filter(
+                (movement) =>
+                  movement.paymentMethodId === paymentMethodId && movement.type === 'INCOME',
+              )
+              .map((movement) => movement.amount),
+          ),
+          expense: sumMoney(
+            movements
+              .filter(
+                (movement) =>
+                  movement.paymentMethodId === paymentMethodId && movement.type === 'EXPENSE',
+              )
+              .map((movement) => movement.amount),
+          ),
+        })),
+      };
+    });
+  }, [daybookQuery.data, memberQuery, methodId, movementType]);
   const periodBalance = React.useMemo(() => {
     const income = sumMoney(days.flatMap((d) => d.totalsByMethod.map((t) => t.income)));
     const expense = sumMoney(days.flatMap((d) => d.totalsByMethod.map((t) => t.expense)));
@@ -141,23 +185,73 @@ function DaybookScreen() {
         </div>
       </div>
 
+      <div className="grid gap-3 border-y-2 border-(--color-border) py-4 md:grid-cols-[1fr_220px_180px_auto] md:items-end">
+        <FormField label="Buscar socio">
+          {(field) => (
+            <Input
+              {...field}
+              value={memberQuery}
+              onChange={(event) => setMemberQuery(event.target.value)}
+              placeholder="Nombre o apellido"
+            />
+          )}
+        </FormField>
+        <FormField label="Método de pago">
+          {(field) => (
+            <Select
+              {...field}
+              value={methodId}
+              onValueChange={setMethodId}
+              options={[
+                { value: 'ALL', label: 'Todos los métodos' },
+                ...(paymentMethodsQuery.data?.data ?? [])
+                  .filter((method) => method.isActive)
+                  .map((method) => ({ value: method.id, label: method.name })),
+              ]}
+            />
+          )}
+        </FormField>
+        <FormField label="Movimiento">
+          {(field) => (
+            <Select
+              {...field}
+              value={movementType}
+              onValueChange={setMovementType}
+              options={[
+                { value: 'ALL', label: 'Ingresos y egresos' },
+                { value: 'INCOME', label: 'Sólo ingresos' },
+                { value: 'EXPENSE', label: 'Sólo egresos' },
+              ]}
+            />
+          )}
+        </FormField>
+        <Button asChild variant="outline">
+          <Link href="/members/debt">Ver pendientes de pago</Link>
+        </Button>
+      </div>
+
       {from && to && from > to ? (
         <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
           El rango es inválido: la fecha "desde" es posterior a "hasta".
         </p>
       ) : null}
 
-      <DaybookContent query={daybookQuery} paymentMethodById={paymentMethodById} />
+      <DaybookContent
+        query={daybookQuery}
+        filteredDays={days}
+        paymentMethodById={paymentMethodById}
+      />
     </div>
   );
 }
 
 interface DaybookContentProps {
   query: UseQueryResult<DaybookResponse>;
+  filteredDays: DaybookResponse['data'];
   paymentMethodById: ReadonlyMap<string, PaymentMethod>;
 }
 
-function DaybookContent({ query, paymentMethodById }: DaybookContentProps) {
+function DaybookContent({ query, filteredDays, paymentMethodById }: DaybookContentProps) {
   if (query.isLoading) {
     return (
       <EmptyState
@@ -177,7 +271,7 @@ function DaybookContent({ query, paymentMethodById }: DaybookContentProps) {
     );
   }
 
-  const days = query.data?.data ?? [];
+  const days = filteredDays;
   if (days.length === 0) {
     return (
       <EmptyState
@@ -269,10 +363,13 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
       id: 'member',
       header: 'Socio',
       cell: (m) =>
-        m.memberId ? (
-          <span className="font-mono text-(--text-xs) text-(--color-muted)">
-            {shortSessionId(m.memberId)}
-          </span>
+        m.member ? (
+          <Link
+            href={`/members/${m.member.id}`}
+            className="font-medium text-(--color-text) hover:underline"
+          >
+            {m.member.lastName}, {m.member.firstName}
+          </Link>
         ) : (
           <span className="text-(--color-muted)">—</span>
         ),

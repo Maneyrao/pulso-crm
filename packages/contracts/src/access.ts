@@ -70,6 +70,8 @@ const accessCheckMemberSchema = z.object({
   id: uuidSchema,
   firstName: z.string(),
   lastName: z.string(),
+  birthDate: businessDateSchema.nullable(),
+  joinedAt: isoInstantSchema,
   photoUrl: z.string().url().nullable(),
   status: memberStatusSchema,
 });

@@ -378,7 +378,7 @@ describe('NewMemberPage', () => {
           gymId: 'g1',
           cashSessionId: 'cs1',
           type: 'INCOME',
-          amount: '20000.00',
+          amount: '5000.00',
           paymentMethodId: 'pm1',
           cashConceptId: 'cc1',
           description: null,
@@ -443,7 +443,7 @@ describe('NewMemberPage', () => {
     const [, payload] = createMembershipMock.mock.calls[0] as [string, Record<string, unknown>];
     expect(payload).toMatchObject({
       planId: 'p1',
-      charge: { mode: 'NOW', paymentMethodId: 'pm1', amount: '20000.00' },
+      charge: { mode: 'NOW', paymentMethodId: 'pm1', amount: '5000.00' },
     });
 
     await waitFor(() => expect(screen.getByText('El socio quedó activo')).toBeInTheDocument());

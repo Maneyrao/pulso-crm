@@ -15,8 +15,9 @@ import { completeHidEnrollment, startHidEnrollment } from '@/lib/api/biometrics'
 import { ApiError } from '@/lib/api/errors';
 import { getHidCaptureSession } from '@/lib/hid/session';
 import type { HidSample } from '@/lib/hid/session';
-import { useHidCaptureReporter, useHidSessionSnapshot } from '@/lib/hid/useHidSession';
+import { useHidSessionSnapshot } from '@/lib/hid/useHidSession';
 import { HidDiagnosticsPanel } from './HidDiagnosticsPanel';
+import { useFingerprintRuntime } from './GlobalFingerprintProvider';
 
 /**
  * Enrolamiento de una huella desde el CRM. El backend decide cuántas muestras
@@ -67,8 +68,8 @@ export function EnrollmentDialog({
   onEnrolled?: () => void;
 }) {
   const session = React.useMemo(() => getHidCaptureSession(), []);
+  const fingerprintRuntime = useFingerprintRuntime();
   const snapshot = useHidSessionSnapshot(session);
-  useHidCaptureReporter(branchId, session);
 
   const [finger, setFinger] = React.useState<string>('RIGHT_INDEX');
   const [phase, setPhase] = React.useState<Phase>('idle');
@@ -124,6 +125,7 @@ export function EnrollmentDialog({
     setCredential(null);
     setPhase('preparing');
     try {
+      await fingerprintRuntime.suspend();
       const enrollment = await startHidEnrollment(
         memberId,
         { branchId, fingerPosition: finger as 'RIGHT_INDEX' },
@@ -181,6 +183,7 @@ export function EnrollmentDialog({
       setPhase('failed');
     } finally {
       await session.stop();
+      fingerprintRuntime.resume();
     }
   };
 
