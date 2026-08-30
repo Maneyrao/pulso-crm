@@ -30,11 +30,49 @@ export const STAGE_BY_DIAGNOSTIC_TYPE: Record<string, BiometricCaptureStage> = {
   'hid.ErrorOccurred': 'HID_ERROR',
   'hid.DeviceDisconnected': 'DEVICE_DISCONNECTED',
   'hid.CommunicationFailed': 'ADC_UNREACHABLE',
+  'hid.QualityReported': 'QUALITY_REPORTED',
+  'hid.silence': 'ACQUISITION_SILENT',
   'sample.invalid': 'SAMPLE_INVALID',
   'sample.timeout': 'SAMPLE_TIMEOUT',
   'page.blur': 'PAGE_BLUR',
   'session.unsupported': 'ADC_UNREACHABLE',
 };
+
+/** Máximo por valor de metadata en el contrato (`hidCaptureEventInputSchema`). */
+const MAX_METADATA_STRING = 200;
+
+/**
+ * El contrato sólo admite escalares cortos en `metadata`. Un objeto anidado
+ * —p. ej. el `info` del lector— hacía fallar la validación del request ENTERO,
+ * y como el lote se descarta ante cualquier error, se perdían con él los
+ * eventos vecinos: así fue como una sesión real quedó registrada sin su inicio,
+ * su lector ni su adquisición. Se aplana acá, no en el contrato: la API tiene
+ * que seguir rechazando payloads que no sean escalares.
+ */
+export function toCaptureMetadata(
+  data: Record<string, unknown> | undefined,
+): HidCaptureEventInput['metadata'] {
+  if (!data) return undefined;
+  const out: Record<string, string | number | boolean | null> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value === null || typeof value === 'boolean') out[key] = value;
+    else if (typeof value === 'number') out[key] = Number.isFinite(value) ? value : String(value);
+    else if (typeof value === 'string') out[key] = value.slice(0, MAX_METADATA_STRING);
+    else if (value === undefined) continue;
+    else {
+      // `data` ya viene saneada por HidDiagnostics (sin imágenes ni plantillas):
+      // acá sólo se serializa lo que quedó.
+      let text: string;
+      try {
+        text = JSON.stringify(value) ?? String(value);
+      } catch {
+        text = '[no serializable]';
+      }
+      out[key] = text.slice(0, MAX_METADATA_STRING);
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
 
 /** La API acepta 50 eventos por request (recordHidCaptureEventsRequestSchema). */
 const MAX_BATCH = 50;
@@ -65,6 +103,9 @@ export class HidCaptureEventReporter {
   private unsubscribe: (() => void) | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private flushing: Promise<void> | null = null;
+  private readonly boundUnload = () => {
+    void this.flush();
+  };
 
   constructor(options: HidCaptureEventReporterOptions) {
     this.options = options;
@@ -76,9 +117,20 @@ export class HidCaptureEventReporter {
     this.timer = setInterval(() => {
       void this.flush();
     }, this.options.flushIntervalMs ?? DEFAULT_FLUSH_MS);
+    // Un F5 o cerrar la pestaña no puede borrar la traza: sin esto, el intento
+    // que el operador abandona —justo el que hay que diagnosticar— no deja
+    // ningún rastro del lado del servidor.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', this.boundUnload);
+      document.addEventListener('visibilitychange', this.boundUnload);
+    }
   }
 
   stop(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', this.boundUnload);
+      document.removeEventListener('visibilitychange', this.boundUnload);
+    }
     this.unsubscribe?.();
     this.unsubscribe = null;
     if (this.timer) clearInterval(this.timer);
@@ -92,6 +144,7 @@ export class HidCaptureEventReporter {
     const sessionId = this.options.getSessionId();
     if (!sessionId) return;
     const deviceUid = this.options.getDeviceUid?.() ?? null;
+    const metadata = toCaptureMetadata(entry.data);
     this.queue.push({
       sessionId,
       stage,
@@ -100,8 +153,8 @@ export class HidCaptureEventReporter {
       occurredAt: entry.at,
       ...(deviceUid ? { deviceUid: deviceUid.slice(0, 200) } : {}),
       // `entry.data` ya viene saneado por HidDiagnostics: sin imágenes ni
-      // plantillas, y con los strings largos recortados.
-      ...(entry.data ? { metadata: entry.data as HidCaptureEventInput['metadata'] } : {}),
+      // plantillas. Acá sólo se lo adapta a la forma que acepta el contrato.
+      ...(metadata ? { metadata } : {}),
     });
     if (this.queue.length > MAX_QUEUE) this.queue.splice(0, this.queue.length - MAX_QUEUE);
   }

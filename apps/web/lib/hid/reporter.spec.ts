@@ -60,6 +60,55 @@ describe('HidCaptureEventReporter', () => {
     }
   });
 
+  it('aplana la metadata a escalares: la API rechaza objetos anidados y tira el lote entero', async () => {
+    diagnostics.info('adc.device-info', 'Lector identificado', {
+      deviceUid: 'ED86011D-0EEC-4664-84ED-7AB032C79AAC',
+      info: { DeviceID: 'ED86011D', eUidType: 0, eDeviceModality: 2 },
+      readers: ['a', 'b'],
+    });
+
+    await reporter.flush();
+
+    const metadata = (
+      send.mock.calls[0]![0] as { events: Array<{ metadata?: Record<string, unknown> }> }
+    ).events[0]!.metadata!;
+    for (const value of Object.values(metadata)) {
+      expect(['string', 'number', 'boolean']).toContain(value === null ? 'string' : typeof value);
+    }
+    expect(metadata.deviceUid).toBe('ED86011D-0EEC-4664-84ED-7AB032C79AAC');
+    expect(metadata.info).toBe('{"DeviceID":"ED86011D","eUidType":0,"eDeviceModality":2}');
+    expect(metadata.readers).toBe('["a","b"]');
+  });
+
+  it('recorta los textos largos al máximo que acepta el contrato', async () => {
+    diagnostics.error('adc.arm-failed', 'falló', { error: 'x'.repeat(500) });
+
+    await reporter.flush();
+
+    const metadata = (
+      send.mock.calls[0]![0] as { events: Array<{ metadata?: Record<string, unknown> }> }
+    ).events[0]!.metadata!;
+    expect(String(metadata.error).length).toBeLessThanOrEqual(200);
+  });
+
+  it('persiste la calidad informada por HID: es la prueba de que el sensor vio el dedo', async () => {
+    diagnostics.warn('hid.QualityReported', 'Calidad 8 (NotAFinger)', { qualityCode: 8 });
+    diagnostics.warn('hid.silence', 'Adquisición armada sin señal', { silentMs: 12_000 });
+
+    await reporter.flush();
+
+    const payload = send.mock.calls[0]![0] as { events: Array<{ stage: string }> };
+    expect(payload.events.map((e) => e.stage)).toEqual(['QUALITY_REPORTED', 'ACQUISITION_SILENT']);
+  });
+
+  it('vacía la cola cuando la pestaña se oculta: un F5 no puede borrar la traza', async () => {
+    diagnostics.info('session.start', 'Sesión iniciada');
+    window.dispatchEvent(new Event('pagehide'));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(send).toHaveBeenCalledOnce();
+  });
+
   it('no envía nada sin sede seleccionada', async () => {
     // Bitácora propia: el reporter del beforeEach escucha la compartida y sí
     // tiene sede, así que enviaría el evento y taparía lo que se prueba acá.

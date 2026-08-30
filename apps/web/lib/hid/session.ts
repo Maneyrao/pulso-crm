@@ -72,6 +72,18 @@ export interface HidSample {
   sinceAcquisitionMs: number | null;
 }
 
+/** Resultado del sondeo de un formato de muestra contra el lector real. */
+export interface HidFormatProbeResult {
+  format: number;
+  formatLabel: string;
+  acquisitionStarted: boolean;
+  qualityReports: number;
+  samples: number;
+  errorCodeHex: string | null;
+  startError: string | null;
+  elapsedMs: number;
+}
+
 export type HidSampleOutcome = {
   kind: 'granted' | 'denied' | 'error';
   /** Cuánto mantener el resultado antes de volver a ACQUIRING. */
@@ -94,6 +106,10 @@ export interface HidSessionSnapshot {
   pageFocused: boolean;
   visibility: string;
   acquisitionStartedAt: string | null;
+  /** Última notificación de ADC de cualquier tipo (calidad, muestra, error…). */
+  lastHidEventAt: string | null;
+  /** Adquisición armada y ADC sin entregar una sola señal: ver `hid.silence`. */
+  silent: boolean;
   samplesReceived: number;
   samplesDropped: number;
   lastSampleAt: string | null;
@@ -118,6 +134,7 @@ export interface HidCaptureSessionDeps {
   backoffMs?: number[];
   maxConsecutiveErrors?: number;
   fingerHintMs?: number;
+  silenceMs?: number;
 }
 
 type Listener = (snapshot: HidSessionSnapshot) => void;
@@ -126,6 +143,22 @@ const DEFAULT_BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 15_000];
 const DEFAULT_RESULT_HOLD_MS = 2_500;
 const DEFAULT_FINGER_HINT_MS = 1_800;
 const DEFAULT_MAX_CONSECUTIVE_ERRORS = 5;
+/**
+ * Tiempo que se le da a ADC para emitir ALGO —calidad, muestra o error— desde
+ * que la adquisición quedó armada. Si no llega nada, el dedo apoyado no está
+ * produciendo frames: el problema está en el driver, en ADC o en el hardware,
+ * no en esta página. Sin este aviso la UI decía "Esperando huella" para
+ * siempre y el intento no dejaba rastro en ninguna parte.
+ */
+const DEFAULT_SILENCE_MS = 12_000;
+/** Orden del sondeo: primero el de producción, después los alternativos. */
+const PROBE_FORMATS: Array<{ format: number; formatLabel: string }> = [
+  { format: 5, formatLabel: 'PngImage' },
+  { format: 2, formatLabel: 'Intermediate' },
+  { format: 3, formatLabel: 'Compressed' },
+  { format: 1, formatLabel: 'Raw' },
+];
+const DEFAULT_PROBE_MS = 8_000;
 
 function readerModel(info: { DeviceID?: string } | null, id: string): string {
   if (info?.DeviceID && info.DeviceID !== id) return `HID DigitalPersona (${info.DeviceID})`;
@@ -160,6 +193,7 @@ export class HidCaptureSession {
   private readonly backoffMs: number[];
   private readonly maxConsecutiveErrors: number;
   private readonly fingerHintMs: number;
+  private readonly silenceMs: number;
 
   private snapshot: HidSessionSnapshot;
   private readonly listeners = new Set<Listener>();
@@ -176,6 +210,13 @@ export class HidCaptureSession {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private fingerTimer: ReturnType<typeof setTimeout> | null = null;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
+  private silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private probe: {
+    quality: number;
+    samples: number;
+    started: boolean;
+    errorCode: number | null;
+  } | null = null;
   private manualWaiter: {
     resolve: (sample: HidSample) => void;
     reject: (error: Error) => void;
@@ -202,6 +243,7 @@ export class HidCaptureSession {
     this.backoffMs = deps.backoffMs ?? DEFAULT_BACKOFF_MS;
     this.maxConsecutiveErrors = deps.maxConsecutiveErrors ?? DEFAULT_MAX_CONSECUTIVE_ERRORS;
     this.fingerHintMs = deps.fingerHintMs ?? DEFAULT_FINGER_HINT_MS;
+    this.silenceMs = deps.silenceMs ?? DEFAULT_SILENCE_MS;
     this.snapshot = {
       state: 'DISCONNECTED',
       mode: null,
@@ -218,6 +260,8 @@ export class HidCaptureSession {
       pageFocused: typeof document !== 'undefined' ? document.hasFocus() : false,
       visibility: typeof document !== 'undefined' ? document.visibilityState : 'unknown',
       acquisitionStartedAt: null,
+      lastHidEventAt: null,
+      silent: false,
       samplesReceived: 0,
       samplesDropped: 0,
       lastSampleAt: null,
@@ -269,6 +313,8 @@ export class HidCaptureSession {
       samplesReceived: 0,
       samplesDropped: 0,
       lastOutcome: null,
+      lastHidEventAt: null,
+      silent: false,
       since: new Date().toISOString(),
     });
     this.diagnostics.info('session.start', 'Sesión de captura iniciada', {
@@ -342,7 +388,7 @@ export class HidCaptureSession {
     this.armGeneration += 1;
     this.rejectManualWaiter(new Error('Captura pausada.'));
     await this.stopAcquisitionQuietly();
-    this.transition('PAUSED', { lastError: null });
+    this.transition('PAUSED', { lastError: null, silent: false });
     this.diagnostics.info('session.pause', 'Captura pausada por el operador');
   }
 
@@ -381,10 +427,90 @@ export class HidCaptureSession {
     this.transition('DISCONNECTED', {
       mode: null,
       ownership: 'none',
+      silent: false,
       acquisitionStartedAt: null,
       recoveryReason: null,
       nextRetryMs: null,
     });
+  }
+
+  /**
+   * Prueba cada formato de muestra contra el lector real y devuelve qué
+   * entregó ADC en cada uno. Es la prueba que separa un problema de código de
+   * uno de driver/ADC/hardware: si NINGÚN formato produce señal, el sensor no
+   * está entregando frames a la PC; si sólo falla `PngImage`, el que no
+   * funciona es el formato, no el lector.
+   *
+   * Las muestras del sondeo se cuentan y se descartan: no se decodifican, no
+   * se envían a la API y no quedan en la bitácora.
+   */
+  async probeSampleFormats(
+    options: { perFormatMs?: number } = {},
+  ): Promise<HidFormatProbeResult[]> {
+    if (!this.active) throw new Error('La sesión de captura no está activa.');
+    if (this.snapshot.ownership !== 'owner') {
+      throw new Error('Esta pestaña no es dueña del lector: no se puede sondear.');
+    }
+    const api = this.api;
+    const deviceUid = this.snapshot.reader?.id;
+    if (!api || !deviceUid) throw new Error('Todavía no hay un lector identificado.');
+    if (this.busy) throw new Error('Hay una lectura en curso. Esperá a que termine.');
+
+    const perFormatMs = options.perFormatMs ?? DEFAULT_PROBE_MS;
+    this.clearTimers();
+    this.armGeneration += 1;
+    this.rejectManualWaiter(new Error('Sondeo de formatos en curso.'));
+    await this.stopAcquisitionQuietly();
+    this.diagnostics.info('probe.start', 'Sondeo de formatos iniciado', { perFormatMs });
+
+    const results: HidFormatProbeResult[] = [];
+    try {
+      for (const { format, formatLabel } of PROBE_FORMATS) {
+        this.probe = { quality: 0, samples: 0, started: false, errorCode: null };
+        const startedAt = Date.now();
+        let startError: string | null = null;
+        try {
+          await api.startAcquisition(format, deviceUid);
+          this.diagnostics.info('probe.armed', `Formato ${formatLabel} armado`, {
+            format,
+            formatLabel,
+          });
+          await new Promise((resolve) => setTimeout(resolve, perFormatMs));
+          await api.stopAcquisition(deviceUid).catch(() => undefined);
+        } catch (error) {
+          startError = error instanceof Error ? error.message : String(error);
+        }
+        const probe = this.probe;
+        this.probe = null;
+        const result: HidFormatProbeResult = {
+          format,
+          formatLabel,
+          acquisitionStarted: probe?.started ?? false,
+          qualityReports: probe?.quality ?? 0,
+          samples: probe?.samples ?? 0,
+          errorCodeHex:
+            probe?.errorCode !== null && probe?.errorCode !== undefined
+              ? formatHidErrorCode(probe.errorCode)
+              : null,
+          startError,
+          elapsedMs: Date.now() - startedAt,
+        };
+        results.push(result);
+        this.diagnostics[result.samples > 0 ? 'info' : 'warn'](
+          'probe.result',
+          `${formatLabel}: ${result.samples} muestra(s), ${result.qualityReports} calidad(es)`,
+          { ...result },
+        );
+      }
+    } finally {
+      this.probe = null;
+      this.diagnostics.info('probe.stop', 'Sondeo de formatos terminado', {
+        formatsWithSamples: results.filter((r) => r.samples > 0).length,
+      });
+      // El lector vuelve al formato de producción pase lo que pase.
+      if (this.active) await this.arm();
+    }
+    return results;
   }
 
   // ── Armado del lector ───────────────────────────────────────────────────
@@ -468,6 +594,7 @@ export class HidCaptureSession {
         acquisitionStartedAt: new Date(this.acquisitionStartedAtMs).toISOString(),
       });
       this.transition('ACQUIRING');
+      this.armSilenceWatchdog();
     } catch (error) {
       if (generation !== this.armGeneration) return;
       const message = error instanceof Error ? error.message : String(error);
@@ -484,10 +611,12 @@ export class HidCaptureSession {
 
   private scheduleRecovery(reason: HidRecoveryReason, message: string): void {
     if (!this.active) return;
+    this.clearSilenceTimer();
     this.acquisitionStartedAtMs = null;
     const consecutiveErrors = this.snapshot.consecutiveErrors + 1;
     if (consecutiveErrors >= this.maxConsecutiveErrors) {
       this.transition('ERROR', {
+        silent: false,
         lastError: message,
         recoveryReason: reason,
         consecutiveErrors,
@@ -503,6 +632,7 @@ export class HidCaptureSession {
     const attempt = this.snapshot.recoveryAttempt + 1;
     const delay = this.backoffMs[Math.min(attempt - 1, this.backoffMs.length - 1)] ?? 1_000;
     this.transition('RECOVERING', {
+      silent: false,
       lastError: message,
       recoveryReason: reason,
       recoveryAttempt: attempt,
@@ -525,12 +655,15 @@ export class HidCaptureSession {
   // ── Eventos HID ─────────────────────────────────────────────────────────
 
   private onAcquisitionStarted(event: HidDeviceEvent): void {
+    this.noteHidActivity();
+    if (this.probe) this.probe.started = true;
     this.diagnostics.info('hid.AcquisitionStarted', 'ADC confirmó el inicio de adquisición', {
       deviceUid: event.deviceUid ?? null,
     });
   }
 
   private onAcquisitionStopped(event: HidDeviceEvent): void {
+    this.noteHidActivity();
     this.diagnostics.info('hid.AcquisitionStopped', 'ADC informó adquisición detenida', {
       deviceUid: event.deviceUid ?? null,
       state: this.snapshot.state,
@@ -538,6 +671,11 @@ export class HidCaptureSession {
   }
 
   private onQualityReported(event: HidQualityReportedEvent): void {
+    this.noteHidActivity();
+    if (this.probe) {
+      this.probe.quality += 1;
+      return;
+    }
     const quality = describeQuality(event.quality);
     const entry = {
       code: event.quality,
@@ -562,6 +700,12 @@ export class HidCaptureSession {
   }
 
   private onSamplesAcquired(event: HidSamplesAcquiredEvent): void {
+    this.noteHidActivity();
+    if (this.probe) {
+      // Sólo se cuenta: la muestra del sondeo no se decodifica ni se guarda.
+      this.probe.samples += 1;
+      return;
+    }
     const receivedAt = Date.now();
     const parsed = this.parseSamples(event.samples);
     if (!parsed) return;
@@ -702,6 +846,7 @@ export class HidCaptureSession {
   }
 
   private onDeviceConnected(event: HidDeviceEvent): void {
+    this.noteHidActivity();
     this.diagnostics.info('hid.DeviceConnected', 'Lector conectado', {
       deviceUid: event.deviceUid ?? null,
     });
@@ -716,6 +861,7 @@ export class HidCaptureSession {
   }
 
   private onDeviceDisconnected(event: HidDeviceEvent): void {
+    this.noteHidActivity();
     this.diagnostics.warn('hid.DeviceDisconnected', 'Lector desconectado (USB)', {
       deviceUid: event.deviceUid ?? null,
       state: this.snapshot.state,
@@ -734,6 +880,11 @@ export class HidCaptureSession {
   }
 
   private onErrorOccurred(event: HidErrorOccurredEvent): void {
+    this.noteHidActivity();
+    if (this.probe) {
+      this.probe.errorCode = event.error;
+      return;
+    }
     const hex = formatHidErrorCode(event.error);
     this.diagnostics.error('hid.ErrorOccurred', `ADC informó un error ${hex}`, {
       deviceUid: event.deviceUid ?? null,
@@ -754,6 +905,7 @@ export class HidCaptureSession {
   }
 
   private onCommunicationFailed(): void {
+    this.noteHidActivity();
     this.diagnostics.error('hid.CommunicationFailed', 'Se perdió la conexión con ADC');
     if (!this.active || this.snapshot.state === 'PAUSED') return;
     this.rejectManualWaiter(new Error(CLIENT_MISSING_MESSAGE));
@@ -868,6 +1020,47 @@ export class HidCaptureSession {
     this.fingerTimer = null;
   }
 
+  /**
+   * Toda notificación de ADC —incluso una calidad mala— prueba que el sensor
+   * está entregando frames. Corta el aviso de silencio y lo vuelve a armar.
+   */
+  private noteHidActivity(): void {
+    this.update({ lastHidEventAt: new Date().toISOString(), silent: false });
+    if (this.snapshot.acquisitionStartedAt !== null) this.armSilenceWatchdog();
+  }
+
+  private armSilenceWatchdog(): void {
+    this.clearSilenceTimer();
+    if (!this.active || this.silenceMs <= 0) return;
+    this.silenceTimer = setTimeout(() => {
+      this.silenceTimer = null;
+      if (!this.active || this.snapshot.acquisitionStartedAt === null) return;
+      if (this.snapshot.state === 'PAUSED' || this.probe) return;
+      this.update({ silent: true });
+      this.diagnostics.warn(
+        'hid.silence',
+        'Adquisición armada y ADC no entregó ninguna señal del lector',
+        {
+          silentMs: this.silenceMs,
+          state: this.snapshot.state,
+          pageFocused: this.snapshot.pageFocused,
+          visibility: this.snapshot.visibility,
+          deviceUid: this.snapshot.reader?.id ?? null,
+          samplesReceived: this.snapshot.samplesReceived,
+          lastHidEventAt: this.snapshot.lastHidEventAt,
+        },
+      );
+      // Se vuelve a armar: si el silencio persiste hay que poder medirlo, y si
+      // el operador arregla el driver sin recargar, la próxima señal lo corta.
+      this.armSilenceWatchdog();
+    }, this.silenceMs);
+  }
+
+  private clearSilenceTimer(): void {
+    if (this.silenceTimer) clearTimeout(this.silenceTimer);
+    this.silenceTimer = null;
+  }
+
   private clearHoldTimer(): void {
     if (this.holdTimer) clearTimeout(this.holdTimer);
     this.holdTimer = null;
@@ -877,6 +1070,7 @@ export class HidCaptureSession {
     this.clearRetryTimer();
     this.clearFingerTimer();
     this.clearHoldTimer();
+    this.clearSilenceTimer();
   }
 
   private transition(state: HidSessionState, patch: Partial<HidSessionSnapshot> = {}): void {
@@ -903,7 +1097,11 @@ export function getHidCaptureSession(): HidCaptureSession {
   return shared;
 }
 
-/** Sólo para tests: descarta la sesión compartida. */
-export function resetHidCaptureSessionForTests(): void {
-  shared = null;
+/**
+ * Sólo para tests: descarta la sesión compartida. Con `deps` la reemplaza por
+ * una configurada (p. ej. un watchdog de silencio corto), porque los
+ * componentes toman la sesión del módulo y no pueden inyectarla.
+ */
+export function resetHidCaptureSessionForTests(deps?: HidCaptureSessionDeps): void {
+  shared = deps ? new HidCaptureSession(deps) : null;
 }

@@ -212,6 +212,96 @@ describe('HidCaptureSession — conexión y adquisición', () => {
   });
 });
 
+describe('HidCaptureSession — adquisición muda (driver / ADC / hardware)', () => {
+  it('avisa cuando la adquisición queda armada y ADC no entrega NINGUNA señal', async () => {
+    const session = createSession({ silenceMs: 40 });
+    await session.start({ mode: 'continuous', onSample: async () => ({ kind: 'granted' }) });
+    await waitState(session, 'ACQUIRING');
+
+    await waitUntil(() => session.getSnapshot().silent);
+
+    // No es un error del lector ni del código: la adquisición sigue viva.
+    expect(session.getSnapshot().state).toBe('ACQUIRING');
+    const silence = diagnostics.entries().find((entry) => entry.type === 'hid.silence');
+    expect(silence).toBeDefined();
+    expect(silence!.data).toMatchObject({ pageFocused: expect.any(Boolean), silentMs: 40 });
+    expect(session.getSnapshot().lastHidEventAt).not.toBeNull();
+  });
+
+  it('cualquier señal del lector cancela el aviso y lo vuelve a armar', async () => {
+    const session = createSession({ silenceMs: 60 });
+    await session.start({ mode: 'continuous', onSample: async () => ({ kind: 'granted' }) });
+    await waitState(session, 'ACQUIRING');
+    await waitUntil(() => session.getSnapshot().silent);
+
+    adc.placeFinger({ quality: 7 });
+    await waitUntil(() => !session.getSnapshot().silent);
+
+    // Vuelve a quedar mudo si el dedo no aparece nunca más.
+    await waitUntil(() => session.getSnapshot().silent, { timeoutMs: 2_000 });
+    expect(
+      diagnostics.entries().filter((entry) => entry.type === 'hid.silence').length,
+    ).toBeGreaterThanOrEqual(2);
+  });
+
+  it('stop() apaga el aviso: una sesión detenida no está muda, está apagada', async () => {
+    const session = createSession({ silenceMs: 40 });
+    await session.start({ mode: 'continuous', onSample: async () => ({ kind: 'granted' }) });
+    await waitState(session, 'ACQUIRING');
+    await waitUntil(() => session.getSnapshot().silent);
+
+    await session.stop();
+    expect(session.getSnapshot().silent).toBe(false);
+  });
+});
+
+describe('HidCaptureSession — sondeo de formatos', () => {
+  it('distingue un lector mudo de un formato que ADC acepta pero no entrega', async () => {
+    // Caso real a descartar: ADC acepta StartAcquisition con PngImage y no
+    // emite jamás una notificación, mientras que otro formato sí funciona.
+    adc.mutedFormats = [5];
+    const onSample = vi.fn(async () => ({ kind: 'granted' as const }));
+    const session = createSession({ silenceMs: 0 });
+    await session.start({ mode: 'continuous', onSample });
+    await waitState(session, 'ACQUIRING');
+
+    // El operador deja el dedo apoyado durante todo el sondeo.
+    const unsubscribe = diagnostics.subscribe((entry) => {
+      if (entry.type === 'probe.armed') adc.placeFinger();
+    });
+    const results = await session.probeSampleFormats({ perFormatMs: 60 });
+    unsubscribe();
+
+    const png = results.find((r) => r.format === 5)!;
+    const intermediate = results.find((r) => r.format === 2)!;
+    expect(png.acquisitionStarted).toBe(true);
+    expect(png.qualityReports).toBe(0);
+    expect(png.samples).toBe(0);
+    expect(intermediate.samples).toBe(1);
+    expect(intermediate.qualityReports).toBe(1);
+
+    // El sondeo nunca identifica ni enrola con lo que capturó.
+    expect(onSample).not.toHaveBeenCalled();
+    expect(session.getSnapshot().samplesReceived).toBe(0);
+    // Ni deja rastro de la muestra en la bitácora.
+    expect(JSON.stringify(diagnostics.entries())).not.toContain('pngBase64');
+
+    // Y el lector vuelve a quedar operativo con el formato de producción.
+    await waitState(session, 'ACQUIRING');
+    expect(adc.acquiring.get(DEFAULT_DEVICE_UID)?.sampleFormat).toBe(5);
+  });
+
+  it('no sondea si la pestaña no es dueña del lector', async () => {
+    const other = createMemoryReaderLock();
+    const owner = createSession({ lock: other });
+    await owner.start({ mode: 'continuous', onSample: async () => ({ kind: 'granted' }) });
+    const guest = createSession({ lock: other });
+    await guest.start({ mode: 'continuous', onSample: async () => ({ kind: 'granted' }) });
+
+    await expect(guest.probeSampleFormats({ perFormatMs: 10 })).rejects.toThrow(/dueña/i);
+  });
+});
+
 describe('HidCaptureSession — modo manual (enrolamiento)', () => {
   it('nextSample() entrega la siguiente muestra válida y falla por timeout sin muestra', async () => {
     const session = createSession();

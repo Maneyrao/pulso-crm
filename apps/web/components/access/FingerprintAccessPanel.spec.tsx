@@ -245,6 +245,27 @@ describe('FingerprintAccessPanel', () => {
     expect(open).not.toHaveBeenCalled();
   });
 
+  it('avisa que el lector quedó armado y mudo, y dice qué revisar en la PC', async () => {
+    // Reproduce el caso real: ADC acepta StartAcquisition con PngImage y no
+    // emite ninguna notificación mientras el operador apoya el dedo.
+    await getHidCaptureSession().stop();
+    resetHidCaptureSessionForTests({ silenceMs: 60 });
+    adc.mutedFormats = [5];
+
+    render(<FingerprintAccessPanel branchId={BRANCH_ID} onResult={vi.fn()} />);
+    await screen.findByText('Esperando huella');
+    adc.placeFinger();
+
+    expect(
+      await screen.findByText(/no llega ninguna señal del dedo/i, undefined, { timeout: 3_000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Windows Hello/)).toBeInTheDocument();
+    expect(screen.getByText(/Legacy/)).toBeInTheDocument();
+    // No lo declara error del CRM ni corta la lectura.
+    expect(identifyHid).not.toHaveBeenCalled();
+    expect(screen.getByText('Esperando huella')).toBeInTheDocument();
+  });
+
   it('sin sede seleccionada no arma el lector', async () => {
     render(<FingerprintAccessPanel branchId={null} onResult={vi.fn()} />);
 

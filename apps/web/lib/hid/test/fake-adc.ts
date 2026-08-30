@@ -103,6 +103,12 @@ export class FakeAdc {
   acquiring: Map<string, { channel: ChannelHandle; sampleFormat: number }> = new Map();
   /** Si está definido, StartAcquisition responde con este Result (error). */
   startAcquisitionResult: number | null = null;
+  /**
+   * Formatos que ADC acepta en StartAcquisition pero para los que NUNCA emite
+   * notificaciones: reproduce el caso real de un lector cuyo driver no entrega
+   * ese tipo de muestra. El dedo se apoya y no pasa absolutamente nada.
+   */
+  mutedFormats: number[] = [];
 
   constructor(options: FakeAdcOptions = {}) {
     this.devices = [...(options.devices ?? [DEFAULT_DEVICE_UID])];
@@ -234,6 +240,7 @@ export class FakeAdc {
     if (!deviceUid) return false;
     const active = this.acquiring.get(deviceUid);
     if (!active) return false;
+    if (this.mutedFormats.includes(active.sampleFormat)) return false;
     const quality = options.quality ?? 0;
     const png = options.png ?? fakePng(24);
     this.schedule(() => {

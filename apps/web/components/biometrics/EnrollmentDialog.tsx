@@ -1,7 +1,15 @@
 'use client';
 
 import * as React from 'react';
-import { CheckCircle2, Fingerprint, LoaderCircle, RotateCcw, Stethoscope } from 'lucide-react';
+import {
+  CheckCircle2,
+  Fingerprint,
+  LoaderCircle,
+  RotateCcw,
+  Stethoscope,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import { Alert, Button, Modal, Select, cn } from '@pulso/ui';
 import { completeHidEnrollment, startHidEnrollment } from '@/lib/api/biometrics';
 import { ApiError } from '@/lib/api/errors';
@@ -70,6 +78,7 @@ export function EnrollmentDialog({
   );
   const [credential, setCredential] = React.useState<CredentialSummary | null>(null);
   const [showDiagnostics, setShowDiagnostics] = React.useState(false);
+  const cancelled = React.useRef(false);
   const busy = phase === 'preparing' || phase === 'capturing' || phase === 'saving';
 
   const reset = React.useCallback(() => {
@@ -103,7 +112,14 @@ export function EnrollmentDialog({
     onOpenChange(next);
   };
 
+  /** Salida del operador durante la espera: sin esto el modal queda trabado. */
+  const cancel = () => {
+    cancelled.current = true;
+    void session.stop();
+  };
+
   const capture = async () => {
+    cancelled.current = false;
     setError(null);
     setCredential(null);
     setPhase('preparing');
@@ -151,6 +167,10 @@ export function EnrollmentDialog({
       setPhase('done');
       onEnrolled?.();
     } catch (reason) {
+      if (cancelled.current) {
+        reset();
+        return;
+      }
       setError(
         reason instanceof ApiError
           ? (API_ERROR_LABEL[reason.code] ?? reason.message)
@@ -217,6 +237,22 @@ export function EnrollmentDialog({
               <LoaderCircle className="h-9 w-9 animate-spin" aria-hidden={true} />
             )}
           </span>
+          {snapshot.silent && phase === 'capturing' ? (
+            <div
+              className="grid gap-1 border-2 border-(--color-warning) p-3 text-left"
+              role="status"
+            >
+              <p className="flex items-start gap-2 text-(--text-sm) font-semibold text-(--color-text)">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden={true} />
+                El lector está armado pero no llega ninguna señal del dedo.
+              </p>
+              <p className="text-(--text-sm) text-(--color-muted)">
+                HID no reportó ni calidad, ni muestra, ni error. Revisá que el dedo no esté enrolado
+                en Windows Hello, que el 4500 use el driver HID Legacy y que no haya otro programa
+                de huella abierto.
+              </p>
+            </div>
+          ) : null}
           {progress && phase === 'capturing' ? (
             <p className="text-(--text-sm) font-semibold text-(--color-primary)">
               Muestra {Math.min(progress.captured + 1, progress.required)} de {progress.required}
@@ -272,11 +308,15 @@ export function EnrollmentDialog({
         >
           <Stethoscope className="h-4 w-4" aria-hidden={true} /> Diagnóstico
         </Button>
-        {!busy ? (
+        {busy ? (
+          <Button variant="outline" onClick={cancel}>
+            <X className="h-4 w-4" aria-hidden={true} /> Cancelar
+          </Button>
+        ) : (
           <Button variant="outline" onClick={() => handleClose(false)}>
             {phase === 'done' ? 'Listo' : 'Cerrar'}
           </Button>
-        ) : null}
+        )}
         {phase === 'idle' ? (
           <Button onClick={() => void capture()}>
             <Fingerprint className="h-4 w-4" aria-hidden={true} /> Capturar huella

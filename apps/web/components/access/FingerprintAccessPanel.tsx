@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Fingerprint, Square, Stethoscope } from 'lucide-react';
+import { Fingerprint, Square, Stethoscope, TriangleAlert } from 'lucide-react';
 import type { AccessCheckResponse } from '@pulso/contracts/access';
 import { Button, StatusBadge, cn } from '@pulso/ui';
 import { identifyHid } from '@/lib/api/biometrics';
@@ -39,6 +39,17 @@ const ERROR_LABEL: Record<string, string> = {
   BIOMETRIC_MATCHER_UNAVAILABLE:
     'El servicio biométrico no responde. Se reintenta en la próxima lectura.',
 };
+
+/**
+ * Qué revisar en la PC cuando el lector quedó armado y no entrega nada. Es
+ * host-side: ADC aceptó StartAcquisition, así que el código de esta página ya
+ * hizo su parte.
+ */
+const SILENT_CHECKS = [
+  'Windows Hello: si el dedo está enrolado en Windows, el servicio biométrico se queda con el sensor. Quitá la huella de Windows Hello y reiniciá el equipo.',
+  'Driver: el 4500 tiene que estar con el driver HID DigitalPersona (Legacy), no con el driver WBF genérico.',
+  'Otro programa usando el lector: cerrá el agente viejo de El Templo, el DigitalPersona Console o cualquier app de huella abierta.',
+];
 
 const MODE_STORAGE_KEY = 'el-templo:fingerprint-mode';
 /** Estados en los que el lector está operativo esperando o procesando un dedo. */
@@ -236,6 +247,24 @@ export function FingerprintAccessPanel({
           )}
         </div>
       </div>
+
+      {snapshot.silent ? (
+        <div className="grid gap-2 border-2 border-(--color-warning) p-3">
+          <p className="flex items-start gap-2 text-(--text-sm) font-semibold text-(--color-text)">
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden={true} />
+            El lector está armado pero no llega ninguna señal del dedo.
+          </p>
+          <p className="text-(--text-sm) text-(--color-muted)">
+            HID aceptó iniciar la lectura y no reportó ni calidad, ni muestra, ni error. El problema
+            no está en el CRM: está entre el sensor y el cliente HID de esta PC.
+          </p>
+          <ul className="list-disc pl-5 text-(--text-sm) text-(--color-muted)">
+            {SILENT_CHECKS.map((check) => (
+              <li key={check}>{check}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {snapshot.state === 'ERROR' ? (
         <div className="flex flex-wrap items-center gap-3 border-2 border-(--color-danger) p-3">

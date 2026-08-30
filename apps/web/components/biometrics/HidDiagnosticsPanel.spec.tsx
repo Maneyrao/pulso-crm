@@ -104,6 +104,26 @@ describe('HidDiagnosticsPanel', () => {
     expect(screen.getByText('sin foco')).toBeInTheDocument();
   });
 
+  it('el sondeo dicta el veredicto: el lector entrega en otro formato pero no en PngImage', async () => {
+    adc.mutedFormats = [5];
+    await session.start({ mode: 'continuous', onSample: async () => ({ kind: 'granted' }) });
+    await waitUntil(() => session.getSnapshot().state === 'ACQUIRING');
+
+    render(
+      <HidDiagnosticsPanel session={session} diagnostics={diagnostics} probeMsPerFormat={60} />,
+    );
+    const unsubscribe = diagnostics.subscribe((entry) => {
+      if (entry.type === 'probe.armed') adc.placeFinger();
+    });
+    fireEvent.click(screen.getByRole('button', { name: /sondear formatos/i }));
+
+    expect(
+      await screen.findByText(/no en PngImage/i, undefined, { timeout: 5_000 }),
+    ).toBeInTheDocument();
+    unsubscribe();
+    expect(screen.getByText(/Intermediate \(2\)/)).toBeInTheDocument();
+  });
+
   it('sin eventos todavía lo dice en vez de mostrar una lista vacía', () => {
     render(<HidDiagnosticsPanel session={session} diagnostics={diagnostics} />);
     expect(screen.getByText(/todavía no se registraron eventos/i)).toBeInTheDocument();

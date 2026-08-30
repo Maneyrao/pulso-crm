@@ -188,6 +188,35 @@ describe('EnrollmentDialog', () => {
     expect(getHidCaptureSession().isActive()).toBe(false);
   });
 
+  it('el operador puede cancelar la espera: el modal no lo deja encerrado', async () => {
+    renderDialog();
+    fireEvent.click(screen.getByRole('button', { name: /capturar huella/i }));
+    await waitFor(() => expect(adc.startCount).toBe(1));
+
+    fireEvent.click(await screen.findByRole('button', { name: /cancelar/i }));
+
+    // Vuelve al inicio, no a un error, y suelta el lector.
+    expect(await screen.findByRole('button', { name: /capturar huella/i })).toBeInTheDocument();
+    expect(screen.queryByText(/No se pudo enrolar/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(adc.acquiring.size).toBe(0));
+  });
+
+  it('avisa dentro del modal cuando el lector queda armado y mudo', async () => {
+    await getHidCaptureSession().stop();
+    resetHidCaptureSessionForTests({ silenceMs: 60 });
+    adc.mutedFormats = [5];
+
+    renderDialog();
+    fireEvent.click(screen.getByRole('button', { name: /capturar huella/i }));
+    await waitFor(() => expect(adc.startCount).toBe(1));
+    adc.placeFinger();
+
+    expect(
+      await screen.findByText(/no llega ninguna señal del dedo/i, undefined, { timeout: 3_000 }),
+    ).toBeInTheDocument();
+    expect(completeHidEnrollment).not.toHaveBeenCalled();
+  });
+
   it('no abre ninguna ventana externa durante el enrolamiento', async () => {
     const open = vi.spyOn(window, 'open');
     renderDialog();
