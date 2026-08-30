@@ -367,16 +367,42 @@ export function fakePng(bytes = 24): Uint8Array {
 let sdkSource: string | null = null;
 
 /**
- * Carga el `fingerprint.sdk.js` REAL (el mismo archivo que sirve la web) en el
- * `window` de jsdom, enlazado al FakeAdc. Devuelve el ADC para manipularlo.
+ * Lee el `fingerprint.sdk.js` oficial. Se busca primero en node_modules —la
+ * fuente que `scripts/prepare-hid-websdk.mjs` copia a `public/vendor/hid`
+ * durante el build— porque esa copia es un artefacto gitignoreado que no
+ * existe cuando se corren sólo los tests (el job de CI no compila la web).
+ *
+ * No se usa `require.resolve` del subpath: el paquete declara `exports` y
+ * bloquea `./dist/*`, así que se resuelve el directorio a mano igual que hace
+ * el script de build.
+ */
+function readFingerprintSdk(): string {
+  const candidates = [
+    resolve(process.cwd(), 'node_modules/@digitalpersona/fingerprint/dist/fingerprint.sdk.js'),
+    resolve(process.cwd(), '../../node_modules/@digitalpersona/fingerprint/dist/fingerprint.sdk.js'),
+    resolve(process.cwd(), 'public/vendor/hid/fingerprint.sdk.js'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      return readFileSync(candidate, 'utf8');
+    } catch {
+      // Sigue con el próximo candidato.
+    }
+  }
+  throw new Error(
+    `No se encontró fingerprint.sdk.js. Buscado en:\n  ${candidates.join('\n  ')}\n` +
+      'Instalá las dependencias (@digitalpersona/fingerprint) antes de correr los tests.',
+  );
+}
+
+/**
+ * Carga el `fingerprint.sdk.js` REAL (el mismo que sirve la web) en el `window`
+ * de jsdom, enlazado al FakeAdc. Devuelve el ADC para manipularlo.
  */
 export function installFakeAdc(options: FakeAdcOptions = {}): FakeAdc {
   const adc = new FakeAdc(options);
   const webSdk = adc.createWebSdk();
-  sdkSource ??= readFileSync(
-    resolve(process.cwd(), 'public/vendor/hid/fingerprint.sdk.js'),
-    'utf8',
-  );
+  sdkSource ??= readFingerprintSdk();
   // El SDK es un IIFE con `var Fingerprint` de nivel superior: en un <script>
   // queda en window; acá lo devolvemos explícitamente.
   const factory = new Function('window', 'WebSdk', `${sdkSource}\nreturn Fingerprint;`) as (
