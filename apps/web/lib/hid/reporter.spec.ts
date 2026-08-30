@@ -101,6 +101,29 @@ describe('HidCaptureEventReporter', () => {
     expect(payload.events.map((e) => e.stage)).toEqual(['QUALITY_REPORTED', 'ACQUISITION_SILENT']);
   });
 
+  it('persiste el resultado del sondeo de formatos, que es el que dicta el veredicto', async () => {
+    diagnostics.warn('probe.result', 'PngImage: 0 muestra(s), 0 calidad(es)', {
+      format: 5,
+      formatLabel: 'PngImage',
+      acquisitionStarted: true,
+      qualityReports: 0,
+      sampleCount: 0,
+      errorCodeHex: null,
+      startError: null,
+      elapsedMs: 8000,
+    });
+
+    await reporter.flush();
+
+    const event = (
+      send.mock.calls[0]![0] as {
+        events: Array<{ stage: string; metadata?: Record<string, unknown> }>;
+      }
+    ).events[0]!;
+    expect(event.stage).toBe('FORMAT_PROBE');
+    expect(event.metadata).toMatchObject({ formatLabel: 'PngImage', sampleCount: 0 });
+  });
+
   it('vacía la cola cuando la pestaña se oculta: un F5 no puede borrar la traza', async () => {
     diagnostics.info('session.start', 'Sesión iniciada');
     window.dispatchEvent(new Event('pagehide'));

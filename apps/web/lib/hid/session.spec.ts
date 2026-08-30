@@ -276,8 +276,8 @@ describe('HidCaptureSession — sondeo de formatos', () => {
     const intermediate = results.find((r) => r.format === 2)!;
     expect(png.acquisitionStarted).toBe(true);
     expect(png.qualityReports).toBe(0);
-    expect(png.samples).toBe(0);
-    expect(intermediate.samples).toBe(1);
+    expect(png.sampleCount).toBe(0);
+    expect(intermediate.sampleCount).toBe(1);
     expect(intermediate.qualityReports).toBe(1);
 
     // El sondeo nunca identifica ni enrola con lo que capturó.

@@ -78,7 +78,8 @@ export interface HidFormatProbeResult {
   formatLabel: string;
   acquisitionStarted: boolean;
   qualityReports: number;
-  samples: number;
+  /** Cantidad de muestras entregadas (no la muestra: sólo el conteo). */
+  sampleCount: number;
   errorCodeHex: string | null;
   startError: string | null;
   elapsedMs: number;
@@ -213,7 +214,7 @@ export class HidCaptureSession {
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
   private probe: {
     quality: number;
-    samples: number;
+    sampleCount: number;
     started: boolean;
     errorCode: number | null;
   } | null = null;
@@ -466,7 +467,7 @@ export class HidCaptureSession {
     const results: HidFormatProbeResult[] = [];
     try {
       for (const { format, formatLabel } of PROBE_FORMATS) {
-        this.probe = { quality: 0, samples: 0, started: false, errorCode: null };
+        this.probe = { quality: 0, sampleCount: 0, started: false, errorCode: null };
         const startedAt = Date.now();
         let startError: string | null = null;
         try {
@@ -487,7 +488,7 @@ export class HidCaptureSession {
           formatLabel,
           acquisitionStarted: probe?.started ?? false,
           qualityReports: probe?.quality ?? 0,
-          samples: probe?.samples ?? 0,
+          sampleCount: probe?.sampleCount ?? 0,
           errorCodeHex:
             probe?.errorCode !== null && probe?.errorCode !== undefined
               ? formatHidErrorCode(probe.errorCode)
@@ -496,16 +497,16 @@ export class HidCaptureSession {
           elapsedMs: Date.now() - startedAt,
         };
         results.push(result);
-        this.diagnostics[result.samples > 0 ? 'info' : 'warn'](
+        this.diagnostics[result.sampleCount > 0 ? 'info' : 'warn'](
           'probe.result',
-          `${formatLabel}: ${result.samples} muestra(s), ${result.qualityReports} calidad(es)`,
+          `${formatLabel}: ${result.sampleCount} muestra(s), ${result.qualityReports} calidad(es)`,
           { ...result },
         );
       }
     } finally {
       this.probe = null;
       this.diagnostics.info('probe.stop', 'Sondeo de formatos terminado', {
-        formatsWithSamples: results.filter((r) => r.samples > 0).length,
+        formatsWithSamples: results.filter((r) => r.sampleCount > 0).length,
       });
       // El lector vuelve al formato de producción pase lo que pase.
       if (this.active) await this.arm();
@@ -703,7 +704,7 @@ export class HidCaptureSession {
     this.noteHidActivity();
     if (this.probe) {
       // Sólo se cuenta: la muestra del sondeo no se decodifica ni se guarda.
-      this.probe.samples += 1;
+      this.probe.sampleCount += 1;
       return;
     }
     const receivedAt = Date.now();

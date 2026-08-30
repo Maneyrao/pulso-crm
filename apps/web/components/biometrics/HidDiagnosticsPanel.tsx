@@ -182,7 +182,7 @@ export function HidDiagnosticsPanel({
                   {result.formatLabel} ({result.format})
                 </span>
                 <span className="text-(--color-text)">
-                  {result.samples} muestra(s) · {result.qualityReports} calidad(es)
+                  {result.sampleCount} muestra(s) · {result.qualityReports} calidad(es)
                   {result.errorCodeHex ? ` · error ${result.errorCodeHex}` : ''}
                   {result.startError ? ` · ${result.startError}` : ''}
                 </span>
@@ -190,9 +190,9 @@ export function HidDiagnosticsPanel({
             ))}
           </ul>
           <p className="text-(--text-sm) text-(--color-muted)">
-            {probe.every((result) => result.samples === 0 && result.qualityReports === 0)
+            {probe.every((result) => result.sampleCount === 0 && result.qualityReports === 0)
               ? 'Ningún formato produjo señal: el sensor no está entregando imágenes al cliente HID de esta PC. Es un problema de driver, de otro programa que tomó el lector o del hardware, no del CRM.'
-              : probe.find((result) => result.format === 5)?.samples === 0
+              : probe.find((result) => result.format === 5)?.sampleCount === 0
                 ? 'El lector entrega muestras en otro formato pero no en PngImage: el problema es el formato, no el dispositivo. Pasá este resultado al equipo para cambiar el formato de captura.'
                 : 'El lector entregó muestras en PngImage: la captura funciona a nivel dispositivo.'}
           </p>

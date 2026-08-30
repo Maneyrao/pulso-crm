@@ -32,6 +32,7 @@ export const STAGE_BY_DIAGNOSTIC_TYPE: Record<string, BiometricCaptureStage> = {
   'hid.CommunicationFailed': 'ADC_UNREACHABLE',
   'hid.QualityReported': 'QUALITY_REPORTED',
   'hid.silence': 'ACQUISITION_SILENT',
+  'probe.result': 'FORMAT_PROBE',
   'sample.invalid': 'SAMPLE_INVALID',
   'sample.timeout': 'SAMPLE_TIMEOUT',
   'page.blur': 'PAGE_BLUR',
