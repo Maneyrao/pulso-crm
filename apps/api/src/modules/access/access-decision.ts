@@ -12,19 +12,20 @@ import type { BusinessDate } from '@pulso/config/time';
  *
  * Orden de evaluación (el primero que falla decide — Regla #2):
  *   socio existe → socio activo → tiene membresía → membresía vigente
- *   (no vencida/cancelada) → sede permitida por el plan → quedan clases
- *   (si es pack) → no superó el límite semanal → apto médico vigente →
- *   ya ingresó hoy (DUPLICATE_WINDOW) → OK.
+ *   (no vencida/cancelada) → no tiene deuda → sede permitida por el plan →
+ *   quedan clases (si es pack) → no superó el límite semanal → apto médico
+ *   vigente → ya ingresó hoy (DUPLICATE_WINDOW) → OK.
  *
- * `DEBT_BLOCKED` y `BIOMETRIC_NO_MATCH` existen en el enum de Prisma pero no
- * se evalúan acá: el primero requeriría una política de gimnasio que todavía
- * no existe en el modelo de datos, y el segundo es Etapa 8 (biometría, fuera
- * de alcance — ver `access.service.ts`).
+ * `BIOMETRIC_NO_MATCH` se resuelve antes de llegar acá, porque sin una
+ * coincidencia biométrica todavía no existe un socio sobre el cual evaluar
+ * las reglas de acceso.
  */
 
 export interface MemberSnapshot {
   id: string;
   status: 'ACTIVE' | 'INACTIVE';
+  /** `true` cuando el saldo contable del socio es negativo. */
+  hasOutstandingDebt: boolean;
   /** `null` = el gimnasio no le exige apto médico a este socio. */
   medicalClearanceUntil: BusinessDate | null;
 }
@@ -117,6 +118,10 @@ export function evaluateAccess(snapshot: AccessCheckSnapshot): AccessDecisionRes
     (membership.endDate !== null && membership.endDate < today)
   ) {
     return denied('MEMBERSHIP_EXPIRED', 'La membresía está vencida.');
+  }
+
+  if (member.hasOutstandingDebt) {
+    return denied('DEBT_BLOCKED', 'El socio tiene un saldo pendiente.');
   }
 
   if (plan.allowedBranchIds !== null && !plan.allowedBranchIds.includes(branchId)) {

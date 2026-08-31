@@ -14,6 +14,7 @@ const TODAY = '2026-08-09';
 const member = (over: Partial<MemberSnapshot> = {}): MemberSnapshot => ({
   id: 'member-1',
   status: 'ACTIVE',
+  hasOutstandingDebt: false,
   medicalClearanceUntil: null,
   ...over,
 });
@@ -107,6 +108,18 @@ describe('evaluateAccess — un test por reasonCode', () => {
     );
     expect(result.decision).toBe('ALLOWED');
     expect(result.reasonCode).toBe('OK');
+  });
+
+  it('DEBT_BLOCKED: socio con membresía vigente pero saldo pendiente', () => {
+    const result = evaluateAccess(
+      baseSnapshot({ member: member({ hasOutstandingDebt: true }) }),
+    );
+
+    expect(result).toEqual({
+      decision: 'DENIED',
+      reasonCode: 'DEBT_BLOCKED',
+      detail: expect.any(String),
+    });
   });
 
   it('BRANCH_NOT_ALLOWED: el plan no incluye esta sede', () => {

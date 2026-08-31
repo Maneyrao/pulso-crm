@@ -172,6 +172,7 @@ export class AccessService {
       member: {
         id: member.id,
         status: member.status,
+        hasOutstandingDebt: member.balance.isNegative(),
         medicalClearanceUntil: member.medicalClearanceUntil
           ? dbDateToBusinessDate(member.medicalClearanceUntil)
           : null,

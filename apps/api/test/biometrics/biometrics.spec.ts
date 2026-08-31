@@ -344,6 +344,71 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     });
   });
 
+  it('HID web: reconoce la huella pero deniega el acceso si la cuota está impaga', async () => {
+    const memberId = await createMember(crmA, 'HidConDeuda');
+    await grantConsent(crmA, memberId);
+
+    const plan = await ctx.db.raw.plan.create({
+      data: {
+        gymId: gymA.gym.id,
+        name: `Plan deuda HID ${randomUUID().slice(0, 8)}`,
+        price: '45000.00',
+        billingCycle: 'MONTHLY',
+      },
+    });
+    const now = new Date();
+    await ctx.db.raw.membership.create({
+      data: {
+        gymId: gymA.gym.id,
+        memberId,
+        planId: plan.id,
+        branchId: gymA.branch.id,
+        startDate: new Date(now.getTime() - 5 * 86_400_000),
+        endDate: new Date(now.getTime() + 25 * 86_400_000),
+        pricePaid: '45000.00',
+      },
+    });
+    await ctx.db.raw.member.update({
+      where: { id: memberId },
+      data: { balance: '-45000.00' },
+    });
+
+    const sample = Buffer.from(`png-hid-deuda-${randomUUID()}`).toString('base64');
+    const started = await crmA.post(
+      `/api/v1/members/${memberId}/biometrics/hid-enrollments`,
+      { branchId: gymA.branch.id, fingerPosition: 'RIGHT_INDEX' },
+      { 'idempotency-key': randomUUID() },
+    );
+    expect(started.status).toBe(201);
+    const enrollmentId = (started.body as { enrollmentId: string }).enrollmentId;
+    const completed = await crmA.post(
+      `/api/v1/biometrics/hid-enrollments/${enrollmentId}/complete`,
+      { pngBase64: sample, qualityCode: 0 },
+    );
+    expect(completed.status).toBe(200);
+
+    const identified = await crmA.post(
+      '/api/v1/biometrics/hid-identifications',
+      { branchId: gymA.branch.id, pngBase64: sample, qualityCode: 0 },
+      { 'idempotency-key': randomUUID() },
+    );
+
+    expect(identified.status).toBe(201);
+    expect(identified.body).toMatchObject({
+      decision: 'DENIED',
+      reasonCode: 'DEBT_BLOCKED',
+      member: { id: memberId, firstName: 'HidConDeuda' },
+      attendanceRegistered: false,
+    });
+
+    const attempt = await ctx.db.raw.accessAttempt.findFirst({
+      where: { gymId: gymA.gym.id, memberId, method: 'FINGERPRINT' },
+      orderBy: { occurredAt: 'desc' },
+    });
+    expect(attempt).toMatchObject({ decision: 'DENIED', reasonCode: 'DEBT_BLOCKED' });
+    expect(await ctx.db.raw.attendance.count({ where: { memberId } })).toBe(0);
+  });
+
   it('finger-already-enrolled: el mismo dedo no se enrola dos veces', async () => {
     const memberId = await createMember(crmA, 'DedoDoble');
     await grantConsent(crmA, memberId);
