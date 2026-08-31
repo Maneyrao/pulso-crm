@@ -8,6 +8,7 @@ import { resetHidWebApiForTests } from '@/lib/hid/webapi';
 
 const identifyHid = vi.fn();
 const recordHidCaptureEvents = vi.fn();
+const playAccessTone = vi.fn();
 
 vi.mock('@/lib/api/biometrics', () => ({
   identifyHid: (...args: unknown[]) => identifyHid(...args),
@@ -24,7 +25,8 @@ vi.mock('@/lib/stores/session', () => ({
 }));
 
 vi.mock('@/components/access/access-feedback', () => ({
-  playAccessTone: vi.fn(),
+  installAccessAudioUnlock: () => () => undefined,
+  playAccessTone: (...args: unknown[]) => playAccessTone(...args),
 }));
 
 import { GlobalFingerprintProvider } from './GlobalFingerprintProvider';
@@ -52,6 +54,14 @@ const UNKNOWN: AccessCheckResponse = {
   reasonCode: 'BIOMETRIC_NO_MATCH',
   member: null,
   membership: null,
+  attendanceRegistered: false,
+};
+
+const EXPIRED: AccessCheckResponse = {
+  ...ALLOWED,
+  decision: 'DENIED',
+  reasonCode: 'MEMBERSHIP_EXPIRED',
+  membership: { planName: 'Pase Libre', endDate: '2026-08-20', classesRemaining: null },
   attendanceRegistered: false,
 };
 
@@ -128,5 +138,22 @@ describe('GlobalFingerprintProvider', () => {
     await waitFor(() => expect(identifyHid).toHaveBeenCalledOnce());
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(adc.startCount).toBe(1);
+  });
+
+  it('cuota vencida muestra la denegación y reproduce la alarma fuerte', async () => {
+    identifyHid.mockResolvedValueOnce(EXPIRED);
+    render(
+      <GlobalFingerprintProvider>
+        <main>CRM listo</main>
+      </GlobalFingerprintProvider>,
+    );
+    await waitFor(() => expect(adc.startCount).toBe(1));
+
+    adc.placeFinger();
+
+    expect(await screen.findByRole('dialog', { name: 'Membresía vencida' })).toBeInTheDocument();
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(playAccessTone).toHaveBeenCalledOnce();
+    expect(playAccessTone).toHaveBeenCalledWith('DENIED');
   });
 });

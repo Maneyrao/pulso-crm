@@ -3,6 +3,7 @@
 import * as React from 'react';
 import type { AccessCheckResponse } from '@pulso/contracts/access';
 import { AccessResultOverlay } from '@/components/access/AccessResultOverlay';
+import { installAccessAudioUnlock } from '@/components/access/access-feedback';
 import { identifyHid } from '@/lib/api/biometrics';
 import { usePermission } from '@/lib/auth/permissions';
 import { getHidCaptureSession } from '@/lib/hid/session';
@@ -41,6 +42,8 @@ export function GlobalFingerprintProvider({ children }: { children: React.ReactN
   React.useEffect(() => {
     branchRef.current = branchId;
   }, [branchId]);
+
+  React.useEffect(() => installAccessAudioUnlock(), []);
 
   useHidCaptureReporter(branchId, session);
 

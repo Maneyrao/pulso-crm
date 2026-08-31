@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { z } from 'zod';
 import { loginRequestSchema } from '@pulso/contracts/auth';
 import { Button, FormField, Input } from '@pulso/ui';
+import { installAccessAudioUnlock } from '@/components/access/access-feedback';
 import { login, resolveActiveBranchId } from '@/lib/api/auth';
 import { ApiError } from '@/lib/api/errors';
 import { useSessionStore } from '@/lib/stores/session';
@@ -39,6 +40,10 @@ export function LoginForm() {
   useEffect(() => {
     setFocus('email');
   }, [setFocus]);
+
+  // El click o Enter del login habilita WebAudio para los avisos de acceso que
+  // ocurren luego sin interacción (al apoyar una huella).
+  useEffect(() => installAccessAudioUnlock(), []);
 
   useEffect(() => {
     if (errors.email) setFocus('email');
