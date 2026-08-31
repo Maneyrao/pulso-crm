@@ -5,6 +5,8 @@ import type {
   GetMemberLedgerResponse,
   ListDebtorsQuery,
   ListDebtorsResponse,
+  ListMemberPaymentsQuery,
+  ListMemberPaymentsResponse,
   ListMembersQuery,
   ListMembersResponse,
   Member,
@@ -38,6 +40,13 @@ export function deactivateMember(id: string, payload: DeactivateMemberRequest): 
 
 export function getMemberLedger(id: string): Promise<GetMemberLedgerResponse> {
   return apiFetch<GetMemberLedgerResponse>(`/members/${id}/ledger`);
+}
+
+export function listMemberPayments(
+  id: string,
+  query: ListMemberPaymentsQuery,
+): Promise<ListMemberPaymentsResponse> {
+  return apiFetch<ListMemberPaymentsResponse>(`/members/${id}/payments${toQueryString(query)}`);
 }
 
 export function createLedgerAdjustment(

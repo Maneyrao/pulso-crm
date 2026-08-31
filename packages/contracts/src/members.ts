@@ -224,6 +224,58 @@ export type MemberDetail = z.infer<typeof memberDetailSchema>;
 export const getMemberResponseSchema = memberDetailSchema;
 
 // ─────────────────────────────────────────────────────────────────────────
+// GET /members/:id/payments — historial de cobros del socio
+// ─────────────────────────────────────────────────────────────────────────
+
+export const memberPaymentStatusSchema = z.enum(['VALID', 'REVERSED']);
+export type MemberPaymentStatus = z.infer<typeof memberPaymentStatusSchema>;
+
+export const memberPaymentSchema = z.object({
+  id: uuidSchema,
+  amount: moneySchema,
+  paidOn: businessDateSchema,
+  createdAt: isoInstantSchema,
+  description: z.string().nullable(),
+  status: memberPaymentStatusSchema,
+  reversalReason: z.string().nullable(),
+  paymentMethod: z.object({
+    id: uuidSchema,
+    code: z.string(),
+    name: z.string(),
+  }),
+  concept: z.object({
+    id: uuidSchema,
+    code: z.string(),
+    name: z.string(),
+  }),
+  membership: z
+    .object({
+      id: uuidSchema,
+      planName: z.string(),
+    })
+    .nullable(),
+  registeredBy: z.object({
+    id: uuidSchema,
+    fullName: z.string(),
+  }),
+});
+export type MemberPayment = z.infer<typeof memberPaymentSchema>;
+
+export const listMemberPaymentsQuerySchema = offsetPaginationQuerySchema;
+export type ListMemberPaymentsQuery = z.infer<typeof listMemberPaymentsQuerySchema>;
+
+export const listMemberPaymentsResponseSchema = offsetPaginatedResponseSchema(
+  memberPaymentSchema,
+).extend({
+  summary: z.object({
+    paymentCount: z.number().int().nonnegative(),
+    totalPaid: moneySchema,
+    lastPaymentAt: isoInstantSchema.nullable(),
+  }),
+});
+export type ListMemberPaymentsResponse = z.infer<typeof listMemberPaymentsResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
 // PATCH /members/:id
 // ─────────────────────────────────────────────────────────────────────────
 

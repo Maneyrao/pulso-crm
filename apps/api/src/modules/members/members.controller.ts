@@ -6,6 +6,8 @@ import {
   deactivateMemberRequestSchema,
   type ListDebtorsQuery,
   listDebtorsQuerySchema,
+  type ListMemberPaymentsQuery,
+  listMemberPaymentsQuerySchema,
   type ListMembersQuery,
   listMembersQuerySchema,
   type UpdateMemberRequest,
@@ -72,5 +74,14 @@ export class MembersController {
   @Get(':id/ledger')
   ledger(@ZodParam('id', uuidSchema) id: string) {
     return this.members.getLedger(id);
+  }
+
+  @RequiresPermission('member:read')
+  @Get(':id/payments')
+  payments(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodQuery(listMemberPaymentsQuerySchema) query: ListMemberPaymentsQuery,
+  ) {
+    return this.members.getPayments(id, query);
   }
 }

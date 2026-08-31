@@ -234,6 +234,7 @@ Reglas: no se puede desactivar al último `OWNER` (`409 LAST_OWNER`). No se pued
 | POST | `/members/:id/photo/upload-url` | `member:write` | | devuelve URL prefirmada; valida MIME y máx. 5 MB |
 | POST | `/members/:id/documents/upload-url` | `member:write` | | ídem, máx. 10 MB |
 | GET | `/members/:id/ledger` | `member:read` | | asientos + saldo |
+| GET | `/members/:id/payments` | `member:read` | | historial paginado de cobros: fecha de negocio, importe, medio, concepto, membresía, operador y estado válido/anulado; incluye cantidad, total válido y último pago |
 | POST | `/members/:id/ledger` | `payment:collect` | sí | ajuste manual; exige `reason`; **sólo `ADJUSTMENT`** |
 | GET | `/members/:id/attendances` | `attendance:read` | | |
 | GET | `/members/debtors` | `member:read` | | `balance < 0`, ordenable por antigüedad de deuda |

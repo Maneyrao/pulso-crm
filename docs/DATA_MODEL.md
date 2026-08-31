@@ -322,6 +322,12 @@ Constraints e índices:
 - `index(gymId, branchId, createdAt desc)`, `index(cashSessionId)`, `index(gymId, memberId, createdAt desc)`.
 - Sin `UPDATE` salvo el flag `isReversed` (única excepción, hecha dentro de la transacción de reversa).
 
+El historial de pagos de un socio es una **proyección de `CashMovement`**, no otra
+tabla: toma movimientos `INCOME` con `memberId`, excluye las filas que son una
+reversa y conserva el original con estado anulado cuando `isReversed = true`.
+Así la ficha del socio, la caja y la cuenta corriente consultan el mismo hecho
+financiero y no pueden desincronizarse.
+
 ### `CashOperationRequest` `[MVP]`
 
 Operaciones que requieren aprobación de un rol superior (reversas, egresos sobre umbral).

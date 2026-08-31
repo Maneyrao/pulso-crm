@@ -33,11 +33,13 @@ vi.mock('next/link', () => ({
 
 const getMemberMock = vi.fn();
 const getMemberLedgerMock = vi.fn();
+const listMemberPaymentsMock = vi.fn();
 const updateMemberMock = vi.fn();
 const deactivateMemberMock = vi.fn();
 vi.mock('@/lib/api/members', () => ({
   getMember: (...args: unknown[]) => getMemberMock(...args),
   getMemberLedger: (...args: unknown[]) => getMemberLedgerMock(...args),
+  listMemberPayments: (...args: unknown[]) => listMemberPaymentsMock(...args),
   updateMember: (...args: unknown[]) => updateMemberMock(...args),
   deactivateMember: (...args: unknown[]) => deactivateMemberMock(...args),
 }));
@@ -205,6 +207,7 @@ beforeEach(async () => {
   routerPush.mockReset();
   getMemberMock.mockReset();
   getMemberLedgerMock.mockReset();
+  listMemberPaymentsMock.mockReset();
   updateMemberMock.mockReset();
   deactivateMemberMock.mockReset();
   listMemberMembershipsMock.mockReset();
@@ -213,6 +216,11 @@ beforeEach(async () => {
   listPlansMock.mockReset();
   listBranchesMock.mockReset();
   getMemberLedgerMock.mockResolvedValue({ entries: [], balance: '0.00' });
+  listMemberPaymentsMock.mockResolvedValue({
+    data: [],
+    pageInfo: { page: 1, limit: 25, total: 0, hasMore: false },
+    summary: { paymentCount: 0, totalPaid: '0.00', lastPaymentAt: null },
+  });
   listMemberMembershipsMock.mockResolvedValue({ data: [] });
   listPlansMock.mockResolvedValue({ data: [makePlan()] });
   listBranchesMock.mockResolvedValue({ data: [makeBranch()] });
@@ -243,6 +251,67 @@ describe('MemberDetailPage', () => {
     await waitFor(() =>
       expect(screen.getByText(/Todavía no hay movimientos/i)).toBeInTheDocument(),
     );
+  });
+
+  it('tab Pagos muestra el historial, el medio, quién lo registró y los totales', async () => {
+    await primeSession();
+    getMemberMock.mockResolvedValueOnce(makeMember());
+    listMemberPaymentsMock.mockResolvedValueOnce({
+      data: [
+        {
+          id: '00000000-0000-0000-0000-000000000201',
+          amount: '45000.00',
+          paidOn: '2026-08-10',
+          createdAt: '2026-08-10T18:30:00.000Z',
+          description: 'Cuota agosto',
+          status: 'VALID',
+          reversalReason: null,
+          paymentMethod: {
+            id: '00000000-0000-0000-0000-000000000202',
+            code: 'TRANSFER',
+            name: 'Mercado Pago / Transferencia',
+          },
+          concept: {
+            id: '00000000-0000-0000-0000-000000000203',
+            code: 'MEMBERSHIP_PAYMENT',
+            name: 'Cobro de cuota',
+          },
+          membership: {
+            id: '00000000-0000-0000-0000-000000000204',
+            planName: 'Pase Entrenamiento',
+          },
+          registeredBy: {
+            id: '00000000-0000-0000-0000-000000000205',
+            fullName: 'Ana Recepción',
+          },
+        },
+      ],
+      pageInfo: { page: 1, limit: 25, total: 1, hasMore: false },
+      summary: {
+        paymentCount: 1,
+        totalPaid: '45000.00',
+        lastPaymentAt: '2026-08-10T18:30:00.000Z',
+      },
+    });
+    const user = userEvent.setup();
+    const { default: MemberDetailPage } = await import('./page');
+    render(withQuery(<MemberDetailPage />));
+
+    await waitFor(() => expect(screen.getByText('Pérez, Lucía')).toBeInTheDocument());
+    await user.click(screen.getByRole('tab', { name: /^Pagos$/i }));
+
+    await waitFor(() =>
+      expect(listMemberPaymentsMock).toHaveBeenCalledWith('00000000-0000-0000-0000-000000000abc', {
+        page: 1,
+        limit: 25,
+      }),
+    );
+    expect(await screen.findByText('Pase Entrenamiento')).toBeInTheDocument();
+    expect(screen.getByText('Mercado Pago / Transferencia')).toBeInTheDocument();
+    expect(screen.getByText('Ana Recepción')).toBeInTheDocument();
+    expect(screen.getByText('Registrado')).toBeInTheDocument();
+    expect(screen.getByText('Pagos válidos')).toBeInTheDocument();
+    expect(screen.getAllByText(/45\.000/).length).toBeGreaterThan(0);
   });
 
   it('loading muestra el skeleton mientras la query está en vuelo', async () => {

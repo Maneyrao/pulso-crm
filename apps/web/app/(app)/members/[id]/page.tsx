@@ -9,6 +9,7 @@ import type {
   LedgerEntry,
   LedgerReason,
   MemberDetail,
+  MemberPayment,
   UpdateMemberRequest,
 } from '@pulso/contracts/members';
 import type {
@@ -29,6 +30,7 @@ import {
   Modal,
   MoneyDisplay,
   MoneyInput,
+  Pagination,
   Select,
   Skeleton,
   StatusBadge,
@@ -40,7 +42,13 @@ import {
   useToast,
   type DataTableColumn,
 } from '@pulso/ui';
-import { deactivateMember, getMember, getMemberLedger, updateMember } from '@/lib/api/members';
+import {
+  deactivateMember,
+  getMember,
+  getMemberLedger,
+  listMemberPayments,
+  updateMember,
+} from '@/lib/api/members';
 import { listPlans } from '@/lib/api/catalog';
 import { listBranches } from '@/lib/api/tenancy';
 import { cancelMembership, createMembership, listMemberMemberships } from '@/lib/api/memberships';
@@ -93,6 +101,7 @@ function toEditForm(m: MemberDetail): EditFormState {
 const TAB_PARAM_TO_VALUE: Record<string, string> = {
   cuenta: 'ledger',
   membresias: 'memberships',
+  pagos: 'payments',
 };
 
 function MemberDetailScreen() {
@@ -229,6 +238,7 @@ function MemberDetailScreen() {
         <TabsList>
           <TabsTrigger value="summary">Resumen</TabsTrigger>
           <TabsTrigger value="memberships">Membresías</TabsTrigger>
+          <TabsTrigger value="payments">Pagos</TabsTrigger>
           <TabsTrigger value="ledger">Cuenta corriente</TabsTrigger>
           <TabsTrigger value="biometrics">Biometría</TabsTrigger>
         </TabsList>
@@ -239,6 +249,10 @@ function MemberDetailScreen() {
 
         <TabsContent value="memberships">
           <MembershipsSection memberId={id} gymId={gymId} />
+        </TabsContent>
+
+        <TabsContent value="payments">
+          <PaymentsSection memberId={id} gymId={gymId} />
         </TabsContent>
 
         <TabsContent value="ledger">
@@ -536,6 +550,149 @@ function LedgerSection({ memberId, gymId }: { memberId: string; gymId: string })
         emptyDescription="Cuando el socio genere cargos o pagos van a aparecer acá."
       />
     </div>
+  );
+}
+
+const PAYMENT_PAGE_SIZE = 25;
+
+function PaymentsSection({ memberId, gymId }: { memberId: string; gymId: string }) {
+  const [page, setPage] = React.useState(1);
+  const query = useQuery({
+    queryKey: qk.memberPayments(gymId, memberId, page),
+    queryFn: () => listMemberPayments(memberId, { page, limit: PAYMENT_PAGE_SIZE }),
+    enabled: Boolean(gymId && memberId),
+  });
+
+  const columns: DataTableColumn<MemberPayment>[] = [
+    {
+      id: 'date',
+      header: 'Fecha',
+      cell: (payment) => (
+        <div className="flex flex-col tabular-nums">
+          <span className="text-(--color-text)">
+            {new Date(`${payment.paidOn}T12:00:00`).toLocaleDateString('es-AR')}
+          </span>
+          <span className="text-(--text-xs) text-(--color-muted)">
+            {new Date(payment.createdAt).toLocaleTimeString('es-AR', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'detail',
+      header: 'Detalle',
+      cell: (payment) => (
+        <div className="flex flex-col">
+          <span className="text-(--color-text)">
+            {payment.membership?.planName ?? payment.concept.name}
+          </span>
+          <span className="text-(--text-xs) text-(--color-muted)">
+            {payment.membership
+              ? payment.concept.name
+              : (payment.description ?? 'Cobro registrado')}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: 'method',
+      header: 'Medio',
+      cell: (payment) => payment.paymentMethod.name,
+    },
+    {
+      id: 'operator',
+      header: 'Registró',
+      cell: (payment) => payment.registeredBy.fullName,
+    },
+    {
+      id: 'status',
+      header: 'Estado',
+      cell: (payment) =>
+        payment.status === 'VALID' ? (
+          <StatusBadge tone="success" label="Registrado" />
+        ) : (
+          <div className="flex flex-col gap-1">
+            <StatusBadge tone="danger" label="Anulado" />
+            {payment.reversalReason ? (
+              <span className="max-w-52 text-(--text-xs) text-(--color-muted)">
+                {payment.reversalReason}
+              </span>
+            ) : null}
+          </div>
+        ),
+    },
+    {
+      id: 'amount',
+      header: 'Importe',
+      cell: (payment) => (
+        <span
+          className={payment.status === 'REVERSED' ? 'line-through opacity-60' : 'font-semibold'}
+        >
+          <MoneyDisplay value={payment.amount} />
+        </span>
+      ),
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+    },
+  ];
+
+  const total = query.data?.pageInfo.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAYMENT_PAGE_SIZE));
+
+  return (
+    <div className="flex flex-col gap-4">
+      {query.data ? (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <PaymentSummary label="Pagos válidos" value={String(query.data.summary.paymentCount)} />
+          <PaymentSummary
+            label="Total abonado"
+            value={<MoneyDisplay value={query.data.summary.totalPaid} />}
+          />
+          <PaymentSummary
+            label="Último pago"
+            value={
+              query.data.summary.lastPaymentAt
+                ? new Date(query.data.summary.lastPaymentAt).toLocaleDateString('es-AR')
+                : '—'
+            }
+          />
+        </div>
+      ) : null}
+
+      <DataTable
+        caption="Historial de pagos del socio"
+        columns={columns}
+        data={query.data?.data ?? []}
+        rowKey={(payment) => payment.id}
+        loading={query.isLoading}
+        error={query.isError ? errorMessage(query.error) : undefined}
+        onRetry={() => query.refetch()}
+        emptyTitle="Todavía no hay pagos"
+        emptyDescription="Cuando se registre un cobro asociado a este socio va a aparecer acá."
+      />
+
+      {query.data && total > PAYMENT_PAGE_SIZE ? (
+        <Pagination
+          page={page}
+          pageCount={pageCount}
+          totalItems={total}
+          pageSize={PAYMENT_PAGE_SIZE}
+          onPageChange={setPage}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PaymentSummary({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <Card className="p-4">
+      <p className="text-(--text-xs) uppercase tracking-wide text-(--color-muted)">{label}</p>
+      <div className="mt-1 text-(--text-lg) font-semibold text-(--color-text)">{value}</div>
+    </Card>
   );
 }
 

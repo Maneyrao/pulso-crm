@@ -7,6 +7,8 @@ import type {
   GetMemberLedgerResponse,
   ListDebtorsQuery,
   ListDebtorsResponse,
+  ListMemberPaymentsQuery,
+  ListMemberPaymentsResponse,
   ListMembersQuery,
   ListMembersResponse,
   MemberDetail,
@@ -153,6 +155,12 @@ export class MembersService {
           take: 5,
           include: { plan: { select: { name: true } } },
         },
+        cashMovements: {
+          where: { type: 'INCOME', reversalOfId: null, isReversed: false },
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          include: { paymentMethod: { select: { name: true } } },
+        },
       },
     });
     if (!member) throw AppError.notFound('El socio');
@@ -172,9 +180,12 @@ export class MembersService {
         endDate: toDateOnly(m.endDate),
         classesRemaining: m.classesRemaining,
       })),
-      // Pagos y asistencias los completan los módulos de caja y acceso.
-      // Fuera de este alcance: viajan vacíos hasta que esos módulos existan.
-      recentPayments: [],
+      recentPayments: member.cashMovements.map((payment) => ({
+        id: payment.id,
+        amount: payment.amount.toFixed(2),
+        paymentMethodName: payment.paymentMethod.name,
+        createdAt: payment.createdAt.toISOString(),
+      })),
       recentAttendances: [],
     };
   }
@@ -305,6 +316,87 @@ export class MembersService {
         reversalOfId: e.reversalOfId,
         createdAt: e.createdAt.toISOString(),
       })),
+    };
+  }
+
+  // ── GET /members/:id/payments ────────────────────────────────────────────
+
+  async getPayments(
+    id: string,
+    query: ListMemberPaymentsQuery,
+  ): Promise<ListMemberPaymentsResponse> {
+    const member = await this.prisma.client.member.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!member) throw AppError.notFound('El socio');
+
+    const baseWhere = {
+      memberId: id,
+      type: 'INCOME' as const,
+      reversalOfId: null,
+    };
+    const skip = (query.page - 1) * query.limit;
+
+    const [rows, total, validSummary, lastPayment] = await Promise.all([
+      this.prisma.client.cashMovement.findMany({
+        where: baseWhere,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take: query.limit,
+        include: {
+          cashSession: { select: { businessDate: true } },
+          paymentMethod: { select: { id: true, code: true, name: true } },
+          cashConcept: { select: { id: true, code: true, name: true } },
+          membership: {
+            select: { id: true, plan: { select: { name: true } } },
+          },
+          createdBy: { select: { id: true, firstName: true, lastName: true } },
+        },
+      }),
+      this.prisma.client.cashMovement.count({ where: baseWhere }),
+      this.prisma.client.cashMovement.aggregate({
+        where: { ...baseWhere, isReversed: false },
+        _count: { _all: true },
+        _sum: { amount: true },
+      }),
+      this.prisma.client.cashMovement.findFirst({
+        where: { ...baseWhere, isReversed: false },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { createdAt: true },
+      }),
+    ]);
+
+    return {
+      data: rows.map((payment) => ({
+        id: payment.id,
+        amount: payment.amount.toFixed(2),
+        paidOn: toDateOnly(payment.cashSession.businessDate),
+        createdAt: payment.createdAt.toISOString(),
+        description: payment.description,
+        status: payment.isReversed ? ('REVERSED' as const) : ('VALID' as const),
+        reversalReason: payment.reversalReason,
+        paymentMethod: payment.paymentMethod,
+        concept: payment.cashConcept,
+        membership: payment.membership
+          ? { id: payment.membership.id, planName: payment.membership.plan.name }
+          : null,
+        registeredBy: {
+          id: payment.createdBy.id,
+          fullName: `${payment.createdBy.firstName} ${payment.createdBy.lastName}`.trim(),
+        },
+      })),
+      pageInfo: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        hasMore: skip + rows.length < total,
+      },
+      summary: {
+        paymentCount: validSummary._count._all,
+        totalPaid: validSummary._sum.amount?.toFixed(2) ?? '0.00',
+        lastPaymentAt: lastPayment?.createdAt.toISOString() ?? null,
+      },
     };
   }
 

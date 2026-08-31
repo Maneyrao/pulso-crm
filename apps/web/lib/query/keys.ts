@@ -10,6 +10,8 @@ export const qk = {
     ['members', gymId, branchId, filters] as const,
   member: (gymId: string, id: string) => ['member', gymId, id] as const,
   memberLedger: (gymId: string, id: string) => ['member-ledger', gymId, id] as const,
+  memberPayments: (gymId: string, id: string, page: number) =>
+    ['member-payments', gymId, id, page] as const,
   memberAttendances: (gymId: string, id: string) => ['member-attendances', gymId, id] as const,
   memberMemberships: (gymId: string, memberId: string) =>
     ['member-memberships', gymId, memberId] as const,
