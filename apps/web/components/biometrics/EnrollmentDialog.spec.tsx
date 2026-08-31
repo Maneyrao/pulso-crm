@@ -74,6 +74,45 @@ afterEach(async () => {
 });
 
 describe('EnrollmentDialog', () => {
+  it('montado cerrado no detiene la adquisición continua del CRM', async () => {
+    const session = getHidCaptureSession();
+    await session.start({ mode: 'continuous', onSample: async () => ({ kind: 'granted' }) });
+    await waitFor(() => expect(adc.acquiring.size).toBe(1));
+    const stopsBefore = adc.stopCount;
+
+    const { rerender, unmount } = render(
+      <EnrollmentDialog
+        open={false}
+        onOpenChange={vi.fn()}
+        memberId={MEMBER_ID}
+        branchId={BRANCH_ID}
+      />,
+    );
+
+    rerender(
+      <EnrollmentDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        memberId={MEMBER_ID}
+        branchId={BRANCH_ID}
+      />,
+    );
+    rerender(
+      <EnrollmentDialog
+        open={false}
+        onOpenChange={vi.fn()}
+        memberId={MEMBER_ID}
+        branchId={BRANCH_ID}
+      />,
+    );
+    unmount();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(session.isActive()).toBe(true);
+    expect(adc.acquiring.size).toBe(1);
+    expect(adc.stopCount).toBe(stopsBefore);
+  });
+
   it('pide las muestras que exige el backend, muestra el progreso y confirma la credencial', async () => {
     const onEnrolled = vi.fn();
     renderDialog({ onEnrolled });

@@ -80,6 +80,8 @@ export function EnrollmentDialog({
   const [credential, setCredential] = React.useState<CredentialSummary | null>(null);
   const [showDiagnostics, setShowDiagnostics] = React.useState(false);
   const cancelled = React.useRef(false);
+  const openRef = React.useRef(open);
+  const ownsFingerprintRuntime = React.useRef(false);
   const busy = phase === 'preparing' || phase === 'capturing' || phase === 'saving';
 
   const reset = React.useCallback(() => {
@@ -90,22 +92,32 @@ export function EnrollmentDialog({
   }, []);
 
   React.useEffect(() => {
+    openRef.current = open;
     if (open) reset();
   }, [open, reset]);
 
-  // El lector nunca queda tomado por un modal cerrado.
+  const releaseFingerprintRuntime = React.useCallback(async () => {
+    if (!ownsFingerprintRuntime.current) return;
+    ownsFingerprintRuntime.current = false;
+    await session.stop();
+    fingerprintRuntime.resume();
+  }, [fingerprintRuntime, session]);
+
+  // Un modal cerrado nunca toca la adquisición global. Sólo libera el lector
+  // si esta instancia realmente lo tomó para un enrolamiento manual.
   React.useEffect(() => {
     if (open) return undefined;
-    void session.stop();
+    cancelled.current = true;
+    void releaseFingerprintRuntime();
     return undefined;
-  }, [open, session]);
+  }, [open, releaseFingerprintRuntime]);
 
-  React.useEffect(
-    () => () => {
-      void session.stop();
-    },
-    [session],
-  );
+  React.useEffect(() => {
+    return () => {
+      cancelled.current = true;
+      void releaseFingerprintRuntime();
+    };
+  }, [releaseFingerprintRuntime]);
 
   const handleClose = (next: boolean) => {
     if (!next && busy) return;
@@ -116,7 +128,7 @@ export function EnrollmentDialog({
   /** Salida del operador durante la espera: sin esto el modal queda trabado. */
   const cancel = () => {
     cancelled.current = true;
-    void session.stop();
+    void releaseFingerprintRuntime();
   };
 
   const capture = async () => {
@@ -126,6 +138,8 @@ export function EnrollmentDialog({
     setPhase('preparing');
     try {
       await fingerprintRuntime.suspend();
+      ownsFingerprintRuntime.current = true;
+      if (cancelled.current || !openRef.current) return;
       const enrollment = await startHidEnrollment(
         memberId,
         { branchId, fingerPosition: finger as 'RIGHT_INDEX' },
@@ -182,8 +196,7 @@ export function EnrollmentDialog({
       );
       setPhase('failed');
     } finally {
-      await session.stop();
-      fingerprintRuntime.resume();
+      await releaseFingerprintRuntime();
     }
   };
 
