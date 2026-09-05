@@ -117,6 +117,22 @@ describe('vencimiento de membresías', () => {
     expect(first.membershipsExpired).toBe(1);
     expect(second.membershipsExpired).toBe(0);
   });
+
+  it('no aplica el dia de otra sede del mismo gimnasio', async () => {
+    const west = await db.raw.branch.create({
+      data: {
+        gymId,
+        name: 'Sede oeste',
+        timezone: 'Pacific/Honolulu',
+      },
+    });
+    const m = await createMembership('2026-02-05', { branchId: west.id });
+    // Buenos Aires ya esta en el 6; Honolulu sigue en el 5.
+    await expireMemberships({ prisma: db.raw, logger, now: new Date('2026-02-06T04:00:00Z') });
+    expect((await db.raw.membership.findUniqueOrThrow({ where: { id: m.id } })).status).toBe(
+      'ACTIVE',
+    );
+  });
 });
 
 describe('envío de mensajes', () => {

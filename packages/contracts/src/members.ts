@@ -97,6 +97,12 @@ const memberActiveMembershipSummarySchema = z.object({
   classesRemaining: z.number().int().nullable(),
 });
 
+/** Último período conocido, incluso si ya venció. */
+const memberLatestMembershipSummarySchema = memberActiveMembershipSummarySchema.extend({
+  status: z.enum(['ACTIVE', 'EXPIRED', 'CANCELLED', 'SUSPENDED']),
+  startDate: businessDateSchema,
+});
+
 export const memberListItemSchema = z.object({
   id: uuidSchema,
   memberNumber: z.number().int(),
@@ -108,6 +114,8 @@ export const memberListItemSchema = z.object({
   status: memberStatusSchema,
   branch: z.object({ id: uuidSchema, name: z.string() }).nullable(),
   activeMembership: memberActiveMembershipSummarySchema.nullable(),
+  /** Permite distinguir "período vencido" de "cuenta saldada" en el listado. */
+  latestMembership: memberLatestMembershipSummarySchema.nullable().optional(),
   balance: moneySchema,
   /** URL prefirmada, TTL 5 minutos. */
   photoUrl: z.string().url().nullable(),

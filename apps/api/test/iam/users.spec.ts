@@ -291,6 +291,68 @@ describe('desactivar invalida la sesión', () => {
   });
 });
 
+describe('DELETE /users/:id — eliminación lógica', () => {
+  it('oculta al usuario del listado, revoca su sesión y conserva la fila auditada', async () => {
+    const owner = await loginAs('OWNER');
+    const receptionistRoleId = await roleId('RECEPTIONIST');
+    const created = await owner.post('/api/v1/users', {
+      email: 'usuario-a-eliminar@iam-users-gym.test',
+      firstName: 'Usuario',
+      lastName: 'Eliminar',
+      roleIds: [receptionistRoleId],
+      branchIds: [],
+    });
+    const userId = (created.body as { user: { id: string } }).user.id;
+    const password = (created.body as { temporaryPassword: string }).temporaryPassword;
+
+    const targetSession = new TestClient(ctx.baseUrl);
+    expect(
+      (
+        await targetSession.post('/api/v1/auth/login', {
+          email: 'usuario-a-eliminar@iam-users-gym.test',
+          password,
+        })
+      ).status,
+    ).toBe(200);
+
+    const removed = await owner.del(`/api/v1/users/${userId}`);
+    expect(removed.status).toBe(200);
+    expect((removed.body as { status: string }).status).toBe('INACTIVE');
+
+    const stored = await ctx.db.raw.user.findUniqueOrThrow({ where: { id: userId } });
+    expect(stored.deletedAt).not.toBeNull();
+    expect(stored.status).toBe('INACTIVE');
+
+    const listed = await owner.get('/api/v1/users');
+    const ids = (listed.body as { data: Array<{ id: string }> }).data.map((user) => user.id);
+    expect(ids).not.toContain(userId);
+    expect((await targetSession.post('/api/v1/auth/refresh')).status).toBe(401);
+  });
+
+  it('no permite eliminar al último Owner activo', async () => {
+    const owner = await loginAs('OWNER');
+
+    // Otros casos de este archivo crean Owners para probar edición. Se los
+    // elimina primero para que este escenario mida realmente al último activo.
+    const activeOwners = await ctx.db.raw.user.findMany({
+      where: {
+        gymId: gym.gym.id,
+        id: { not: gym.users['OWNER']!.id },
+        status: 'ACTIVE',
+        deletedAt: null,
+        roleAssignments: { some: { role: { code: 'OWNER' } } },
+      },
+    });
+    for (const activeOwner of activeOwners) {
+      expect((await owner.del(`/api/v1/users/${activeOwner.id}`)).status).toBe(200);
+    }
+
+    const removed = await owner.del(`/api/v1/users/${gym.users['OWNER']!.id}`);
+    expect(removed.status).toBe(409);
+    expect((removed.body as { code: string }).code).toBe('LAST_OWNER');
+  });
+});
+
 describe('matriz de permisos (TEST_STRATEGY §4.2)', () => {
   it('INSTRUCTOR no puede leer ni escribir usuarios', async () => {
     const instructor = await loginAs('INSTRUCTOR');

@@ -58,12 +58,12 @@ export function FormField({
         'aria-invalid': error ? true : undefined,
       })}
       {hint ? (
-        <p id={hintId} className="text-(--text-sm) text-(--color-muted)">
+        <p id={hintId} className="text-(length:--text-sm) text-(--color-muted)">
           {hint}
         </p>
       ) : null}
       {error ? (
-        <p id={errorId} role="alert" className="text-(--text-sm) text-(--color-danger)">
+        <p id={errorId} role="alert" className="text-(length:--text-sm) text-(--color-danger)">
           {error}
         </p>
       ) : null}

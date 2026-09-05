@@ -165,7 +165,9 @@ describe('time', () => {
   });
 
   it('calcula el vencimiento de la membresía contando el día de inicio', () => {
-    expect(membershipEndDate('2026-01-01', 'MONTHLY')).toBe('2026-01-30');
+    // Nuevo requisito: MONTHLY usa calendario, no 30 dias ni durationDays.
+    expect(membershipEndDate('2026-01-01', 'MONTHLY')).toBe('2026-01-31');
+    expect(membershipEndDate('2026-01-01', 'MONTHLY', 30)).toBe('2026-01-31');
     expect(membershipEndDate('2026-01-01', 'ANNUAL')).toBe('2026-12-31');
     expect(membershipEndDate('2026-01-01', 'CLASS_PACK')).toBeNull();
   });

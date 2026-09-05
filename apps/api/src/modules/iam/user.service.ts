@@ -257,6 +257,45 @@ export class UserService {
     });
   }
 
+  /** Eliminación lógica: desaparece del CRM sin romper auditoría ni historial. */
+  async remove(id: string): Promise<User> {
+    const existing = await this.findActiveOrThrow(id);
+    const ctx = TenantContextStore.require();
+    const deletedAt = new Date();
+
+    const removed = await this.prisma.client.$transaction(async (tx) => {
+      await this.lockOwnerRole(tx, ctx.gymId);
+      await this.assertNotLastOwnerTx(
+        tx,
+        id,
+        'No se puede eliminar al último Owner activo del gimnasio.',
+      );
+
+      const row = await tx.user.update({
+        where: { id },
+        data: { status: 'INACTIVE', deletedAt },
+      });
+      await tx.refreshToken.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: deletedAt, revokedReason: 'USER_DELETED' },
+      });
+      await this.audit.recordIn(tx, {
+        action: 'USER_DELETED',
+        resourceType: 'User',
+        resourceId: id,
+        before: { status: existing.status, deletedAt: existing.deletedAt },
+        after: { status: row.status, deletedAt },
+      });
+      return row;
+    });
+
+    return serializeUser({
+      ...removed,
+      roleAssignments: existing.roleAssignments,
+      branchAccess: existing.branchAccess,
+    });
+  }
+
   /** `POST /users/:id/reset-password` — nunca acepta la password del cliente. */
   async resetPassword(id: string): Promise<ResetPasswordResponse> {
     await this.findActiveOrThrow(id);

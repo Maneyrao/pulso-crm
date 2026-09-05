@@ -359,17 +359,34 @@ export type DaybookResponse = z.infer<typeof daybookResponseSchema>;
 // POST /members/:id/pay-debt, POST /members/:id/refund
 // ─────────────────────────────────────────────────────────────────────────
 
-/** `payment:collect`, Idem. `422 AMOUNT_EXCEEDS_DEBT` salvo `allowOverpay`. */
-export const payDebtRequestSchema = z.object({
-  amount: moneySchema,
-  paymentMethodId: uuidSchema,
-  detail: z.string().optional(),
-  allowOverpay: z.boolean().default(false),
+export const memberPaymentQuoteQuerySchema = z.object({ paymentMethodId: uuidSchema.optional() });
+export const memberPaymentQuoteSchema = z.object({
+  balance: moneySchema,
+  ledgerVersion: uuidSchema.nullable(),
+  debt: moneySchema,
+  surcharge: moneySchema,
+  total: moneySchema,
+  lines: z.array(z.object({
+    membershipId: uuidSchema.nullable(),
+    label: z.string(),
+    startDate: businessDateSchema.nullable(),
+    endDate: businessDateSchema.nullable(),
+    amount: moneySchema,
+    surcharge: moneySchema,
+  })),
 });
+export type MemberPaymentQuote = z.infer<typeof memberPaymentQuoteSchema>;
+
+/** Full settlement only. The server recalculates and rejects a stale quote. */
+export const payDebtRequestSchema = z.object({
+  paymentMethodId: uuidSchema,
+  expectedTotal: moneySchema,
+  ledgerVersion: uuidSchema.nullable(),
+}).strict();
 export type PayDebtRequest = z.infer<typeof payDebtRequestSchema>;
 
 export const payDebtResponseSchema = z.object({
-  cashMovement: cashMovementSchema,
+  cashMovements: z.array(cashMovementSchema),
   balance: moneySchema,
 });
 export type PayDebtResponse = z.infer<typeof payDebtResponseSchema>;

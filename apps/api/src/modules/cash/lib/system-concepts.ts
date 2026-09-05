@@ -1,4 +1,4 @@
-import type { Prisma } from '@pulso/db';
+import type { Prisma, PulsoTransactionClient } from '@pulso/db';
 import { SYSTEM_CASH_CONCEPTS } from '../cash.constants.js';
 
 interface ConceptReader {
@@ -19,7 +19,7 @@ interface ConceptReader {
  * vez, uno choca contra `unique(gymId, code)` y simplemente relee.
  */
 export async function ensureSystemConcept(
-  db: ConceptReader | Prisma.TransactionClient,
+  db: ConceptReader | Prisma.TransactionClient | PulsoTransactionClient,
   key: keyof typeof SYSTEM_CASH_CONCEPTS,
 ): Promise<{ id: string }> {
   const spec = SYSTEM_CASH_CONCEPTS[key];

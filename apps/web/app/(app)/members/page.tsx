@@ -18,7 +18,7 @@ import {
   type DataTableColumn,
   type StatusTone,
 } from '@pulso/ui';
-import { Download, Users } from 'lucide-react';
+import { Banknote, Download, Users } from 'lucide-react';
 import { useToast } from '@pulso/ui';
 import { listMembers } from '@/lib/api/members';
 import { ApiError } from '@/lib/api/errors';
@@ -29,6 +29,7 @@ import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
 import { useMemberFilters } from '@/lib/hooks/useMemberFilters';
 import { MemberFiltersBar } from '@/components/members/MemberFiltersBar';
+import { MemberPaymentDialog } from '@/components/members/MemberPaymentDialog';
 
 const PAGE_SIZE = 25;
 /** Tope del export CSV: 10 páginas de API (el límite del contrato es 100 por página). */
@@ -54,10 +55,9 @@ export default function MembersPage() {
  * Estado visible del socio (columna "Estado"): se deriva de campos reales de
  * `MemberListItem` — nunca se inventa un dato que la API no manda.
  *
- * - "Vencido" sólo se muestra cuando el filtro activo es `membershipStatus=EXPIRED`:
- *   la API no expone la membresía vencida en el ítem de listado (sólo trae
- *   `activeMembership` cuando hay una membresía ACTIVE), pero el hecho de que
- *   la fila esté en ese resultado ya lo garantiza por construcción del filtro.
+ * - "Vencido" describe el período de la membresía, no el saldo de la cuenta.
+ *   Un período puede estar vencido y completamente saldado: son dos hechos
+ *   distintos y la tabla los muestra en columnas separadas.
  * - "En deuda" usa el signo real del ledger: saldo NEGATIVO = deuda (el
  *   backend filtra `hasDebt` con `balance < 0`; ver `members.service.ts`).
  *   Ojo: esto corrige una inversión de signo que tenía esta pantalla antes.
@@ -66,7 +66,15 @@ function memberStatusTag(
   member: MemberListItem,
   expiredSegmentActive: boolean,
 ): { tone: StatusTone; label: string } {
-  if (expiredSegmentActive) return { tone: 'danger', label: 'Vencido' };
+  if (member.latestMembership?.status === 'EXPIRED' || expiredSegmentActive) {
+    return { tone: 'danger', label: 'Vencido' };
+  }
+  if (member.latestMembership?.status === 'SUSPENDED') {
+    return { tone: 'warning', label: 'Suspendido' };
+  }
+  if (member.latestMembership?.status === 'CANCELLED') {
+    return { tone: 'neutral', label: 'Cancelado' };
+  }
   if (Number(member.balance) < 0) return { tone: 'warning', label: 'En deuda' };
   if (member.status === 'ACTIVE') return { tone: 'success', label: 'Activo' };
   return { tone: 'neutral', label: 'Inactivo' };
@@ -74,10 +82,10 @@ function memberStatusTag(
 
 function MembersScreen() {
   const gymId = useSessionStore((s) => s.gym?.id ?? '');
-  const branchId = useSessionStore((s) => s.activeBranchId);
   const { filters, isFiltered, update, setPage, clearFilters } = useMemberFilters();
 
   const [exporting, setExporting] = React.useState(false);
+  const [payingMember, setPayingMember] = React.useState<MemberListItem | null>(null);
   const { toast } = useToast();
 
   /**
@@ -100,7 +108,6 @@ function MembersScreen() {
           hasDebt: filters.hasDebt || undefined,
           page,
           limit: 100,
-          branchId: branchId ?? undefined,
         });
         rows.push(...res.data);
         total = res.pageInfo.total;
@@ -108,7 +115,7 @@ function MembersScreen() {
         page += 1;
       }
       const csv = toCsv(
-        ['N°', 'Apellido', 'Nombre', 'Documento', 'Plan', 'Vence', 'Estado', 'Deuda'],
+        ['N°', 'Apellido', 'Nombre', 'Documento', 'Plan', 'Vence', 'Sede', 'Estado', 'Cuenta'],
         rows
           .slice(0, EXPORT_MAX_ROWS)
           .map((m) => [
@@ -116,9 +123,14 @@ function MembersScreen() {
             m.lastName,
             m.firstName,
             m.documentMasked,
-            m.activeMembership?.planName ?? '',
-            m.activeMembership?.endDate ?? '',
-            m.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
+            m.latestMembership?.planName ?? m.activeMembership?.planName ?? '',
+            m.latestMembership?.endDate ?? m.activeMembership?.endDate ?? '',
+            m.branch?.name ?? '',
+            m.latestMembership?.status === 'EXPIRED'
+              ? 'Vencido'
+              : m.status === 'ACTIVE'
+                ? 'Activo'
+                : 'Inactivo',
             m.balance,
           ]),
       );
@@ -150,13 +162,14 @@ function MembersScreen() {
       hasDebt: filters.hasDebt || undefined,
       page: filters.page,
       limit: PAGE_SIZE,
-      branchId: branchId ?? undefined,
     }),
-    [filters, branchId],
+    [filters],
   );
 
   const query = useQuery({
-    queryKey: qk.members(gymId, branchId, queryFilters),
+    // El padrón de socios es del gimnasio completo. Las vistas operativas de
+    // caja y deuda sí siguen la sede activa.
+    queryKey: qk.members(gymId, null, queryFilters),
     queryFn: () => listMembers(queryFilters),
     enabled: Boolean(gymId),
   });
@@ -190,16 +203,23 @@ function MembersScreen() {
       id: 'plan',
       header: 'Plan',
       cell: (m) =>
-        m.activeMembership?.planName ?? <span className="text-(--color-muted)">Sin plan</span>,
+        (m.latestMembership?.planName ?? m.activeMembership?.planName) ?? (
+          <span className="text-(--color-muted)">Sin plan</span>
+        ),
     },
     {
       id: 'endDate',
       header: 'Vence',
       cell: (m) => (
         <span className="tabular-nums text-(--color-muted)">
-          {m.activeMembership?.endDate ?? '—'}
+          {m.latestMembership?.endDate ?? m.activeMembership?.endDate ?? '—'}
         </span>
       ),
+    },
+    {
+      id: 'branch',
+      header: 'Sede',
+      cell: (m) => m.branch?.name ?? <span className="text-(--color-muted)">Sin sede</span>,
     },
     {
       id: 'status',
@@ -211,20 +231,35 @@ function MembersScreen() {
     },
     {
       id: 'balance',
-      header: 'Deuda',
+      header: 'Cuenta',
       cell: (m) =>
         Number(m.balance) < 0 ? (
           <MoneyDisplay value={m.balance} emphasizeNegative />
         ) : (
-          <span className="text-(--color-muted)">—</span>
+          Number(m.balance) > 0 ? (
+            <span>Saldo a favor: <MoneyDisplay value={m.balance} /></span>
+          ) : m.latestMembership?.status === 'EXPIRED' ? (
+            <span className="text-(--color-success)" title="El período venció, pero no tiene saldo pendiente">
+              Cuota saldada
+            </span>
+          ) : (
+            <span className="text-(--color-success)">Al día</span>
+          )
         ),
       headerClassName: 'text-right',
       cellClassName: 'text-right',
+    },
+    {
+      id: 'payment', header: 'Pago',
+      cell: (member) => Number(member.balance) < 0 ? <PermissionGate permission="cash:operate"><PermissionGate permission="cash:read"><PermissionGate permission="payment:collect">
+        <Button size="sm" onClick={() => setPayingMember(member)}><Banknote className="h-4 w-4" aria-hidden />Pagar</Button>
+      </PermissionGate></PermissionGate></PermissionGate> : <Button asChild size="sm" variant="ghost"><Link href={`/members/${member.id}?tab=pagos`}>Ver pagos</Link></Button>,
     },
   ];
 
   return (
     <div className="flex flex-col gap-6">
+      {payingMember && <MemberPaymentDialog key={payingMember.id} member={payingMember} onClose={() => setPayingMember(null)} />}
       <PageHeader
         icon={Users}
         title="Socios"

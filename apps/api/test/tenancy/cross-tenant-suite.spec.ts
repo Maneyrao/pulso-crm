@@ -59,9 +59,9 @@ function send(client: TestClient, method: string, url: string, body?: unknown) {
     case 'GET':
       return client.get(url);
     case 'POST':
-      return client.post(url, body);
+      return client.post(url, body, { 'idempotency-key': randomUUID() });
     case 'PATCH':
-      return client.patch(url, body);
+      return client.patch(url, body, { 'Idempotency-Key': randomUUID() });
     case 'DELETE':
       return client.del(url);
     default:
@@ -71,6 +71,11 @@ function send(client: TestClient, method: string, url: string, body?: unknown) {
 
 /** Un body válido y mínimo para no chocar con la validación Zod antes de llegar al service. */
 function bodyFor(route: DiscoveredRoute): Record<string, unknown> | undefined {
+  if (route.path === '/api/v1/inventory/sales/:id/reverse') return { reason: 'Venta anulada en prueba' };
+  if (route.path === '/api/v1/memberships/:id/renewal') return { autoRenew: false };
+  if (route.path.endsWith('/pay-debt')) {
+    return { paymentMethodId: randomUUID(), expectedTotal: '0.00', ledgerVersion: null };
+  }
   // Todos los `updateXRequestSchema` de tenancy/iam/cash-config son `.partial()`
   // (verificado en packages/contracts y en los schemas locales de cash):
   // un body vacío pasa la validación y llega hasta la búsqueda por id.
@@ -265,7 +270,13 @@ describe('recursos creados por POST quedan scoped al gimnasio del caller', () =>
 
       expect([200, 201]).toContain(res.status);
       const extract = fixture.extractGymId ?? ((b: unknown) => (b as { gymId?: string })?.gymId);
-      expect(extract(res.body)).toBe(gymB.gym.id);
+      if (route.path.startsWith('/api/v1/inventory/')) {
+        // Inventory serializers omit gymId; verify the tenant on the persisted row instead.
+        const stored = await fixture.readRaw(ctx.db.raw, (res.body as { id: string }).id);
+        expect((stored as { gymId: string }).gymId).toBe(gymB.gym.id);
+      } else {
+        expect(extract(res.body)).toBe(gymB.gym.id);
+      }
     });
   }
 });

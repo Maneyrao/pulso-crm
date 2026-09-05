@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { cn } from '@pulso/ui';
 import { BrandLogo } from '@/components/brand/BrandLogo';
 import { useSessionStore } from '@/lib/stores/session';
@@ -21,7 +21,7 @@ interface VisibleGroup extends Omit<NavGroup, 'items'> {
 }
 
 /**
- * Grupos planos, sin acordeón (LEODARROSAFIT_ALIGNMENT_PLAN.md §2 y §4):
+ * Segmentos desplegables:
  * cada ítem sin permiso simplemente no se renderiza; un grupo cuyos ítems
  * quedaron todos filtrados tampoco se renderiza.
  */
@@ -108,27 +108,39 @@ export interface SidebarNavProps {
 export function SidebarNav({ onNavigate, collapsed = false }: SidebarNavProps) {
   const groups = useVisibleGroups();
   const activeHref = useActiveHref(groups);
+  const activeGroup = groups.find((g) => g.items.some((item) => item.href === activeHref))?.id;
+  const [openGroup, setOpenGroup] = React.useState<string | undefined>(activeGroup);
+  const navId = React.useId();
+
+  React.useEffect(() => { setOpenGroup(activeGroup); }, [activeGroup, activeHref]);
 
   return (
     <nav aria-label="Navegación principal" className="flex flex-1 flex-col overflow-y-auto py-2">
       {groups.map((group) => (
         <React.Fragment key={group.id}>
-          <div className={cn('pt-3.5 pb-1', collapsed ? 'px-1' : 'px-3.5')}>
-            {!collapsed ? (
-              <div className="text-[10px] font-bold uppercase text-[#a79c8c]">{group.label}</div>
-            ) : (
-              <div aria-hidden={true} className="h-0.5 bg-[#302a22]" />
-            )}
+          <button
+            type="button"
+            title={group.label}
+            aria-label={group.label}
+            aria-expanded={openGroup === group.id}
+            aria-controls={`${navId}-${group.id}`}
+            onClick={() => setOpenGroup(openGroup === group.id ? undefined : group.id)}
+            className="flex min-h-11 shrink-0 items-center justify-between gap-2 px-3 text-left text-xs font-bold text-[#f2ece1] hover:bg-[#302a22] focus-visible:outline-2 focus-visible:outline-white"
+          >
+            <span>{collapsed ? computeAbbr(group.label) : group.label}</span>
+            {!collapsed && <ChevronDown aria-hidden className={cn('h-4 w-4 transition-transform duration-150 motion-reduce:transition-none', openGroup === group.id && 'rotate-180')} />}
+          </button>
+          <div id={`${navId}-${group.id}`} hidden={openGroup !== group.id}>
+            {group.items.map((item) => (
+              <SidebarLink
+                key={item.href}
+                item={item}
+                collapsed={collapsed}
+                active={activeHref === item.href}
+                onNavigate={onNavigate}
+              />
+            ))}
           </div>
-          {group.items.map((item) => (
-            <SidebarLink
-              key={item.href}
-              item={item}
-              collapsed={collapsed}
-              active={activeHref === item.href}
-              onNavigate={onNavigate}
-            />
-          ))}
         </React.Fragment>
       ))}
     </nav>

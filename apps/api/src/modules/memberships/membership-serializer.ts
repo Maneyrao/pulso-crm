@@ -23,6 +23,10 @@ export interface MembershipDto {
   status: PrismaMembership['status'];
   startDate: string;
   endDate: string | null;
+  autoRenew: boolean;
+  renewalAnchorDay: number | null;
+  nextRenewalDate: string | null;
+  renewedFromId: string | null;
   pricePaid: PrismaMembership['pricePaid'];
   classesIncluded: number | null;
   classesRemaining: number | null;
@@ -42,6 +46,10 @@ export function serializeMembership(m: PrismaMembership): MembershipDto {
     status: m.status,
     startDate: toDateOnly(m.startDate),
     endDate: toDateOnly(m.endDate),
+    autoRenew: m.autoRenew,
+    renewalAnchorDay: m.renewalAnchorDay,
+    nextRenewalDate: toDateOnly(m.nextRenewalDate),
+    renewedFromId: m.renewedFromId,
     pricePaid: m.pricePaid,
     classesIncluded: m.classesIncluded,
     classesRemaining: m.classesRemaining,

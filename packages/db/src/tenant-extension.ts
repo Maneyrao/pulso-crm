@@ -52,6 +52,12 @@ export const TENANT_SCOPED_MODELS = [
   'AgentAuditEvent',
   'DeviceToken',
   'TenantBiometricKey',
+  'InventoryProduct',
+  'InventoryStock',
+  'InventorySale',
+  'InventorySaleItem',
+  'InventoryStockMovement',
+  'InventoryOperation',
 ] as const;
 
 /** Modelos deliberadamente globales: no tienen gymId y no deben filtrarse. */

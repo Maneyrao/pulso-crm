@@ -3,429 +3,150 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { LayoutDashboard } from 'lucide-react';
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  EmptyState,
-  MoneyDisplay,
-  Skeleton,
-} from '@pulso/ui';
+import { ArrowRight, DoorOpen, LayoutDashboard, Package, RefreshCw, UserPlus, Wallet } from 'lucide-react';
+import { Button, EmptyState, MoneyDisplay, Skeleton } from '@pulso/ui';
 import { subMoney, sumMoney } from '@pulso/config/money';
+import { DEFAULT_TIMEZONE, toBusinessDate } from '@pulso/config/time';
 import { listAccessAttempts, listAttendances } from '@/lib/api/access';
-import { getCurrentCashSession, getDaybook, listCashConcepts } from '@/lib/api/cash';
+import { getCurrentCashSession, getDaybook, listPaymentMethods } from '@/lib/api/cash';
 import { listDebtors } from '@/lib/api/members';
 import { getDashboard } from '@/lib/api/reporting';
 import { usePermission } from '@/lib/auth/permissions';
 import { ACCESS_REASON_CONFIG } from '@/components/access/reason-config';
-import { HourlyAttendanceChart } from '@/components/shared/HourlyAttendanceChart';
 import { KpiCard } from '@/components/dashboard/KpiCard';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
+import { paymentMethodLabel } from '../cash/payment-options';
 
-const TODAY_ATTENDANCE_LIMIT = 100;
+const REFRESH_MS = 60_000;
 
 export default function DashboardPage() {
   const gymId = useSessionStore((s) => s.gym?.id ?? '');
   const branchId = useSessionStore((s) => s.activeBranchId);
-  const branchName = useSessionStore(
-    (s) => s.branches.find((b) => b.id === s.activeBranchId)?.name,
-  );
+  const branch = useSessionStore((s) => s.branches.find((b) => b.id === s.activeBranchId));
+  const timezone = branch?.timezone ?? DEFAULT_TIMEZONE;
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const tick = () => { if (document.visibilityState !== 'hidden') setNow(new Date()); };
+    const timer = window.setInterval(tick, REFRESH_MS);
+    document.addEventListener('visibilitychange', tick);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', tick); };
+  }, []);
+  const today = toBusinessDate(now, timezone);
 
   const canReadStats = usePermission('stats:read');
   const canReadMembers = usePermission('member:read');
+  const canCollect = usePermission('payment:collect');
   const canWriteMembers = usePermission('member:write');
   const canReadAttendance = usePermission('attendance:read');
   const canReadAccessHistory = usePermission('access:read_history');
+  const canOperateAccess = usePermission('access:operate');
   const canReadCash = usePermission('cash:read');
+  const canReadProducts = usePermission('product:read');
+  const refreshOptions = { refetchInterval: REFRESH_MS, refetchIntervalInBackground: false };
 
-  const today = React.useMemo(() => toIsoDate(new Date()), []);
-
-  const dashboard = useQuery({
-    queryKey: qk.dashboard(gymId, branchId),
-    queryFn: getDashboard,
-    enabled: canReadStats,
+  const dashboard = useQuery({ queryKey: qk.dashboard(gymId, branchId), queryFn: getDashboard, enabled: canReadStats, ...refreshOptions });
+  const cashSession = useQuery({ queryKey: qk.cashSession(gymId, branchId), queryFn: getCurrentCashSession, enabled: canReadCash, ...refreshOptions });
+  const attendanceFilters = { from: today, to: today, page: 1, limit: 1 };
+  const attendances = useQuery({
+    queryKey: qk.attendances(gymId, branchId, attendanceFilters),
+    queryFn: () => listAttendances({ ...attendanceFilters, branchId: branchId ?? undefined }),
+    enabled: canReadAttendance, ...refreshOptions,
   });
-
-  const cashSession = useQuery({
-    queryKey: qk.cashSession(gymId, branchId),
-    queryFn: getCurrentCashSession,
-    enabled: canReadCash,
+  const attempts = useQuery({
+    queryKey: qk.accessAttempts(gymId, branchId, { from: today, to: today, limit: 5 }),
+    queryFn: () => listAccessAttempts(branchId, 5, { from: today, to: today }),
+    enabled: canReadAccessHistory, ...refreshOptions,
   });
-
-  const todayAttendances = useQuery({
-    queryKey: qk.attendances(gymId, branchId, {
-      from: today,
-      to: today,
-      page: 1,
-      limit: TODAY_ATTENDANCE_LIMIT,
-    }),
-    queryFn: () =>
-      listAttendances({
-        branchId: branchId ?? undefined,
-        from: today,
-        to: today,
-        page: 1,
-        limit: TODAY_ATTENDANCE_LIMIT,
-      }),
-    enabled: canReadAttendance,
-  });
-
-  const accessAttempts = useQuery({
-    queryKey: qk.accessAttempts(gymId, branchId, { limit: 5 }),
-    queryFn: () => listAccessAttempts(branchId, 5),
-    enabled: canReadAccessHistory,
-  });
-
   const debtors = useQuery({
     queryKey: qk.debtors(gymId, branchId, { limit: 4, sort: 'balance', order: 'asc' }),
-    // Saldos deudores son negativos: balance:asc = más negativo primero =
-    // "mayor deuda primero" (misma semántica que /members/debt).
-    queryFn: () =>
-      listDebtors({ limit: 4, sort: 'balance', order: 'asc', branchId: branchId ?? undefined }),
-    enabled: canReadMembers,
+    queryFn: () => listDebtors({ limit: 4, sort: 'balance', order: 'asc', branchId: branchId ?? undefined }),
+    enabled: canReadMembers, ...refreshOptions,
   });
-
   const daybook = useQuery({
     queryKey: qk.daybook(gymId, branchId, today, today),
     queryFn: () => getDaybook({ from: today, to: today, ...(branchId ? { branchId } : {}) }),
-    enabled: canReadCash,
+    enabled: canReadCash, ...refreshOptions,
   });
-
-  const cashConcepts = useQuery({
-    queryKey: qk.cashConcepts(gymId),
-    queryFn: listCashConcepts,
-    enabled: canReadCash,
-  });
-
-  const cajaSuffix =
-    canReadCash && cashSession.isSuccess
-      ? cashSession.data
-        ? ` · caja abierta desde ${formatTime(cashSession.data.openedAt)}`
-        : ' · caja cerrada'
-      : '';
+  const methods = useQuery({ queryKey: qk.paymentMethods(gymId), queryFn: listPaymentMethods, enabled: canReadCash });
+  const queries = [dashboard, cashSession, attendances, attempts, debtors, daybook, methods];
+  const enabled = [canReadStats, canReadCash, canReadAttendance, canReadAccessHistory, canReadMembers, canReadCash, canReadCash];
+  const refresh = () => { setNow(new Date()); queries.forEach((query, index) => { if (enabled[index]) void query.refetch(); }); };
+  const suffix = canReadCash && cashSession.isSuccess ? cashSession.data ? ` · caja abierta desde ${formatTime(cashSession.data.openedAt, timezone)}` : ' · caja cerrada' : '';
+  const totals = daybook.data?.data.find((day) => day.businessDate === today)?.totalsByMethod ?? [];
+  const methodNames = new Map(methods.data?.data.map((method) => [method.id, paymentMethodLabel(method)]));
+  const attendanceQuery = canReadAttendance ? attendances : dashboard;
+  const attendanceCount = canReadAttendance ? attendances.data?.pageInfo.total : dashboard.data?.todayAttendances;
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader
-        icon={LayoutDashboard}
-        title="Dashboard"
-        description={branchName ? `${branchName}${cajaSuffix}` : undefined}
-        className="mb-0"
-      />
+      <PageHeader icon={LayoutDashboard} title="Dashboard" description={branch ? `${branch.name}${suffix}` : undefined}
+        actions={<Button variant="outline" aria-label="Actualizar dashboard" title="Actualizar dashboard" onClick={refresh} disabled={!enabled.some(Boolean) || queries.some((q) => q.isFetching)}><RefreshCw className="h-4 w-4" aria-hidden /></Button>} />
+      <nav aria-label="Acciones del día" className="flex flex-wrap gap-2">
+        {canOperateAccess && <Button asChild><Link href="/access"><DoorOpen className="h-4 w-4" aria-hidden />Registrar ingreso</Link></Button>}
+        {canReadMembers && <Button asChild variant="outline"><Link href="/members">{canCollect ? 'Buscar socio / cobrar' : 'Buscar socio'}</Link></Button>}
+        {canWriteMembers && <Button asChild variant="outline"><Link href="/members/new"><UserPlus className="h-4 w-4" aria-hidden />Nuevo socio</Link></Button>}
+        {canReadCash && <Button asChild variant="outline"><Link href="/cash"><Wallet className="h-4 w-4" aria-hidden />Ir a caja</Link></Button>}
+        {canReadProducts && <Button asChild variant="outline"><Link href="/inventory"><Package className="h-4 w-4" aria-hidden />Inventario</Link></Button>}
+      </nav>
 
-      {canReadStats ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {dashboard.isLoading ? (
-            <>
-              <KpiCard title="Ingresos hoy" loading />
-              <KpiCard title="Asistencias hoy" loading />
-              <KpiCard title="Deuda total" loading />
-              <KpiCard title="Membresías por vencer (7 días)" loading />
-            </>
-          ) : dashboard.isError ? (
-            <>
-              <KpiCard title="Ingresos hoy" error="No pudimos cargar este dato." />
-              <KpiCard title="Asistencias hoy" error="No pudimos cargar este dato." />
-              <KpiCard title="Deuda total" error="No pudimos cargar este dato." />
-              <KpiCard
-                title="Membresías por vencer (7 días)"
-                error="No pudimos cargar este dato."
-              />
-            </>
-          ) : dashboard.data ? (
-            <>
-              <KpiCard
-                title="Ingresos hoy"
-                value={<MoneyDisplay value={dashboard.data.todayIncome} />}
-              />
-              <KpiCard title="Asistencias hoy" value={dashboard.data.todayAttendances} />
-              <KpiCard
-                title="Deuda total"
-                value={<MoneyDisplay value={dashboard.data.totalDebt} emphasizeNegative />}
-              />
-              <KpiCard
-                title="Membresías por vencer (7 días)"
-                value={dashboard.data.expiringMembershipsNext7Days}
-              />
-            </>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[repeat(auto-fit,minmax(340px,1fr))]">
-        {canReadAttendance ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Afluencia por hora · hoy</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <HourlyAttendanceChart
-                attendances={todayAttendances.data?.data ?? []}
-                loading={todayAttendances.isLoading}
-              />
-              {todayAttendances.isError ? (
-                <p role="alert" className="mt-2 text-(--text-sm) text-(--color-danger)">
-                  No pudimos cargar las asistencias de hoy.
-                </p>
-              ) : null}
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {canReadAccessHistory ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Últimos accesos</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {accessAttempts.isLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="h-9 w-full" />
-                  <Skeleton className="h-9 w-full" />
-                </div>
-              ) : accessAttempts.isError ? (
-                <p role="alert" className="text-(--text-sm) text-(--color-danger)">
-                  No pudimos cargar los últimos accesos.
-                </p>
-              ) : accessAttempts.data && accessAttempts.data.data.length > 0 ? (
-                <ul>
-                  {accessAttempts.data.data.map((attempt) => {
-                    const config = ACCESS_REASON_CONFIG[attempt.reasonCode];
-                    const allowed = attempt.decision === 'ALLOWED';
-                    return (
-                      <li
-                        key={attempt.id}
-                        className="flex items-center gap-3 border-b border-(--color-border) py-2.5 last:border-0"
-                      >
-                        <span
-                          aria-hidden={true}
-                          className={`h-2.5 w-2.5 shrink-0 rounded-(--radius-full) ${
-                            allowed ? 'bg-(--color-access-allowed)' : 'bg-(--color-access-denied)'
-                          }`}
-                        />
-                        <span className="sr-only">{allowed ? 'Permitido' : 'Denegado'}</span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-bold text-(--color-text)">
-                            {attempt.rawInputMasked ?? config.title}
-                          </p>
-                          <p className="truncate text-(--text-xs) text-(--color-muted)">
-                            {config.title}
-                          </p>
-                        </div>
-                        <span className="shrink-0 text-(--text-xs) tabular-nums text-(--color-muted)">
-                          {formatTime(attempt.occurredAt)}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="py-4 text-center text-(--text-sm) text-(--color-muted)">
-                  Todavía no hay accesos.
-                </p>
-              )}
-              <div className="mt-3">
-                <Link
-                  href="/access"
-                  className="text-(--text-sm) font-medium text-(--color-primary) hover:underline"
-                >
-                  Ver acceso →
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {canReadMembers ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Deudores</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {debtors.isLoading ? (
-                <div className="space-y-2">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
-              ) : debtors.isError ? (
-                <p role="alert" className="text-(--text-sm) text-(--color-danger)">
-                  No pudimos cargar este dato.
-                </p>
-              ) : debtors.data && debtors.data.data.length > 0 ? (
-                <ul className="divide-y divide-(--color-border)">
-                  {debtors.data.data.map((d) => (
-                    <li key={d.id}>
-                      <Link
-                        href={`/members/${d.id}?tab=cuenta`}
-                        className="flex items-center justify-between gap-3 py-2 transition-colors hover:bg-(--color-muted-subtle)"
-                      >
-                        <span className="min-w-0 truncate text-(--text-sm) text-(--color-text)">
-                          {d.lastName}, {d.firstName}
-                        </span>
-                        <MoneyDisplay value={d.balance} emphasizeNegative />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="py-4 text-center text-(--text-sm) text-(--color-muted)">
-                  Nadie debe nada. Excelente cobranza.
-                </p>
-              )}
-              <div className="mt-3">
-                <Link
-                  href="/members/debt"
-                  className="text-(--text-sm) font-medium text-(--color-primary) hover:underline"
-                >
-                  Deudores →
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
-
-        {canReadCash ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Caja hoy</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CajaHoySummary
-                loading={daybook.isLoading || cashConcepts.isLoading}
-                error={daybook.isError}
-                movements={
-                  daybook.data?.data.find((d) => d.businessDate === today)?.movements ?? []
-                }
-                concepts={cashConcepts.data?.data ?? []}
-              />
-              <div className="mt-4 flex flex-wrap gap-2">
-                {canWriteMembers ? (
-                  <Button asChild size="sm">
-                    <Link href="/members/new">+ Nuevo socio</Link>
-                  </Button>
-                ) : null}
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/cash">Registrar movimiento</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ) : null}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {(canReadAttendance || canReadStats) && <KpiCard title="Asistencias hoy" loading={attendanceQuery.isLoading} error={attendanceQuery.isError ? 'No pudimos cargar este dato.' : undefined} value={attendanceCount} />}
+        {canReadMembers && <KpiCard title="Socios con saldo pendiente" loading={debtors.isLoading} error={debtors.isError ? 'No pudimos cargar este dato.' : undefined} value={debtors.data?.pageInfo.total} />}
+        {canReadStats && <KpiCard title="Membresías por vencer (7 días)" loading={dashboard.isLoading} error={dashboard.isError ? 'No pudimos cargar este dato.' : undefined} value={dashboard.data?.expiringMembershipsNext7Days} />}
+        {canReadCash && <KpiCard title="Ingresos registrados hoy" loading={daybook.isLoading} error={daybook.isError ? 'No pudimos cargar este dato.' : undefined} value={daybook.isSuccess ? <MoneyDisplay value={sumMoney(totals.map((total) => total.income))} /> : undefined} />}
       </div>
 
-      {!canReadMembers &&
-      !canReadStats &&
-      !canReadAttendance &&
-      !canReadAccessHistory &&
-      !canReadCash ? (
-        <EmptyState
-          title="Sin indicadores para mostrar"
-          description="Tu usuario no tiene permisos para ver indicadores en esta pantalla."
-        />
-      ) : null}
+      {canReadCash && <Section title="Caja por medio · hoy">
+        {daybook.isLoading || methods.isLoading ? <Skeleton className="h-28 w-full" /> : daybook.isError || methods.isError ? <LoadError onRetry={() => { void daybook.refetch(); void methods.refetch(); }} /> : totals.length === 0 ? <p>Todavía no hay movimientos hoy.</p> : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <caption className="mb-2 text-left text-xs text-(--color-muted)">Día de apertura {today}. Importes con correcciones incluidas.</caption>
+              <thead><tr><th scope="col" className="py-2">Medio</th><th scope="col" className="p-2 text-right">Ingresos</th><th scope="col" className="p-2 text-right">Salidas</th><th scope="col" className="p-2 text-right">Neto</th></tr></thead>
+              <tbody>{totals.map((total) => <tr key={total.paymentMethodId} className="border-t border-(--color-border)">
+                <th scope="row" className="py-3 font-medium">{methodNames.get(total.paymentMethodId) ?? 'Medio no disponible'}</th>
+                <td className="p-2 text-right"><MoneyDisplay value={total.income} /></td>
+                <td className="p-2 text-right"><MoneyDisplay value={total.expense} /></td>
+                <td className="p-2 text-right"><MoneyDisplay value={subMoney(total.income, total.expense)} emphasizeNegative /></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        )}
+        <Link className="inline-flex items-center gap-1 py-2 text-sm text-(--color-primary) hover:underline" href="/cash/daybook">Libro diario<ArrowRight className="h-4 w-4" aria-hidden /></Link>
+        {cashSession.isError && <p role="alert" className="text-sm text-(--color-danger)">No se pudo verificar si la caja está abierta.</p>}
+      </Section>}
+
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
+        {canReadAccessHistory && <Section title="Últimos accesos de hoy">
+          {attempts.isLoading ? <Skeleton className="h-32 w-full" /> : attempts.isError ? <LoadError onRetry={() => void attempts.refetch()} /> : attempts.data?.data.length ? <ul className="divide-y divide-(--color-border)">
+            {attempts.data.data.map((attempt) => <li key={attempt.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+              <div className="min-w-0"><p className="break-words font-semibold">{attempt.rawInputMasked ?? 'Acceso registrado'}</p><p className="text-(--color-muted)">{attempt.decision === 'ALLOWED' ? 'Permitido' : 'Denegado'} · {ACCESS_REASON_CONFIG[attempt.reasonCode].title}</p></div>
+              <time className="shrink-0 tabular-nums" dateTime={attempt.occurredAt}>{formatTime(attempt.occurredAt, timezone)}</time>
+            </li>)}
+          </ul> : <p>Todavía no hay accesos hoy.</p>}
+          {canOperateAccess && <Link href="/access" className="inline-flex py-2 text-sm text-(--color-primary) hover:underline">Ver acceso</Link>}
+        </Section>}
+        {canReadMembers && <Section title="Saldos pendientes">
+          {debtors.isLoading ? <Skeleton className="h-32 w-full" /> : debtors.isError ? <LoadError onRetry={() => void debtors.refetch()} /> : debtors.data?.data.length ? <ul className="divide-y divide-(--color-border)">
+            {debtors.data.data.map((member) => <li key={member.id}><Link href={`/members/${member.id}?tab=cuenta`} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm transition-colors duration-150 hover:bg-(--color-muted-subtle) motion-reduce:transition-none"><span>{member.lastName}, {member.firstName}</span><MoneyDisplay value={member.balance} emphasizeNegative /></Link></li>)}
+          </ul> : <p>Sin saldos pendientes registrados.</p>}
+          <Link href="/members/debt" className="inline-flex py-2 text-sm text-(--color-primary) hover:underline">Ver deudores</Link>
+        </Section>}
+      </div>
+      {!enabled.some(Boolean) && <EmptyState title="Sin indicadores para mostrar" description="Tu usuario no tiene permisos para ver indicadores en esta pantalla." />}
     </div>
   );
 }
 
-interface CajaMovementLike {
-  cashConceptId: string;
-  type: 'INCOME' | 'EXPENSE';
-  amount: string;
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section aria-label={title} className="min-w-0 border-t border-(--color-border) pt-4"><h2 className="mb-3 text-lg font-semibold">{title}</h2>{children}</section>;
 }
 
-interface CajaHoySummaryProps {
-  loading: boolean;
-  error: boolean;
-  movements: readonly CajaMovementLike[];
-  concepts: readonly { id: string; name: string }[];
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return <div className="flex flex-wrap items-center gap-3"><p role="alert">No pudimos cargar estos datos.</p><Button variant="outline" size="sm" onClick={onRetry}>Reintentar</Button></div>;
 }
 
-/** Resumen de caja de hoy: movimientos agrupados por concepto, netos de INCOME/EXPENSE. */
-function CajaHoySummary({ loading, error, movements, concepts }: CajaHoySummaryProps) {
-  if (loading) {
-    return (
-      <div className="space-y-2">
-        <Skeleton className="h-6 w-full" />
-        <Skeleton className="h-6 w-full" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <p role="alert" className="text-(--text-sm) text-(--color-danger)">
-        No pudimos cargar la caja de hoy.
-      </p>
-    );
-  }
-
-  if (movements.length === 0) {
-    return (
-      <p className="py-2 text-(--text-sm) text-(--color-muted)">Todavía no hay movimientos hoy.</p>
-    );
-  }
-
-  const conceptById = new Map(concepts.map((c) => [c.id, c.name]));
-  const byConcept = new Map<string, { income: string[]; expense: string[] }>();
-  for (const m of movements) {
-    const bucket = byConcept.get(m.cashConceptId) ?? { income: [], expense: [] };
-    if (m.type === 'INCOME') bucket.income.push(m.amount);
-    else bucket.expense.push(m.amount);
-    byConcept.set(m.cashConceptId, bucket);
-  }
-
-  return (
-    <table className="w-full border-collapse text-(--text-sm)">
-      <thead>
-        <tr className="border-b border-(--color-border)">
-          <th
-            scope="col"
-            className="px-0 py-1.5 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)"
-          >
-            Concepto
-          </th>
-          <th
-            scope="col"
-            className="px-0 py-1.5 text-right text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)"
-          >
-            Monto
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {Array.from(byConcept.entries()).map(([conceptId, bucket]) => {
-          const net = subMoney(sumMoney(bucket.income), sumMoney(bucket.expense));
-          return (
-            <tr key={conceptId} className="border-b border-(--color-border) last:border-0">
-              <td className="px-0 py-1.5 text-(--color-text)">
-                {conceptById.get(conceptId) ?? conceptId.slice(0, 8)}
-              </td>
-              <td className="px-0 py-1.5 text-right">
-                <MoneyDisplay value={net} emphasizeNegative />
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-function toIsoDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function formatTime(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+function formatTime(iso: string, timeZone: string): string {
+  return new Date(iso).toLocaleTimeString('es-AR', { timeZone, hour: '2-digit', minute: '2-digit' });
 }

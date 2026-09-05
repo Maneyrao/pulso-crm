@@ -30,6 +30,10 @@ export const membershipSchema = z.object({
   status: membershipStatusSchema,
   startDate: businessDateSchema,
   endDate: businessDateSchema.nullable(),
+  autoRenew: z.boolean(),
+  renewalAnchorDay: z.number().int().min(1).max(31).nullable(),
+  nextRenewalDate: businessDateSchema.nullable(),
+  renewedFromId: uuidSchema.nullable(),
   /** Precio congelado al momento de asignar. Cambiar el plan no reescribe la historia. */
   pricePaid: moneySchema,
   classesIncluded: z.number().int().nullable(),
@@ -83,8 +87,10 @@ export const createMembershipRequestSchema = z.object({
   planId: uuidSchema,
   branchId: uuidSchema,
   startDate: businessDateSchema,
-  /** Reemplaza `Plan.price` para esta membresía puntual (descuentos, becas). */
+  /** Compatibilidad: solo se acepta si coincide con Plan.price; no permite descuentos. */
   priceOverride: moneySchema.optional(),
+  /** Opt-in explicito, solo MONTHLY. Omitido equivale a false. */
+  autoRenew: z.boolean().optional(),
   charge: membershipChargeSchema,
 });
 export type CreateMembershipRequest = z.infer<typeof createMembershipRequestSchema>;
@@ -116,3 +122,14 @@ export const cancelMembershipRequestSchema = z.object({
 export type CancelMembershipRequest = z.infer<typeof cancelMembershipRequestSchema>;
 
 export const cancelMembershipResponseSchema = membershipSchema;
+
+/** POST /memberships/:id/renewal; membership:write + Idempotency-Key. No cobra. */
+export const configureMembershipRenewalRequestSchema = z
+  .object({
+    autoRenew: z.boolean(),
+  })
+  .strict();
+export type ConfigureMembershipRenewalRequest = z.infer<
+  typeof configureMembershipRenewalRequestSchema
+>;
+export const configureMembershipRenewalResponseSchema = membershipSchema;

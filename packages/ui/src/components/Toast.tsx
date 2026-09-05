@@ -139,7 +139,7 @@ function ToastItem({
       role={tone === 'danger' || tone === 'warning' ? 'alert' : 'status'}
       aria-live={tone === 'danger' ? 'assertive' : 'polite'}
       className={cn(
-        'pointer-events-auto flex items-start gap-2 rounded-(--radius-md) border p-3 text-(--text-sm) shadow-(--shadow-md)',
+        'pointer-events-auto flex items-start gap-2 rounded-(--radius-md) border p-3 text-(length:--text-sm) shadow-(--shadow-md)',
         TONE_CLASS[tone],
       )}
     >

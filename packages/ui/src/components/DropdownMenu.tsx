@@ -34,7 +34,7 @@ export const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'flex cursor-pointer select-none items-center rounded-(--radius-sm) px-2 py-1.5 text-(--text-sm) text-(--color-text) outline-none',
+      'flex cursor-pointer select-none items-center rounded-(--radius-sm) px-2 py-1.5 text-(length:--text-sm) text-(--color-text) outline-none',
       'data-[highlighted]:bg-(--color-primary-subtle) data-[highlighted]:text-(--color-primary-subtle-foreground)',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,
@@ -52,7 +52,7 @@ export const DropdownMenuCheckboxItem = React.forwardRef<
     ref={ref}
     checked={checked}
     className={cn(
-      'relative flex cursor-pointer select-none items-center rounded-(--radius-sm) py-1.5 pl-7 pr-2 text-(--text-sm) text-(--color-text) outline-none',
+      'relative flex cursor-pointer select-none items-center rounded-(--radius-sm) py-1.5 pl-7 pr-2 text-(length:--text-sm) text-(--color-text) outline-none',
       'data-[highlighted]:bg-(--color-primary-subtle) data-[highlighted]:text-(--color-primary-subtle-foreground)',
       className,
     )}
@@ -75,7 +75,7 @@ export const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center rounded-(--radius-sm) py-1.5 pl-7 pr-2 text-(--text-sm) text-(--color-text) outline-none',
+      'relative flex cursor-pointer select-none items-center rounded-(--radius-sm) py-1.5 pl-7 pr-2 text-(length:--text-sm) text-(--color-text) outline-none',
       'data-[highlighted]:bg-(--color-primary-subtle) data-[highlighted]:text-(--color-primary-subtle-foreground)',
       className,
     )}
@@ -97,7 +97,7 @@ export const DropdownMenuLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Label
     ref={ref}
-    className={cn('px-2 py-1.5 text-(--text-xs) font-medium text-(--color-muted)', className)}
+    className={cn('px-2 py-1.5 text-(length:--text-xs) font-medium text-(--color-muted)', className)}
     {...props}
   />
 ));
@@ -122,7 +122,7 @@ export const DropdownMenuSubTrigger = React.forwardRef<
   <DropdownMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
-      'flex cursor-pointer select-none items-center justify-between rounded-(--radius-sm) px-2 py-1.5 text-(--text-sm) text-(--color-text) outline-none',
+      'flex cursor-pointer select-none items-center justify-between rounded-(--radius-sm) px-2 py-1.5 text-(length:--text-sm) text-(--color-text) outline-none',
       'data-[highlighted]:bg-(--color-primary-subtle) data-[highlighted]:text-(--color-primary-subtle-foreground)',
       className,
     )}

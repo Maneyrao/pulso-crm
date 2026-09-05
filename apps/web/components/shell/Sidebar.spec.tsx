@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as NavItemsModule from './nav-items';
 
@@ -10,9 +10,7 @@ import type * as NavItemsModule from './nav-items';
  * nivel es exclusivamente "no revelar QUÉ existe" — el back sigue
  * rechazando cualquier request sin permiso aunque el UI se cuele.
  *
- * A diferencia del sidebar anterior (grupos colapsables tipo acordeón), el
- * shell de la referencia usa grupos planos: todos los ítems permitidos están
- * siempre visibles bajo el label de su grupo, sin click para revelarlos.
+ * El segmento activo se abre al entrar; los demás se despliegan al pulsar.
  *
  * Tests: filtrado por permiso (ítem y grupo entero), filtrado por feature, y
  * estado activo por match más largo (/members/debt activa "Deudores", no
@@ -68,17 +66,23 @@ describe('Sidebar — filtrado por permiso y feature', () => {
     render(<Sidebar />);
     expect(screen.getByLabelText('El Templo')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Sistema' }));
     expect(screen.getByRole('link', { name: /Mi cuenta/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Socios$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Caja$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Acceso/i })).not.toBeInTheDocument();
   });
 
-  it('con member:read aparece el grupo Socios y sus hojas permitidas, sin necesidad de abrirlo', async () => {
+  it('despliega Socios al pulsar y cierra el segmento anterior', async () => {
     await setSession(['member:read']);
     const { Sidebar } = await import('./Sidebar');
     render(<Sidebar />);
-    expect(screen.getByText('Socios', { selector: 'div' })).toBeInTheDocument();
+    const toggle = screen.getByRole('button', { name: 'Socios' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('link', { name: /Deudores/i })).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.queryByRole('link', { name: /Dashboard/i })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /^Socios$/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Deudores/i })).toBeInTheDocument();
     // Sin member:write no se revela "Nuevo socio"; sin attendance:read no "Asistencias".
@@ -90,7 +94,7 @@ describe('Sidebar — filtrado por permiso y feature', () => {
     await setSession(['member:read']); // nada de user:read
     const { Sidebar } = await import('./Sidebar');
     render(<Sidebar />);
-    expect(screen.queryByText('Staff', { selector: 'div' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Staff' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Usuarios/i })).not.toBeInTheDocument();
   });
 
@@ -107,7 +111,8 @@ describe('Sidebar — filtrado por permiso y feature', () => {
     const { Sidebar } = await import('./Sidebar');
     render(<Sidebar />);
     for (const group of NAV_GROUPS) {
-      expect(screen.getByText(group.label, { selector: 'div' })).toBeInTheDocument();
+      const toggle = screen.getByRole('button', { name: group.label });
+      if (toggle.getAttribute('aria-expanded') !== 'true') fireEvent.click(toggle);
       for (const item of group.items) {
         expect(
           screen.getByRole('link', { name: new RegExp(`^${item.label}$`, 'i') }),

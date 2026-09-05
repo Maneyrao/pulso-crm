@@ -33,6 +33,10 @@ export function deactivateUser(id: string): Promise<User> {
   return apiFetch<User>(`/users/${id}/deactivate`, { method: 'POST' });
 }
 
+export function deleteUser(id: string): Promise<User> {
+  return apiFetch<User>(`/users/${id}`, { method: 'DELETE' });
+}
+
 export function resetUserPassword(id: string): Promise<ResetPasswordResponse> {
   return apiFetch<ResetPasswordResponse>(`/users/${id}/reset-password`, { method: 'POST' });
 }

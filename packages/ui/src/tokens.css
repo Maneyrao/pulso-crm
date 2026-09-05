@@ -19,11 +19,11 @@
 
 @theme {
   /* ---- Motion operacional (nombres lf* de la referencia) ---- */
-  --animate-fade-in: lfFadeIn 200ms ease-out;
-  --animate-page-in: lfFadeIn 250ms ease-out;
+  --animate-fade-in: lfFadeIn 150ms ease-out;
+  --animate-page-in: lfFadeIn 150ms ease-out;
   --animate-shimmer: lfShimmer 1.1s linear infinite;
-  --animate-lf-scale-in: lfScaleIn 200ms ease-out;
-  --animate-lf-pulse: lfPulse 2.4s ease-in-out infinite;
+  --animate-lf-scale-in: lfScaleIn 150ms ease-out;
+  --animate-lf-pulse: none;
 
   @keyframes lfShimmer {
     0% {
@@ -36,11 +36,9 @@
   @keyframes lfFadeIn {
     from {
       opacity: 0;
-      transform: translateY(4px);
     }
     to {
       opacity: 1;
-      transform: none;
     }
   }
   @keyframes lfScaleIn {
@@ -188,7 +186,7 @@
   --color-warning-subtle: #fbeed7;
   --color-warning-subtle-foreground: #7a4600;
 
-  --color-danger: #ec3013;
+  --color-danger: #c62e18;
   --color-danger-foreground: #fdf5f3;
   --color-danger-subtle: #fff2ef;
   --color-danger-subtle-foreground: #7c1405;

@@ -17,7 +17,6 @@ import { postLedgerEntry } from '../members/ledger.js';
 import { serializeCashMovement, type CashMovementDto } from './lib/cash-serializer.js';
 import { assertPositiveMoney } from './lib/money.helper.js';
 import { translateCashConstraintError } from './lib/pg-errors.js';
-import { requireOpenSessionForUser } from './lib/session-lookup.js';
 import { runSerializable } from './lib/tx.helper.js';
 
 export type CreateCashMovementResult =
@@ -96,7 +95,16 @@ export class CashMovementService {
     assertPositiveMoney(input.amount);
     const ctx = TenantContextStore.require();
 
-    const session = await requireOpenSessionForUser(this.prisma.client, ctx.userId);
+    // Keep this read local instead of passing the heavily extended Prisma
+    // client through the structural helper; this avoids an excessive generic
+    // instantiation after the inventory models are generated.
+    const session = await this.prisma.client.cashSession.findFirst({
+      where: { openedByUserId: ctx.userId, status: 'OPEN' },
+      select: { id: true, branchId: true },
+    });
+    if (!session) {
+      throw AppError.conflict(ErrorCode.NO_OPEN_CASH_SESSION, 'No tenés una caja abierta. Abrí una antes de cobrar.');
+    }
 
     try {
       const result = await runSerializable(this.prisma.client, async (tx) => {
@@ -269,6 +277,7 @@ export class CashMovementService {
             memberId: relocked.memberId,
             type: relocked.type === 'INCOME' ? 'DEBIT' : 'CREDIT',
             reason: 'REVERSAL',
+            membershipId: relocked.membershipId,
             amount: relocked.amount,
             description: `Reversa: ${input.reason}`,
             cashMovementId: reversal.id,

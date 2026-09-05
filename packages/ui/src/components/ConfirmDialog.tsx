@@ -70,11 +70,11 @@ export function ConfirmDialog({
           }}
         >
           <header className="shrink-0 px-4 pt-4 sm:px-6 sm:pt-6">
-            <DialogPrimitive.Title className="text-(--text-lg) font-semibold text-(--color-text)">
+            <DialogPrimitive.Title className="text-(length:--text-lg) font-semibold text-(--color-text)">
               {title}
             </DialogPrimitive.Title>
             {description ? (
-              <DialogPrimitive.Description className="mt-1 text-(--text-sm) text-(--color-muted)">
+              <DialogPrimitive.Description className="mt-1 text-(length:--text-sm) text-(--color-muted)">
                 {description}
               </DialogPrimitive.Description>
             ) : null}

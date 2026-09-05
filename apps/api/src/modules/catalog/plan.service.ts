@@ -163,7 +163,7 @@ export class PlanService {
             }
           }
 
-          const row = await tx.plan.findUniqueOrThrow({
+          const row = await (tx as unknown as Prisma.TransactionClient).plan.findUniqueOrThrow({
             where: { id },
             include: {
               activities: { select: { activityId: true } },

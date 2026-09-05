@@ -32,3 +32,7 @@ export function cancelMembership(
     body: payload,
   });
 }
+
+export function configureMembershipRenewal(membershipId: string, autoRenew: boolean, idempotencyKey: string): Promise<Membership> {
+  return apiFetch(`/memberships/${membershipId}/renewal`, { method: 'POST', body: { autoRenew }, idempotencyKey });
+}

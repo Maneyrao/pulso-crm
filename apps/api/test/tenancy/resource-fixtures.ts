@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { PrismaClient } from '@pulso/db';
+import { INVENTORY_ROUTE_FIXTURES } from '../inventory/route-fixtures.js';
 
 /**
  * Registro de fixtures por recurso (T-2.8).
@@ -99,6 +100,7 @@ async function createBiometricChain(raw: PrismaClient, gymId: string, branchId: 
 }
 
 export const RESOURCE_FIXTURES: Record<string, ResourceFixture> = {
+  ...INVENTORY_ROUTE_FIXTURES,
   branches: {
     async createId(raw, gymId) {
       const branch = await raw.branch.create({

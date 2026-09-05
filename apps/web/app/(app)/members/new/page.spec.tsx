@@ -140,6 +140,7 @@ function membershipResponse(
 ): CreateMembershipResponse {
   return {
     membership: {
+      autoRenew: false, renewalAnchorDay: null, nextRenewalDate: null, renewedFromId: null,
       id: 'ms1',
       gymId: 'g1',
       memberId: 'm1',
@@ -432,6 +433,9 @@ describe('NewMemberPage', () => {
     await screen.findByText(/Plan y membresía/i);
 
     await selectPlan();
+    fireEvent.change(screen.getByLabelText(/Fecha de inicio/i), {
+      target: { value: '2026-08-30' },
+    });
     fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
 
     const user = userEvent.setup();
@@ -443,7 +447,7 @@ describe('NewMemberPage', () => {
     const [, payload] = createMembershipMock.mock.calls[0] as [string, Record<string, unknown>];
     expect(payload).toMatchObject({
       planId: 'p1',
-      charge: { mode: 'NOW', paymentMethodId: 'pm1', amount: '5000.00' },
+      charge: { mode: 'NOW', paymentMethodId: 'pm1', amount: '20000.00' },
     });
 
     await waitFor(() => expect(screen.getByText('El socio quedó activo')).toBeInTheDocument());

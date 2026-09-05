@@ -44,6 +44,7 @@ const openCashSessionMock = vi.fn();
 const closeCashSessionMock = vi.fn();
 const createCashMovementMock = vi.fn();
 const reverseCashMovementMock = vi.fn();
+const listCashOperationsMock = vi.fn();
 
 vi.mock('@/lib/api/cash', () => ({
   getCurrentCashSession: (...args: unknown[]) => getCurrentCashSessionMock(...args),
@@ -55,7 +56,7 @@ vi.mock('@/lib/api/cash', () => ({
   closeCashSession: (...args: unknown[]) => closeCashSessionMock(...args),
   createCashMovement: (...args: unknown[]) => createCashMovementMock(...args),
   reverseCashMovement: (...args: unknown[]) => reverseCashMovementMock(...args),
-  listCashOperations: vi.fn(),
+  listCashOperations: (...args: unknown[]) => listCashOperationsMock(...args),
   getDaybook: vi.fn(),
 }));
 
@@ -73,7 +74,6 @@ function withProviders(children: ReactNode): ReactNode {
 const REGISTER_ID = '00000000-0000-0000-0000-0000000000c1';
 const SESSION_ID = '00000000-0000-0000-0000-000000000501';
 const MOVEMENT_ID = '00000000-0000-0000-0000-000000000601';
-const MEMBER_ID = '00000000-0000-0000-0000-000000000abc';
 const CONCEPT_INCOME = '00000000-0000-0000-0000-0000000000a1';
 const CONCEPT_EXPENSE = '00000000-0000-0000-0000-0000000000a2';
 const METHOD_CASH = '00000000-0000-0000-0000-0000000000b1';
@@ -159,7 +159,7 @@ function makeConcept(overrides: Partial<CashConcept> = {}): CashConcept {
   };
 }
 
-async function primeSession(permissions: string[] = ['cash:read', 'cash:operate']): Promise<void> {
+async function primeSession(permissions: string[] = ['cash:read', 'cash:operate', 'cash:open_close', 'cash:reverse']): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
   useSessionStore.setState({
     user: {
@@ -187,6 +187,7 @@ beforeEach(async () => {
   closeCashSessionMock.mockReset();
   createCashMovementMock.mockReset();
   reverseCashMovementMock.mockReset();
+  listCashOperationsMock.mockReset().mockResolvedValue({ data: [] });
 
   listPaymentMethodsMock.mockResolvedValue({
     data: [
@@ -219,6 +220,69 @@ beforeEach(async () => {
 });
 
 describe('CashPage', () => {
+  it('un error de sesión no aparenta caja cerrada ni permite abrir otra', async () => {
+    await primeSession();
+    getCurrentCashSessionMock.mockRejectedValue(new Error('sin red'));
+    const { default: Page } = await import('./page');
+    render(withProviders(<Page />));
+    expect(await screen.findByRole('alert')).toHaveTextContent('No se pudo consultar');
+    expect(screen.queryByRole('button', { name: /Abrir caja/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('No hay caja abierta')).not.toBeInTheDocument();
+  });
+
+  it('cash:operate no habilita abrir/cerrar ni revertir sin permisos específicos', async () => {
+    await primeSession(['cash:read', 'cash:operate']);
+    getCurrentCashSessionMock.mockResolvedValue(makeSession());
+    listCashMovementsMock.mockResolvedValue({ data: [makeMovement()] });
+    const { default: Page } = await import('./page');
+    render(withProviders(<Page />));
+    expect(await screen.findByRole('button', { name: /Entrada .* salida manual/ })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: /Cerrar caja|Revertir/ })).not.toBeInTheDocument();
+  });
+
+  it('vende productos por Inventario y excluye tarjetas y conceptos de cuotas en entradas manuales', async () => {
+    await primeSession(['cash:read', 'cash:operate', 'product:read']);
+    getCurrentCashSessionMock.mockResolvedValue(makeSession());
+    listCashMovementsMock.mockResolvedValue({ data: [] });
+    listCashConceptsMock.mockResolvedValue({ data: [makeConcept(), makeConcept({ id: 'cuota', name: 'Cuota', isSystem: true })] });
+    listPaymentMethodsMock.mockResolvedValue({ data: [makeMethod(), makeMethod({ id: 'qr', code: 'QR', name: 'QR / Billetera', countsAsCash: false }), makeMethod({ id: 'card', code: 'DEBIT', name: 'Débito' })] });
+    const { default: Page } = await import('./page');
+    render(withProviders(<Page />));
+    expect(screen.getByRole('link', { name: 'Vender producto' })).toHaveAttribute('href', '/inventory');
+    await waitFor(() => expect(screen.getByRole('button', { name: /Entrada .* salida manual/ })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: /Entrada .* salida manual/ }));
+    await userEvent.click(screen.getByLabelText(/^Concepto/));
+    expect(screen.queryByRole('option', { name: 'Cuota' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('option', { name: 'Ingreso varios' }));
+    await userEvent.click(screen.getByLabelText(/^Método de pago/));
+    expect(screen.getByRole('option', { name: 'Mercado Pago' })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Débito|Crédito|Tarjeta/ })).not.toBeInTheDocument();
+  });
+
+  it('conserva el arqueo vacío hasta contarlo y muestra rechazo real por pendientes', async () => {
+    await primeSession();
+    getCurrentCashSessionMock.mockResolvedValue(makeSession());
+    listCashMovementsMock.mockResolvedValue({ data: [] });
+    const { ApiError } = await import('@/lib/api/errors');
+    closeCashSessionMock.mockRejectedValue(new ApiError({ type: 'about:blank', title: 'Pendientes', status: 409, code: 'CASH_SESSION_HAS_PENDING_OPERATIONS', detail: 'La caja tiene operaciones pendientes de aprobación.' }));
+    const { default: Page } = await import('./page');
+    render(withProviders(<Page />));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Cerrar caja' })).toBeEnabled());
+    fireEvent.click(screen.getByRole('button', { name: 'Cerrar caja' }));
+    const dialog = await screen.findByRole('dialog');
+    const amount = within(dialog).getByLabelText('Efectivo');
+    expect(amount).toHaveValue('');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cerrar caja' }));
+    expect(closeCashSessionMock).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Completá cada importe');
+    fireEvent.change(amount, { target: { value: '1000' } });
+    fireEvent.blur(amount);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cerrar caja' }));
+    await waitFor(() => expect(within(dialog).getByRole('alert')).toHaveTextContent('operaciones pendientes'));
+    expect(amount).toHaveValue('1000.00');
+    expect(listCashOperationsMock).not.toHaveBeenCalled();
+  });
+
   it('sin sesión: muestra el estado vacío y ofrece "Abrir caja"', async () => {
     await primeSession();
     getCurrentCashSessionMock.mockResolvedValueOnce(null);
@@ -254,22 +318,22 @@ describe('CashPage', () => {
 
     await waitFor(() => expect(screen.getByText(/Ingreso varios/)).toBeInTheDocument());
     expect(screen.getByText(/Egreso varios/)).toBeInTheDocument();
-    expect(screen.getByText(/Efectivo/)).toBeInTheDocument();
+    expect(screen.getByText(/^Efectivo$/)).toBeInTheDocument();
     expect(screen.getByText(/Tarjeta/)).toBeInTheDocument();
     // Formato es-AR: "$ 2.500,00" con espacio duro entre símbolo y monto.
     // Se busca dentro de la tabla porque el mismo importe también puede
     // aparecer en el KPI "Ingresos" calculado sobre los mismos movements.
     const table = screen.getByRole('table', { name: /Movimientos de la sesión de caja/i });
     expect(within(table).getByText(/2\.500,00/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Nuevo movimiento/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Entrada .* salida manual/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Cerrar caja/i })).toBeInTheDocument();
 
     // KPIs de la sesión calculados a partir de los movements reales:
     // ingresos 2.500, egresos 500, saldo = inicial (1.000) + 2.500 - 500 = 3.000.
-    expect(screen.getByText('Ingresos')).toBeInTheDocument();
-    expect(screen.getByText('Egresos')).toBeInTheDocument();
-    expect(screen.getByText('Saldo')).toBeInTheDocument();
-    expect(screen.getByText(/3\.000,00/)).toBeInTheDocument();
+    expect(screen.getByText('Ingresos registrados')).toBeInTheDocument();
+    expect(screen.getByText('Salidas registradas')).toBeInTheDocument();
+    expect(screen.getByText('Efectivo estimado')).toBeInTheDocument();
+    expect(screen.getByText(/3\.500,00/)).toBeInTheDocument();
   });
 
   it('abrir caja: envía openCashSession con el fondo y el cashRegisterId elegido', async () => {
@@ -315,13 +379,13 @@ describe('CashPage', () => {
     expect(idem).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
-  it('nuevo movimiento con memberId: envía el payload con el UUID en el body', async () => {
+  it('entrada manual: envía importes string sin UUID de socio ni simular un cobro de cuota', async () => {
     await primeSession();
     getCurrentCashSessionMock.mockResolvedValue(makeSession());
     listCashMovementsMock.mockResolvedValue({ data: [] });
     createCashMovementMock.mockResolvedValueOnce({
       status: 'CREATED',
-      movement: makeMovement({ memberId: MEMBER_ID }),
+      movement: makeMovement(),
     });
 
     const user = userEvent.setup();
@@ -329,9 +393,9 @@ describe('CashPage', () => {
     render(withProviders(<CashPage />));
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Nuevo movimiento/i })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /Entrada .* salida manual/i })).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByRole('button', { name: /Nuevo movimiento/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Entrada .* salida manual/i }));
 
     // Concepto: elegir "Ingreso varios" (INCOME por default).
     const conceptTrigger = await screen.findByLabelText(/^Concepto\b/i);
@@ -348,9 +412,7 @@ describe('CashPage', () => {
     fireEvent.change(amountInput, { target: { value: '1500' } });
     fireEvent.blur(amountInput);
 
-    // Socio (opcional): pegamos el UUID.
-    const memberInput = screen.getByLabelText(/^Socio/i);
-    fireEvent.change(memberInput, { target: { value: MEMBER_ID } });
+    expect(screen.queryByLabelText(/^Socio/i)).not.toBeInTheDocument();
 
     // Enviar.
     fireEvent.click(screen.getByRole('button', { name: /^Guardar$/i }));
@@ -371,8 +433,8 @@ describe('CashPage', () => {
       cashConceptId: CONCEPT_INCOME,
       paymentMethodId: METHOD_CASH,
       amount: '1500.00',
-      memberId: MEMBER_ID,
     });
+    expect(payload).not.toHaveProperty('memberId');
     expect(idem).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
@@ -402,6 +464,8 @@ describe('CashPage', () => {
     const dialog = await screen.findByRole('dialog');
     const confirmBtn = within(dialog).getByRole('button', { name: /^Revertir$/i });
     expect(confirmBtn).toBeDisabled();
+    expect(within(dialog).getByText(/Se anulará.*2\.500,00/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toHaveFocus();
 
     const reasonInput = within(dialog).getByLabelText(/Motivo/i);
     fireEvent.change(reasonInput, { target: { value: 'error de tipeo evidente' } });
@@ -443,7 +507,7 @@ describe('CashPage', () => {
     render(withProviders(<CashPage />));
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Cerrar caja/i })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /Cerrar caja/i })).toBeEnabled(),
     );
     fireEvent.click(screen.getByRole('button', { name: /Cerrar caja/i }));
 

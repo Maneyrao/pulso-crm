@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { type VariantProps, cva } from 'class-variance-authority';
@@ -11,14 +13,14 @@ import { Spinner } from './Spinner.js';
  * Modernist); `ghost` es texto color acento sin borde (`.btn-ghost`).
  */
 export const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-(--radius-md) font-semibold ' +
-    'transition-colors disabled:pointer-events-none disabled:opacity-50 ' +
+  'relative inline-flex max-w-full items-center justify-center gap-2 whitespace-normal rounded-(--radius-md) text-center font-semibold ' +
+    'transition-colors duration-150 motion-reduce:transition-none disabled:pointer-events-none disabled:opacity-50 ' +
     'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring)',
   {
     variants: {
       variant: {
         primary:
-          'bg-(--color-primary) font-extrabold uppercase tracking-wide text-(--color-primary-foreground) hover:bg-(--color-primary-hover) active:bg-(--color-primary-active)',
+          'bg-(--color-primary) font-extrabold text-(--color-primary-foreground) hover:bg-(--color-primary-hover) active:bg-(--color-primary-active)',
         secondary:
           'border-2 border-(--color-border-strong) bg-transparent text-(--color-text) hover:bg-(--color-muted-subtle)',
         outline:
@@ -27,9 +29,9 @@ export const buttonVariants = cva(
         danger: 'bg-(--color-danger) text-(--color-danger-foreground) hover:opacity-90',
       },
       size: {
-        sm: 'h-(--control-height-sm) px-3 text-(--text-sm)',
-        md: 'h-(--control-height-md) px-4 text-(--text-base)',
-        lg: 'h-(--control-height-lg) px-6 text-(--text-lg)',
+        sm: 'min-h-(--control-height-sm) px-3 py-1 text-(length:--text-sm)',
+        md: 'min-h-(--control-height-md) px-4 py-1.5 text-(length:--text-base)',
+        lg: 'min-h-(--control-height-lg) px-6 py-2 text-(length:--text-lg)',
       },
     },
     defaultVariants: {
@@ -60,6 +62,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       loadingText,
       disabled,
       children,
+      onClick,
+      type,
       ...props
     },
     ref,
@@ -68,19 +72,39 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <Comp
         ref={ref}
+        type={asChild ? undefined : (type ?? 'button')}
         className={cn(buttonVariants({ variant, size }), className)}
         disabled={disabled || loading}
         aria-busy={loading || undefined}
         aria-disabled={disabled || loading || undefined}
         {...props}
+        onClickCapture={(event) => {
+          if (disabled || loading) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          props.onClickCapture?.(event);
+        }}
+        onClick={(event) => {
+          if (disabled || loading) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+          onClick?.(event);
+        }}
+        tabIndex={asChild && (disabled || loading) ? -1 : props.tabIndex}
       >
-        {loading ? (
+        {loading && !asChild ? (
           <>
-            <Spinner size="sm" aria-hidden="true" />
+            <span className="absolute inset-0 flex items-center justify-center">
+              <Spinner size="sm" aria-hidden="true" />
+            </span>
             <span className="sr-only">{loadingText ?? 'Cargando'}</span>
             {/* El contenido original queda oculto visualmente pero no del DOM,
                 para no perder el ancho del botón (evita layout shift). */}
-            <span aria-hidden="true">{children}</span>
+            <span aria-hidden="true" className="invisible inline-flex items-center gap-2">{children}</span>
           </>
         ) : (
           children

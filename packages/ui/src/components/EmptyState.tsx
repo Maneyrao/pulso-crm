@@ -25,9 +25,9 @@ export const EmptyState = React.forwardRef<HTMLDivElement, EmptyStateProps>(
     >
       {Icon ? <Icon aria-hidden={true} className="h-10 w-10 text-(--color-muted)" /> : null}
       <div className="flex flex-col gap-1">
-        <p className="text-(--text-base) font-medium text-(--color-text)">{title}</p>
+        <p className="text-(length:--text-base) font-medium text-(--color-text)">{title}</p>
         {description ? (
-          <p className="text-(--text-sm) text-(--color-muted)">{description}</p>
+          <p className="text-(length:--text-sm) text-(--color-muted)">{description}</p>
         ) : null}
       </div>
       {action ? <div className="mt-1">{action}</div> : null}

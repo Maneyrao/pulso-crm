@@ -47,12 +47,11 @@ export async function expireMemberships(deps: ExpirationDeps): Promise<Expiratio
 
   for (const [timezone, group] of byTimezone) {
     const businessDate = toBusinessDate(now, timezone);
-    const gymIds = [...new Set(group.map((g) => g.gymId))];
 
     // Vence la membresía cuyo endDate ya PASÓ. Una que termina hoy sigue activa.
     const result = await prisma.membership.updateMany({
       where: {
-        gymId: { in: gymIds },
+        OR: group.map(({ gymId, branchId }) => ({ gymId, branchId })),
         status: 'ACTIVE',
         endDate: { not: null, lt: new Date(`${businessDate}T00:00:00.000Z`) },
       },

@@ -40,7 +40,7 @@ export function Pagination({
       className={cn('flex items-center justify-between gap-4', className)}
       {...props}
     >
-      {summary ? <p className="text-(--text-sm) text-(--color-muted)">{summary}</p> : <span />}
+      {summary ? <p className="text-(length:--text-sm) text-(--color-muted)">{summary}</p> : <span />}
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
@@ -51,7 +51,7 @@ export function Pagination({
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
         </Button>
-        <span className="text-(--text-sm) text-(--color-text)" aria-current="page">
+        <span className="text-(length:--text-sm) text-(--color-text)" aria-current="page">
           {page} / {Math.max(pageCount, 1)}
         </span>
         <Button

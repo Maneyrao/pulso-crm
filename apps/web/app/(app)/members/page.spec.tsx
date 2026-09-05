@@ -133,6 +133,30 @@ describe('MembersPage', () => {
     expect(debt).toBeInTheDocument();
   });
 
+  it('distingue una membresía vencida de una cuenta saldada', async () => {
+    await primeSession();
+    listMembersMock.mockResolvedValueOnce(
+      makeResponse([
+        makeMember({
+          latestMembership: {
+            planName: 'Pase Zen',
+            status: 'EXPIRED',
+            startDate: '2026-08-01',
+            endDate: '2026-08-30',
+            classesRemaining: null,
+          },
+          balance: '0.00',
+        }),
+      ]),
+    );
+    const { default: MembersPage } = await import('./page');
+    render(withQuery(<MembersPage />));
+
+    await waitFor(() => expect(screen.getByText('Vencido')).toBeInTheDocument());
+    expect(screen.getByText('Cuota saldada')).toBeInTheDocument();
+    expect(screen.getByText('Pase Zen')).toBeInTheDocument();
+  });
+
   it('empty sin filtros muestra "Todavía no hay socios"', async () => {
     await primeSession();
     listMembersMock.mockResolvedValueOnce(makeResponse([]));

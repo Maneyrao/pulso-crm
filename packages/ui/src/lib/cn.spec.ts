@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { cn } from './cn.js';
 
 describe('cn', () => {
+  it('preserva color y tamaño del token en ambos órdenes, incluidos consumidores anteriores', () => {
+    for (const size of ['text-(length:--text-sm)', 'text-(--text-sm)']) {
+      const color = 'text-(--color-primary-foreground)';
+      expect(cn(color, size).split(' ')).toEqual([color, size]);
+      expect(cn(size, color).split(' ')).toEqual([size, color]);
+      expect(cn(color, size, 'text-(length:--text-lg)')).toBe(`${color} text-(length:--text-lg)`);
+    }
+  });
   it('concatena clases estáticas', () => {
     expect(cn('a', 'b')).toBe('a b');
   });

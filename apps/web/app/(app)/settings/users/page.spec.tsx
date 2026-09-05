@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@pulso/ui';
@@ -23,12 +23,14 @@ vi.mock('next/navigation', () => ({
 
 const listUsersMock = vi.fn();
 const listRolesMock = vi.fn();
+const deleteUserMock = vi.fn();
 vi.mock('@/lib/api/iam', () => ({
   listUsers: (...args: unknown[]) => listUsersMock(...args),
   listRoles: (...args: unknown[]) => listRolesMock(...args),
   createUser: vi.fn(),
   updateUser: vi.fn(),
   deactivateUser: vi.fn(),
+  deleteUser: (...args: unknown[]) => deleteUserMock(...args),
   resetUserPassword: vi.fn(),
 }));
 
@@ -108,6 +110,7 @@ async function primeSession(permissions: string[] = ['user:read']): Promise<void
 beforeEach(async () => {
   listUsersMock.mockReset();
   listRolesMock.mockReset();
+  deleteUserMock.mockReset();
   listBranchesMock.mockReset();
   listBranchesMock.mockResolvedValue({ data: [makeBranch()] });
   const { useSessionStore } = await import('@/lib/stores/session');
@@ -148,5 +151,23 @@ describe('UsersSettingsPage', () => {
     await waitFor(() => expect(screen.getByText('Ana Torres')).toBeInTheDocument());
     expect(screen.getByText('Centro')).toBeInTheDocument();
     expect(screen.queryByText('Todas')).not.toBeInTheDocument();
+  });
+
+  it('elimina un usuario con confirmación y lo quita mediante el endpoint real', async () => {
+    await primeSession(['user:read', 'user:write']);
+    const target = makeUser();
+    listUsersMock.mockResolvedValue({ data: [target] });
+    listRolesMock.mockResolvedValue({ data: [makeRole()] });
+    deleteUserMock.mockResolvedValue({ ...target, status: 'INACTIVE' });
+
+    const { default: UsersSettingsPage } = await import('./page');
+    render(withProviders(<UsersSettingsPage />));
+
+    await screen.findByText('Ana Torres');
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
+    expect(screen.getByRole('dialog', { name: 'Eliminar usuario' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Eliminar usuario' }));
+
+    await waitFor(() => expect(deleteUserMock).toHaveBeenCalledWith(target.id));
   });
 });

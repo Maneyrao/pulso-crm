@@ -19,6 +19,9 @@ export interface ModalProps {
   size?: keyof typeof SIZES;
   /** Oculta el título visualmente (queda como `aria-label` accesible). Úsalo con moderación. */
   hideTitle?: boolean;
+  /** Impide cerrar mientras una escritura está en curso. */
+  busy?: boolean;
+  onOpenAutoFocus?: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>['onOpenAutoFocus'];
 }
 
 /**
@@ -36,12 +39,17 @@ export function Modal({
   footer,
   size = 'md',
   hideTitle,
+  busy = false,
+  onOpenAutoFocus,
 }: ModalProps) {
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root open={open} onOpenChange={(next) => { if (!busy) onOpenChange(next); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-(--animate-fade-in)" />
         <DialogPrimitive.Content
+          onOpenAutoFocus={onOpenAutoFocus}
+          aria-busy={busy || undefined}
+          {...(!description ? { 'aria-describedby': undefined } : {})}
           data-slot="modal-content"
           className={cn(
             'fixed left-1/2 top-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-(--radius-lg) border-2 border-(--color-border) bg-(--color-surface) shadow-(--shadow-lg) data-[state=open]:animate-(--animate-lf-scale-in)',
@@ -54,14 +62,14 @@ export function Modal({
           >
             <DialogPrimitive.Title
               className={cn(
-                'text-(--text-lg) font-semibold text-(--color-text)',
+                'text-(length:--text-lg) font-semibold text-(--color-text)',
                 hideTitle && 'sr-only',
               )}
             >
               {title}
             </DialogPrimitive.Title>
             {description ? (
-              <DialogPrimitive.Description className="mt-1 text-(--text-sm) text-(--color-muted)">
+              <DialogPrimitive.Description className="mt-1 text-(length:--text-sm) text-(--color-muted)">
                 {description}
               </DialogPrimitive.Description>
             ) : null}
@@ -81,6 +89,7 @@ export function Modal({
             </div>
           ) : null}
           <DialogPrimitive.Close
+            disabled={busy}
             aria-label="Cerrar"
             className="absolute right-3 top-3 rounded-(--radius-sm) p-2 text-(--color-muted) hover:bg-(--color-muted-subtle) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring) sm:right-4 sm:top-4"
           >

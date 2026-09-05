@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import { toBusinessDate } from '@pulso/config/time';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -42,11 +43,13 @@ vi.mock('@/lib/api/access', () => ({
 
 const getCurrentCashSessionMock = vi.fn();
 const getDaybookMock = vi.fn();
-const listCashConceptsMock = vi.fn();
+const listPaymentMethodsMock = vi.fn();
+const listCashOperationsMock = vi.fn();
 vi.mock('@/lib/api/cash', () => ({
   getCurrentCashSession: (...args: unknown[]) => getCurrentCashSessionMock(...args),
   getDaybook: (...args: unknown[]) => getDaybookMock(...args),
-  listCashConcepts: (...args: unknown[]) => listCashConceptsMock(...args),
+  listPaymentMethods: (...args: unknown[]) => listPaymentMethodsMock(...args),
+  listCashOperations: (...args: unknown[]) => listCashOperationsMock(...args),
 }));
 
 function withQuery(children: ReactNode): ReactNode {
@@ -73,10 +76,7 @@ async function primeSession(permissions: string[]): Promise<void> {
 }
 
 const pageInfo = (total: number) => ({ total, limit: 5, offset: 0 });
-const today = (() => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-})();
+const today = toBusinessDate(new Date(), 'America/Argentina/Buenos_Aires');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -156,7 +156,8 @@ beforeEach(() => {
     timezoneUsed: 'America/Argentina/Buenos_Aires',
   });
 
-  listCashConceptsMock.mockResolvedValue({ data: [] });
+  listPaymentMethodsMock.mockResolvedValue({ data: [] });
+  listCashOperationsMock.mockResolvedValue({ data: [] });
 });
 
 describe('DashboardPage', () => {
@@ -169,7 +170,7 @@ describe('DashboardPage', () => {
     // Sede activa + estado de caja (sesión abierta en el mock de arriba).
     expect(await screen.findByText(/Sede Centro · caja abierta desde/)).toBeInTheDocument();
 
-    expect(await screen.findByText('Ingresos hoy')).toBeInTheDocument();
+    expect(await screen.findByText('Asistencias hoy')).toBeInTheDocument();
     expect(screen.getByText('Suárez, Carla')).toBeInTheDocument();
     const memberLink = screen.getByText('Suárez, Carla').closest('a');
     expect(memberLink).toHaveAttribute('href', '/members/m1?tab=cuenta');
@@ -184,14 +185,15 @@ describe('DashboardPage', () => {
     expect(await screen.findByText(/Sede Centro · caja cerrada/)).toBeInTheDocument();
   });
 
-  it('con access:read_history muestra últimos accesos con link a /access', async () => {
-    await primeSession(['access:read_history']);
+  it('con access:read_history y access:operate muestra accesos de hoy con link a /access', async () => {
+    await primeSession(['access:read_history', 'access:operate']);
     const { default: Page } = await import('./page');
     render(withQuery(<Page />));
 
     expect(await screen.findByText('30***123')).toBeInTheDocument();
-    expect(screen.getByText('Últimos accesos')).toBeInTheDocument();
-    const link = screen.getByText('Ver acceso →').closest('a');
+    expect(screen.getByText('Últimos accesos de hoy')).toBeInTheDocument();
+    expect(listAccessAttemptsMock).toHaveBeenCalledWith('b1', 5, { from: today, to: today });
+    const link = screen.getByText('Ver acceso').closest('a');
     expect(link).toHaveAttribute('href', '/access');
   });
 
@@ -206,5 +208,41 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Ingresos hoy')).not.toBeInTheDocument();
     expect(getDashboardMock).not.toHaveBeenCalled();
     expect(listDebtorsMock).not.toHaveBeenCalled();
+    expect(listCashOperationsMock).not.toHaveBeenCalled();
+    expect(listAttendancesMock).not.toHaveBeenCalled();
+  });
+
+  it('usa el total de asistencias de la API, no la longitud de una página', async () => {
+    await primeSession(['attendance:read']);
+    listAttendancesMock.mockResolvedValue({ data: [], pageInfo: pageInfo(153) });
+    const { default: Page } = await import('./page');
+    render(withQuery(<Page />));
+    expect(await screen.findByText('153')).toBeInTheDocument();
+    expect(listAttendancesMock).toHaveBeenCalledWith(expect.objectContaining({ branchId: 'b1', from: today, to: today, limit: 1 }));
+    expect(getDashboardMock).not.toHaveBeenCalled();
+  });
+
+  it('muestra por medio los totales de servidor con salidas y neto, sin inferir pagos de saldos', async () => {
+    await primeSession(['cash:read']);
+    listPaymentMethodsMock.mockResolvedValue({ data: [{ id: 'qr', code: 'QR', name: 'QR / Billetera' }] });
+    getDaybookMock.mockResolvedValue({ data: [{ businessDate: today, totalsByMethod: [{ paymentMethodId: 'qr', income: '1234.50', expense: '34.50' }], movements: [], sessions: [] }] });
+    const { default: Page } = await import('./page');
+    render(withQuery(<Page />));
+    const row = (await screen.findByText('Mercado Pago')).closest('tr')!;
+    expect(within(row).getByText(/1\.234,50/)).toBeInTheDocument();
+    expect(within(row).getByText(/\$\s34,50$/)).toBeInTheDocument();
+    expect(within(row).getByText(/1\.200,00/)).toBeInTheDocument();
+  });
+
+  it('permite fallo parcial y no expone accesos operativos sin permiso', async () => {
+    await primeSession(['member:read', 'cash:read', 'access:read_history']);
+    getDaybookMock.mockRejectedValue(new Error('API apagada'));
+    const { default: Page } = await import('./page');
+    render(withQuery(<Page />));
+    expect(await screen.findByText('Suárez, Carla')).toBeInTheDocument();
+    expect(await within(screen.getByRole('region', { name: 'Caja por medio · hoy' })).findByRole('alert')).toHaveTextContent('No pudimos cargar');
+    expect(screen.queryByRole('link', { name: 'Ver acceso' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Inventario' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/pagó|excelente cobranza/i)).not.toBeInTheDocument();
   });
 });

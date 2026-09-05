@@ -165,7 +165,7 @@ function CashConceptsScreen() {
       cell: (c) => (
         <div className="flex flex-col">
           <span className="font-medium text-(--color-text)">{c.name}</span>
-          <span className="text-(--text-xs) text-(--color-muted)">{c.code}</span>
+          <span className="text-(length:--text-xs) text-(--color-muted)">{c.code}</span>
         </div>
       ),
     },
@@ -258,7 +258,7 @@ function CashConceptsScreen() {
       >
         <form id="concept-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           {formError ? (
-            <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+            <p role="alert" className="text-(length:--text-sm) font-medium text-(--color-danger)">
               {formError}
             </p>
           ) : null}

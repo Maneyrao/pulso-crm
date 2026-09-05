@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
 import {
   type CreateUserRequest,
   createUserRequestSchema,
@@ -50,6 +50,13 @@ export class UserController {
   @HttpCode(HttpStatus.OK)
   deactivate(@ZodParam('id', uuidSchema) id: string) {
     return this.users.deactivate(id);
+  }
+
+  @RequiresPermission('user:write')
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  remove(@ZodParam('id', uuidSchema) id: string) {
+    return this.users.remove(id);
   }
 
   @RequiresPermission('user:write')

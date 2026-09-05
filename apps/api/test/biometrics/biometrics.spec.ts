@@ -237,6 +237,23 @@ describe('biometría — flujo completo y controles de seguridad', () => {
     expect((res.body as { code: string }).code).toBe('NO_BIOMETRIC_CONSENT');
   });
 
+  it('registrar consentimiento otra vez reutiliza el vigente para permitir enrolamiento en un clic', async () => {
+    const memberId = await createMember(crmA, 'ConsentimientoSimple');
+    const payload = { version: 'v1', grantedMethod: 'IN_PERSON_SIGNED' };
+
+    const first = await crmA.post(`/api/v1/members/${memberId}/biometrics/consent`, payload);
+    const second = await crmA.post(`/api/v1/members/${memberId}/biometrics/consent`, payload);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect((second.body as { consent: { id: string } }).consent.id).toBe(
+      (first.body as { consent: { id: string } }).consent.id,
+    );
+    expect(await ctx.db.raw.biometricConsent.count({ where: { memberId, revokedAt: null } })).toBe(
+      1,
+    );
+  });
+
   it('happy path: consentimiento → enrolamiento → enroll-complete crea la credencial cifrada', async () => {
     const memberId = await createMember(crmA, 'HappyPath');
     await grantConsent(crmA, memberId);

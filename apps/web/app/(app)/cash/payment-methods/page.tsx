@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { CreditCard } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CreatePaymentMethodRequest,
@@ -16,6 +16,7 @@ import {
   FormField,
   Input,
   Modal,
+  Select,
   StatusBadge,
   useToast,
   type DataTableColumn,
@@ -26,6 +27,7 @@ import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
+import { PAYMENT_OPTIONS, paymentMethodLabel } from '../payment-options';
 
 /**
  * Caja › Métodos de pago (`GET /cash/payment-methods` — `cash:read`, alta/edición
@@ -139,6 +141,7 @@ function PaymentMethodsScreen() {
     event.preventDefault();
     setFormError(undefined);
     if (editing) {
+      if (!form.name.trim()) { setFormError('Completá el nombre.'); return; }
       updateMutation.mutate({
         id: editing.id,
         payload: {
@@ -167,8 +170,8 @@ function PaymentMethodsScreen() {
       header: 'Método',
       cell: (m) => (
         <div className="flex flex-col">
-          <span className="font-medium text-(--color-text)">{m.name}</span>
-          <span className="text-(--text-xs) text-(--color-muted)">{m.code}</span>
+          <span className="font-medium text-(--color-text)">{paymentMethodLabel(m)}</span>
+          <span className="text-(length:--text-xs) text-(--color-muted)">{m.code}</span>
         </div>
       ),
     },
@@ -221,7 +224,7 @@ function PaymentMethodsScreen() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        icon={CreditCard}
+        icon={Wallet}
         title="Métodos de pago"
         description="Medios de cobro disponibles en caja."
         actions={canWrite ? <Button onClick={openCreate}>Nuevo método</Button> : undefined}
@@ -230,7 +233,7 @@ function PaymentMethodsScreen() {
       <DataTable
         caption="Métodos de pago"
         columns={columns}
-        data={query.data?.data ?? []}
+        data={(query.data?.data ?? []).filter((method) => PAYMENT_OPTIONS.some((option) => option.value === method.code.toUpperCase()))}
         rowKey={(m) => m.id}
         loading={query.isLoading}
         error={query.isError ? errorMessage(query.error) : undefined}
@@ -260,7 +263,7 @@ function PaymentMethodsScreen() {
       >
         <form id="payment-method-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           {formError ? (
-            <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+            <p role="alert" className="text-(length:--text-sm) font-medium text-(--color-danger)">
               {formError}
             </p>
           ) : null}
@@ -277,22 +280,22 @@ function PaymentMethodsScreen() {
           </FormField>
 
           <FormField
-            label="Código"
+            label="Medio de cobro"
             required
             hint={editing ? 'El código no se puede editar.' : undefined}
           >
             {(field) => (
-              <Input
+              <Select
                 {...field}
                 value={form.code}
                 disabled={Boolean(editing)}
-                onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))}
-                required
+                options={[...PAYMENT_OPTIONS]}
+                onValueChange={(code) => setForm((f) => ({ ...f, code, countsAsCash: code === 'CASH' }))}
               />
             )}
           </FormField>
 
-          <label className="flex items-center gap-2 text-(--text-sm) text-(--color-text)">
+          <label className="flex items-center gap-2 text-(length:--text-sm) text-(--color-text)">
             <Checkbox
               checked={form.countsAsCash}
               onChange={(e) => setForm((f) => ({ ...f, countsAsCash: e.target.checked }))}

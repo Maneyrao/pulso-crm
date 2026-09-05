@@ -22,6 +22,7 @@ import { TenancyModule } from './modules/tenancy/tenancy.module.js';
 import { IamModule } from './modules/iam/iam.module.js';
 import { AgentsModule } from './modules/agents/agents.module.js';
 import { BiometricsModule } from './modules/biometrics/biometrics.module.js';
+import { InventoryModule } from './modules/inventory/inventory.module.js';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { BiometricsModule } from './modules/biometrics/biometrics.module.js';
     ReportingModule,
     AgentsModule,
     BiometricsModule,
+    InventoryModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

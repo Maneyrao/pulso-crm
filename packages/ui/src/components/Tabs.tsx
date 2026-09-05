@@ -27,7 +27,7 @@ export const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'whitespace-nowrap px-4 py-2 text-(--text-sm) font-semibold text-(--color-muted) transition-colors',
+      'whitespace-nowrap px-4 py-2 text-(length:--text-sm) font-semibold text-(--color-muted) transition-colors',
       'data-[state=active]:bg-(--color-primary) data-[state=active]:text-(--color-primary-foreground)',
       'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring)',
       className,

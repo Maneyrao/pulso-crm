@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@pulso/ui';
@@ -108,8 +109,8 @@ describe('PaymentMethodsPage', () => {
         makeMethod({ name: 'Efectivo', countsAsCash: true }),
         makeMethod({
           id: '00000000-0000-0000-0000-000000000002',
-          code: 'CARD_DEBIT',
-          name: 'Débito',
+          code: 'QR',
+          name: 'QR / Billetera',
           countsAsCash: false,
           isActive: false,
         }),
@@ -121,7 +122,7 @@ describe('PaymentMethodsPage', () => {
 
     expect(screen.getByRole('heading', { name: 'Métodos de pago' })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('Efectivo')).toBeInTheDocument());
-    expect(screen.getByText('Débito')).toBeInTheDocument();
+    expect(screen.getByText('Mercado Pago')).toBeInTheDocument();
     expect(screen.getByText('Inactivo')).toBeInTheDocument();
   });
 
@@ -192,8 +193,9 @@ describe('PaymentMethodsPage', () => {
 
     const nameInput = await screen.findByLabelText(/^Nombre\b/i);
     fireEvent.change(nameInput, { target: { value: 'Transferencia' } });
-    const codeInput = screen.getByLabelText(/^Código\b/i);
-    fireEvent.change(codeInput, { target: { value: 'transfer' } });
+    await userEvent.click(screen.getByLabelText(/^Medio de cobro\b/i));
+    expect(screen.queryByRole('option', { name: /débito|crédito|tarjeta/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('option', { name: 'Transferencia' }));
 
     fireEvent.click(screen.getByRole('button', { name: /^Guardar$/i }));
 

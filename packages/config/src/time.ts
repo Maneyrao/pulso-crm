@@ -1,3 +1,5 @@
+import { monthlyEndDate } from './billing.js';
+
 /**
  * Tiempo y zonas horarias (ADR-021).
  *
@@ -119,6 +121,8 @@ export function membershipEndDate(
   cycle: BillingCycle,
   overrideDays?: number | null,
 ): BusinessDate | null {
+  if (cycle === 'MONTHLY') return monthlyEndDate(startDate);
+  if (cycle === 'CLASS_PACK') return null;
   const days = overrideDays ?? cycleDurationDays(cycle);
   if (days === null) return null;
   // El día de inicio cuenta: un plan de 30 días que arranca el 1 vence el 30.

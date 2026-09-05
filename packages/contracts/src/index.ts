@@ -13,3 +13,4 @@ export * from './reporting.js';
 export * from './messaging.js';
 export * from './agent-protocol.js';
 export * from './biometrics.js';
+export * from './inventory.js';

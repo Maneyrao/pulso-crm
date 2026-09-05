@@ -28,6 +28,7 @@ export type AuditAction =
   | 'USER_CREATED'
   | 'USER_UPDATED'
   | 'USER_DEACTIVATED'
+  | 'USER_DELETED'
   | 'USER_PASSWORD_RESET'
   | 'ROLE_UPDATED'
   // Socios

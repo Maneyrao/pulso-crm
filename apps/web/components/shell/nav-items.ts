@@ -70,6 +70,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     label: 'Caja',
     items: [
       { href: '/cash', label: 'Caja', permission: 'cash:read' },
+      { href: '/inventory', label: 'Inventario', permission: 'product:read' },
       { href: '/cash/daybook', label: 'Libro diario', permission: 'cash:read' },
       { href: '/cash/concepts', label: 'Conceptos', permission: 'cash:read' },
       { href: '/cash/payment-methods', label: 'Métodos de pago', permission: 'cash:read' },

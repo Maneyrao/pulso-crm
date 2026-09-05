@@ -6,6 +6,40 @@ import { expectNoAxeViolations } from '../lib/expectNoAxeViolations.js';
 import { Button } from './Button.js';
 
 describe('Button', () => {
+  const colors = { primary: 'primary-foreground', secondary: 'text', outline: 'text', ghost: 'primary', danger: 'danger-foreground' } as const;
+  for (const variant of ['primary', 'secondary', 'outline', 'ghost', 'danger'] as const) {
+    it.each(['sm', 'md', 'lg'] as const)(`${variant} conserva foreground y tamaño %s`, (size) => {
+      render(<Button variant={variant} size={size}>Acción</Button>);
+      const button = screen.getByRole('button');
+      expect(button).toHaveClass(`text-(--color-${colors[variant]})`);
+      expect(button).toHaveClass(`text-(length:--text-${{ sm: 'sm', md: 'base', lg: 'lg' }[size]})`);
+      expect(button).toHaveClass('duration-150', 'motion-reduce:transition-none');
+    });
+  }
+
+  it('no envía un formulario sin type submit explícito', async () => {
+    const submit = vi.fn((event) => event.preventDefault());
+    render(<form onSubmit={submit}><Button>Cancelar</Button></form>);
+    await userEvent.click(screen.getByRole('button'));
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('loading con asChild conserva un solo enlace y bloquea navegación', async () => {
+    const click = vi.fn();
+    render(<Button asChild loading onClick={click}><a href="/cash">Caja</a></Button>);
+    const link = screen.getByRole('link');
+    expect(link).toHaveAttribute('aria-disabled', 'true');
+    expect(link).toHaveAttribute('tabindex', '-1');
+    await userEvent.click(link);
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it('disabled asChild bloquea incluso el handler propio del enlace', async () => {
+    const click = vi.fn();
+    render(<Button asChild disabled><a href="/cash" onClick={click}>Caja</a></Button>);
+    await userEvent.click(screen.getByRole('link'));
+    expect(click).not.toHaveBeenCalled();
+  });
   it('renderiza como <button> por defecto', () => {
     render(<Button>Guardar</Button>);
     expect(screen.getByRole('button', { name: 'Guardar' })).toBeInTheDocument();

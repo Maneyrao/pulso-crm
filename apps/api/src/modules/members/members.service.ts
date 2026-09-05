@@ -45,6 +45,8 @@ interface MemberListRow {
   balance: Prisma.Decimal;
   branch: { id: string; name: string } | null;
   memberships: {
+    status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'SUSPENDED';
+    startDate: Date;
     endDate: Date | null;
     classesRemaining: number | null;
     plan: { name: string };
@@ -62,6 +64,12 @@ export class MembersService {
 
   async list(query: ListMembersQuery): Promise<ListMembersResponse> {
     const where = this.buildListWhere(query);
+    const membershipWhere: Prisma.MembershipWhereInput =
+      query.membershipStatus === 'EXPIRED'
+        ? { status: 'EXPIRED' }
+        : query.membershipStatus === 'ACTIVE' || query.planId
+          ? { status: 'ACTIVE' }
+          : {};
 
     const [rows, total] = await Promise.all([
       this.prisma.client.member.findMany({
@@ -72,8 +80,8 @@ export class MembersService {
         include: {
           branch: { select: { id: true, name: true } },
           memberships: {
-            where: { status: 'ACTIVE' },
-            orderBy: { createdAt: 'desc' },
+            where: membershipWhere,
+            orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }],
             take: 1,
             include: { plan: { select: { name: true } } },
           },
@@ -505,7 +513,13 @@ export class MembersService {
         some: { status: 'ACTIVE', ...(query.planId ? { planId: query.planId } : {}) },
       };
     } else if (query.membershipStatus === 'EXPIRED') {
-      where.memberships = { some: { status: 'EXPIRED' } };
+      // Un socio renovado tiene períodos EXPIRED históricos y uno ACTIVE.
+      // No debe aparecer como vencido: el segmento representa su período
+      // vigente, no cualquier membresía que haya tenido en el pasado.
+      where.AND = [
+        { memberships: { some: { status: 'EXPIRED' } } },
+        { memberships: { none: { status: 'ACTIVE' } } },
+      ];
     } else if (query.membershipStatus === 'NONE') {
       where.memberships = { none: { status: 'ACTIVE' } };
     }
@@ -539,7 +553,8 @@ export class MembersService {
   }
 
   private toListItem(row: MemberListRow, canReadDocument: boolean): MemberListItem {
-    const activeMembership = row.memberships[0];
+    const latestMembership = row.memberships[0];
+    const activeMembership = latestMembership?.status === 'ACTIVE' ? latestMembership : null;
     return {
       id: row.id,
       memberNumber: row.memberNumber,
@@ -554,6 +569,15 @@ export class MembersService {
             planName: activeMembership.plan.name,
             endDate: toDateOnly(activeMembership.endDate),
             classesRemaining: activeMembership.classesRemaining,
+          }
+        : null,
+      latestMembership: latestMembership
+        ? {
+            planName: latestMembership.plan.name,
+            status: latestMembership.status,
+            startDate: toDateOnly(latestMembership.startDate),
+            endDate: toDateOnly(latestMembership.endDate),
+            classesRemaining: latestMembership.classesRemaining,
           }
         : null,
       balance: row.balance.toFixed(2),
@@ -585,7 +609,7 @@ export class MembersService {
       if (target.includes('document')) {
         return AppError.conflict(
           ErrorCode.DUPLICATE_DOCUMENT,
-          'Ya existe un socio con ese documento en este gimnasio.',
+          'Ya existe un socio con ese documento en este gimnasio. Buscalo en el segmento "Todos" antes de crear otro.',
         );
       }
       if (target.includes('card')) {

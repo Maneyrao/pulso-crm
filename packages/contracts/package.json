@@ -21,7 +21,8 @@
     "./reporting": "./src/reporting.ts",
     "./messaging": "./src/messaging.ts",
     "./agent-protocol": "./src/agent-protocol.ts",
-    "./biometrics": "./src/biometrics.ts"
+    "./biometrics": "./src/biometrics.ts",
+    "./inventory": "./src/inventory.ts"
   },
   "scripts": {
     "lint": "eslint src",

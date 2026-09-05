@@ -37,10 +37,10 @@ export const ErrorState = React.forwardRef<HTMLDivElement, ErrorStateProps>(
         className="h-10 w-10 text-(--color-danger-subtle-foreground)"
       />
       <div className="flex flex-col gap-1">
-        <p className="text-(--text-base) font-medium text-(--color-danger-subtle-foreground)">
+        <p className="text-(length:--text-base) font-medium text-(--color-danger-subtle-foreground)">
           {title}
         </p>
-        <p className="text-(--text-sm) text-(--color-danger-subtle-foreground)">{description}</p>
+        <p className="text-(length:--text-sm) text-(--color-danger-subtle-foreground)">{description}</p>
       </div>
       {onRetry ? (
         <Button variant="outline" size="sm" onClick={onRetry} className="mt-1">

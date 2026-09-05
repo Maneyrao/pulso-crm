@@ -14,6 +14,15 @@ import type {
   UpdateMemberRequest,
 } from '@pulso/contracts/members';
 import { apiFetch, toQueryString } from './client.js';
+import type { MemberPaymentQuote, PayDebtRequest, PayDebtResponse } from '@pulso/contracts/cash';
+
+export function getMemberPaymentQuote(id: string, paymentMethodId: string): Promise<MemberPaymentQuote> {
+  return apiFetch(`/members/${id}/payment-quote${toQueryString({ paymentMethodId })}`);
+}
+
+export function payMemberDebt(id: string, payload: PayDebtRequest, idempotencyKey: string): Promise<PayDebtResponse> {
+  return apiFetch(`/members/${id}/pay-debt`, { method: 'POST', body: payload, idempotencyKey });
+}
 
 export function listMembers(query: Partial<ListMembersQuery>): Promise<ListMembersResponse> {
   return apiFetch<ListMembersResponse>(`/members${toQueryString(query)}`);

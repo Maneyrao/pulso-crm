@@ -13,7 +13,7 @@ const ICON: Record<AlertTone, React.ComponentType<{ className?: string }>> = {
 };
 
 const alertVariants = cva(
-  'flex items-start gap-3 rounded-(--radius-md) border p-4 text-(--text-sm)',
+  'flex items-start gap-3 rounded-(--radius-md) border p-4 text-(length:--text-sm)',
   {
     variants: {
       tone: {

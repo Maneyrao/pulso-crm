@@ -60,7 +60,7 @@ export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
         onBlur={handleBlur}
         aria-invalid={invalid ? true : undefined}
         className={cn(
-          'h-(--control-height-md) w-full rounded-(--radius-md) border bg-(--color-surface) px-3 text-right text-(--text-base) text-(--color-text) tabular-nums',
+          'h-(--control-height-md) w-full rounded-(--radius-md) border bg-(--color-surface) px-3 text-right text-(length:--text-base) text-(--color-text) tabular-nums',
           'placeholder:text-(--color-muted) disabled:cursor-not-allowed disabled:opacity-50',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--focus-ring)',
           invalid ? 'border-(--color-danger)' : 'border-(--color-border-strong)',

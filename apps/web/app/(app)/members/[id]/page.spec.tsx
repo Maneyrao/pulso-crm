@@ -74,6 +74,13 @@ vi.mock('@/lib/api/tenancy', () => ({
   deactivateBranch: vi.fn(),
 }));
 
+const getCurrentCashSessionMock = vi.fn();
+const listPaymentMethodsMock = vi.fn();
+vi.mock('@/lib/api/cash', () => ({
+  getCurrentCashSession: (...args: unknown[]) => getCurrentCashSessionMock(...args),
+  listPaymentMethods: (...args: unknown[]) => listPaymentMethodsMock(...args),
+}));
+
 function withQuery(children: ReactNode): ReactNode {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -156,6 +163,7 @@ function makeBranch(overrides: Partial<Branch> = {}): Branch {
 
 function makeMembership(overrides: Partial<Membership> = {}): Membership {
   return {
+    autoRenew: false, renewalAnchorDay: null, nextRenewalDate: null, renewedFromId: null,
     id: '00000000-0000-0000-0000-000000000m01',
     gymId: 'g1',
     memberId: '00000000-0000-0000-0000-000000000abc',
@@ -184,6 +192,8 @@ async function primeSession(
     'membership:delete',
     'plan:read',
     'config:read',
+    'cash:read',
+    'cash:operate',
   ],
 ): Promise<void> {
   const { useSessionStore } = await import('@/lib/stores/session');
@@ -215,6 +225,8 @@ beforeEach(async () => {
   cancelMembershipMock.mockReset();
   listPlansMock.mockReset();
   listBranchesMock.mockReset();
+  getCurrentCashSessionMock.mockReset();
+  listPaymentMethodsMock.mockReset();
   getMemberLedgerMock.mockResolvedValue({ entries: [], balance: '0.00' });
   listMemberPaymentsMock.mockResolvedValue({
     data: [],
@@ -224,6 +236,29 @@ beforeEach(async () => {
   listMemberMembershipsMock.mockResolvedValue({ data: [] });
   listPlansMock.mockResolvedValue({ data: [makePlan()] });
   listBranchesMock.mockResolvedValue({ data: [makeBranch()] });
+  getCurrentCashSessionMock.mockResolvedValue(null);
+  listPaymentMethodsMock.mockResolvedValue({
+    data: [
+      {
+        id: '00000000-0000-0000-0000-000000000301',
+        gymId: 'g1',
+        code: 'CASH',
+        name: 'Efectivo',
+        countsAsCash: true,
+        isActive: true,
+        sortOrder: 0,
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000302',
+        gymId: 'g1',
+        code: 'TRANSFER',
+        name: 'Transferencia',
+        countsAsCash: false,
+        isActive: true,
+        sortOrder: 1,
+      },
+    ],
+  });
 });
 
 describe('MemberDetailPage', () => {
@@ -465,7 +500,7 @@ describe('MemberDetailPage', () => {
     await user.click(await screen.findByRole('option', { name: /Centro/i }));
 
     // Envía el formulario.
-    fireEvent.click(screen.getByRole('button', { name: /^Asignar$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Activar con deuda/i }));
 
     await waitFor(() => expect(createMembershipMock).toHaveBeenCalledTimes(1));
     const [memberId, payload, idempotencyKey] = createMembershipMock.mock.calls[0] as [
@@ -480,5 +515,96 @@ describe('MemberDetailPage', () => {
       charge: { mode: 'DEBT' },
     });
     expect(idempotencyKey).toMatch(/^[0-9a-f-]{36}$/i);
+  });
+
+  it('tab Membresías: permite marcar Pagó y cobra por caja con el importe proporcional', async () => {
+    await primeSession();
+    getMemberMock.mockResolvedValueOnce(makeMember());
+    listMemberMembershipsMock.mockResolvedValueOnce({ data: [] });
+    getCurrentCashSessionMock.mockResolvedValueOnce({
+      id: '00000000-0000-0000-0000-000000000401',
+      gymId: 'g1',
+      branchId: 'b1',
+      cashRegisterId: '00000000-0000-0000-0000-000000000402',
+      status: 'OPEN',
+      openedByUserId: 'u',
+      openedAt: '2026-08-21T12:00:00.000Z',
+      openingAmount: '0.00',
+      openingNotes: null,
+      closedByUserId: null,
+      closedAt: null,
+      closingNotes: null,
+      expectedCash: null,
+      declaredCash: null,
+      cashDifference: null,
+      businessDate: '2026-08-21',
+    });
+    createMembershipMock.mockResolvedValueOnce({
+      membership: makeMembership({ pricePaid: '30000.00' }),
+      ledgerEntry: {},
+      cashMovement: {},
+    });
+    const user = userEvent.setup();
+    const { default: MemberDetailPage } = await import('./page');
+    render(withQuery(<MemberDetailPage />));
+
+    await waitFor(() => expect(screen.getByText('Pérez, Lucía')).toBeInTheDocument());
+    await user.click(screen.getByRole('tab', { name: /Membresías/i }));
+    await waitFor(() => expect(getCurrentCashSessionMock).toHaveBeenCalled());
+    fireEvent.click(screen.getAllByRole('button', { name: /Asignar membresía/i })[0]!);
+
+    const planTrigger = screen.getByLabelText(/^Plan\b/i);
+    await user.click(planTrigger);
+    await user.click(await screen.findByRole('option', { name: /Mensual full/i }));
+
+    const branchTrigger = screen.getByLabelText(/^Sede\b/i);
+    await user.click(branchTrigger);
+    await user.click(await screen.findByRole('option', { name: /Centro/i }));
+
+    fireEvent.change(screen.getByLabelText(/Fecha de inicio/i), {
+      target: { value: '2026-08-21' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Pagó ahora$/i }));
+
+    const methodTrigger = screen.getByLabelText(/Medio de pago/i);
+    await user.click(methodTrigger);
+    await user.click(await screen.findByRole('option', { name: /Transferencia/i }));
+
+    expect(screen.queryByLabelText(/^Precio$/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Precio del plan')).toBeInTheDocument();
+    expect(screen.getByText(/Recargo por transferencia/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Cobrar y activar/i }));
+
+    await waitFor(() => expect(createMembershipMock).toHaveBeenCalledTimes(1));
+    expect(createMembershipMock.mock.calls[0]?.[1]).toMatchObject({
+      charge: {
+        mode: 'NOW',
+        paymentMethodId: '00000000-0000-0000-0000-000000000302',
+        amount: '30000.00',
+      },
+    });
+  });
+
+  it('la baja de un socio con balance negativo reconoce la deuda y envía force con motivo', async () => {
+    await primeSession();
+    getMemberMock.mockResolvedValueOnce(makeMember({ balance: '-15000.00' }));
+    deactivateMemberMock.mockResolvedValueOnce(makeMember({ status: 'INACTIVE' }));
+    const user = userEvent.setup();
+    const { default: MemberDetailPage } = await import('./page');
+    render(withQuery(<MemberDetailPage />));
+
+    await screen.findByText('Pérez, Lucía');
+    await user.click(screen.getByRole('button', { name: /Dar de baja/i }));
+    fireEvent.change(screen.getByLabelText(/Motivo/i), {
+      target: { value: 'Baja solicitada con deuda' },
+    });
+    await user.click(screen.getByRole('button', { name: /Confirmar baja/i }));
+
+    await waitFor(() =>
+      expect(deactivateMemberMock).toHaveBeenCalledWith('00000000-0000-0000-0000-000000000abc', {
+        force: true,
+        reason: 'Baja solicitada con deuda',
+      }),
+    );
   });
 });

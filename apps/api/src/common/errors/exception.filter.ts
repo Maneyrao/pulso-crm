@@ -44,7 +44,7 @@ function fromPrisma(err: { code?: string; meta?: Record<string, unknown> }): App
       if (target.includes('document')) {
         return AppError.conflict(
           ErrorCode.DUPLICATE_DOCUMENT,
-          'Ya existe un socio con ese documento en este gimnasio.',
+          'Ya existe un socio con ese documento en este gimnasio. Buscalo en el segmento "Todos" antes de crear otro.',
         );
       }
       if (target.includes('card')) {

@@ -36,7 +36,7 @@ export function Drawer({
         <DialogPrimitive.Content
           className={cn(
             'fixed inset-y-0 z-50 flex w-72 max-w-[85vw] flex-col bg-(--color-surface) shadow-(--shadow-lg) outline-none',
-            'transition-transform duration-200 motion-reduce:transition-none',
+            'transition-transform duration-150 motion-reduce:transition-none',
             side === 'left'
               ? 'left-0 border-r-2 border-(--color-border) data-[state=closed]:-translate-x-full data-[state=open]:translate-x-0'
               : 'right-0 border-l-2 border-(--color-border) data-[state=closed]:translate-x-full data-[state=open]:translate-x-0',
@@ -45,7 +45,7 @@ export function Drawer({
         >
           <DialogPrimitive.Title
             className={cn(
-              'px-4 pt-4 text-(--text-lg) font-semibold text-(--color-text)',
+              'px-4 pt-4 text-(length:--text-lg) font-semibold text-(--color-text)',
               hideTitle && 'sr-only',
             )}
           >

@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { Checkbox } from '@pulso/ui';
 import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { DOCUMENT_TYPES, documentHint } from '@pulso/config/document';
@@ -135,6 +136,7 @@ function NewMemberScreen() {
     startDate: todayYmd(),
   }));
   const [planError, setPlanError] = React.useState<string | undefined>();
+  const [autoRenew, setAutoRenew] = React.useState(true);
 
   const [paymentMethodId, setPaymentMethodId] = React.useState('');
   const [chargeAmount, setChargeAmount] = React.useState('');
@@ -320,6 +322,7 @@ function NewMemberScreen() {
       return;
     }
     const payload: CreateMembershipRequest = {
+      autoRenew: selectedPlan?.billingCycle === 'MONTHLY' && autoRenew,
       planId: planForm.planId,
       branchId: planForm.branchId,
       startDate: planForm.startDate,
@@ -394,6 +397,7 @@ function NewMemberScreen() {
             priceQuote={priceQuote}
           />
         ) : null}
+        {stepId === 'plan' && selectedPlan?.billingCycle === 'MONTHLY' && <label className="mt-4 flex items-center gap-2"><Checkbox checked={autoRenew} onChange={(event) => setAutoRenew(event.target.checked)} />Generar la próxima cuota cada mes</label>}
       </Card>
 
       {stepId === 'personal' && personalError ? (
@@ -596,7 +600,7 @@ function PlanStep({ form, onChange, planOptions, branchOptions, loading }: PlanS
           <Select
             {...field}
             options={planOptions}
-            value={form.planId || undefined}
+            value={form.planId}
             placeholder="Sin plan"
             onValueChange={(v) => onChange({ planId: v })}
           />
@@ -607,7 +611,7 @@ function PlanStep({ form, onChange, planOptions, branchOptions, loading }: PlanS
           <Select
             {...field}
             options={branchOptions}
-            value={form.branchId || undefined}
+            value={form.branchId}
             onValueChange={(v) => onChange({ branchId: v })}
           />
         )}
@@ -669,7 +673,7 @@ function PaymentStep({
           <Select
             {...field}
             options={paymentMethodOptions}
-            value={paymentMethodId || undefined}
+            value={paymentMethodId}
             onValueChange={onPaymentMethodChange}
           />
         )}

@@ -15,7 +15,6 @@ import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
 import { useSessionStore } from '@/lib/stores/session';
 import { EnrollmentDialog } from './EnrollmentDialog';
-import { ConsentConfirmationDialog } from './ConsentConfirmationDialog';
 import { HidDiagnosticsPanel } from './HidDiagnosticsPanel';
 
 const FINGER_LABEL: Record<string, string> = {
@@ -32,10 +31,9 @@ const FINGER_LABEL: Record<string, string> = {
 };
 
 /**
- * Tab Biometría del perfil de socio: consentimiento (el backend lo verifica;
- * acá sólo se registra), credenciales (metadatos — el template jamás llega al
- * navegador) y enrolamiento vía Pulso Agent. La revocación del consentimiento
- * revoca TODAS las credenciales en la misma transacción.
+ * Tab Biometría del perfil de socio. El operador inicia todo desde "Enrolar
+ * huella"; el consentimiento técnico se garantiza en segundo plano y el
+ * backend conserva su trazabilidad. La UI queda enfocada en la captura.
  */
 export function BiometricsTab({ memberId, memberName }: { memberId: string; memberName?: string }) {
   const { toast } = useToast();
@@ -47,7 +45,6 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
     queryFn: () => listMemberCredentials(memberId),
   });
   const [enrollOpen, setEnrollOpen] = React.useState(false);
-  const [consentOpen, setConsentOpen] = React.useState(false);
   const [showDiagnostics, setShowDiagnostics] = React.useState(false);
 
   const invalidate = () =>
@@ -56,13 +53,6 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
   const consentMutation = useMutation({
     mutationFn: () => grantConsent(memberId, { version: 'v1', grantedMethod: 'IN_PERSON_SIGNED' }),
     onSuccess: () => {
-      setConsentOpen(false);
-      toast({
-        title: 'Consentimiento registrado',
-        description:
-          'Quedaron registrados usuario, fecha y versión. Ahora podés enrolar la huella.',
-        tone: 'success',
-      });
       if (activeBranchId) setEnrollOpen(true);
     },
     onError: (err) =>
@@ -77,8 +67,8 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
     mutationFn: () => revokeConsent(memberId),
     onSuccess: (res) => {
       toast({
-        title: 'Consentimiento revocado',
-        description: `Se revocaron ${res.revokedCredentials} credencial(es) en la misma operación.`,
+        title: 'Huellas eliminadas',
+        description: `Se eliminaron ${res.revokedCredentials} huella(s) activa(s).`,
         tone: 'success',
       });
       invalidate();
@@ -152,25 +142,14 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
   return (
     <div className="space-y-4">
       <Alert tone="info" title="Privacidad">
-        Sólo se guarda un template de minucias cifrado, nunca la imagen de la huella. El acceso por
-        documento sigue disponible siempre.
-      </Alert>
-
-      <Alert tone="info" title="Captura integrada">
-        El lector se controla desde esta pantalla y la confirmación aparece dentro del CRM.
+        La imagen del dedo no se guarda. El lector y la confirmación funcionan dentro del CRM.
       </Alert>
 
       <div className="flex flex-wrap gap-2">
         <PermissionGate permission="biometrics:enroll" fallback={null}>
           <Button
             loading={consentMutation.isPending}
-            variant="outline"
-            onClick={() => setConsentOpen(true)}
-          >
-            Registrar consentimiento
-          </Button>
-          <Button
-            onClick={() => setEnrollOpen(true)}
+            onClick={() => consentMutation.mutate()}
             disabled={!activeBranchId}
             title={!activeBranchId ? 'Seleccioná una sede' : undefined}
           >
@@ -183,7 +162,7 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
             loading={revokeConsentMutation.isPending}
             onClick={() => revokeConsentMutation.mutate()}
           >
-            Revocar consentimiento y credenciales
+            Eliminar huellas
           </Button>
         </PermissionGate>
         <Button
@@ -205,7 +184,7 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
         rowKey={(c) => c.id}
         loading={credentialsQuery.isLoading}
         emptyTitle="Sin huellas enroladas"
-        emptyDescription="Registrá el consentimiento y enrolá un dedo con el lector de la recepción."
+        emptyDescription="Presioná “Enrolar huella” y apoyá el dedo en el lector."
       />
 
       {activeBranchId ? (
@@ -218,14 +197,6 @@ export function BiometricsTab({ memberId, memberName }: { memberId: string; memb
           onEnrolled={invalidate}
         />
       ) : null}
-
-      <ConsentConfirmationDialog
-        open={consentOpen}
-        onOpenChange={setConsentOpen}
-        {...(memberName ? { memberName } : {})}
-        onConfirm={() => consentMutation.mutate()}
-        loading={consentMutation.isPending}
-      />
     </div>
   );
 }

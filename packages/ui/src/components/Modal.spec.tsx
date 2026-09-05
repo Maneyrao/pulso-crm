@@ -5,6 +5,13 @@ import { Button } from './Button.js';
 import { Modal } from './Modal.js';
 
 describe('Modal', () => {
+  it('busy impide cerrar por X o Escape durante una escritura', () => {
+    const onOpenChange = vi.fn();
+    render(<Modal open busy title="Cobro" onOpenChange={onOpenChange}>Procesando</Modal>);
+    expect(screen.getByRole('button', { name: 'Cerrar' })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
   it('limita la ventana al viewport y deja contenido y acciones en zonas independientes', () => {
     render(
       <Modal

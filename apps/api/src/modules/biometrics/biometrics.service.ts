@@ -207,6 +207,15 @@ export class BiometricsService {
     const ctx = TenantContextStore.require();
     await this.requireMember(memberId);
 
+    // La UI de recepción inicia enrolamiento con una sola acción. Si ya existe
+    // un consentimiento vigente, se reutiliza para no duplicar registros cada
+    // vez que el operador abre el lector.
+    const activeConsent = await this.prisma.client.biometricConsent.findFirst({
+      where: { memberId, revokedAt: null },
+      orderBy: { grantedAt: 'desc' },
+    });
+    if (activeConsent) return { consent: serializeConsent(activeConsent) };
+
     const consent = await this.prisma.client.$transaction(async (tx) => {
       const created = await tx.biometricConsent.create({
         data: scoped({

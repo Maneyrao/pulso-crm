@@ -29,7 +29,7 @@ export function AppFooter() {
   const showHardware = HARDWARE_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));
 
   return (
-    <footer className="flex h-10 shrink-0 items-center justify-between gap-4 border-t border-(--color-border) bg-(--color-surface) px-4 text-(--text-xs) text-(--color-muted)">
+    <footer className="flex h-10 shrink-0 items-center justify-between gap-4 border-t border-(--color-border) bg-(--color-surface) px-4 text-(length:--text-xs) text-(--color-muted)">
       <span>© {new Date().getFullYear()} El Templo</span>
       {showHardware ? (
         <span className="flex items-center gap-1.5">

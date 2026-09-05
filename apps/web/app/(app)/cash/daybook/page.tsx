@@ -12,6 +12,7 @@ import type {
   PaymentMethod,
 } from '@pulso/contracts/cash';
 import { formatMoney, subMoney, sumMoney } from '@pulso/config/money';
+import { addDays, DEFAULT_TIMEZONE, toBusinessDate } from '@pulso/config/time';
 import {
   Button,
   DataTable,
@@ -27,9 +28,10 @@ import {
 import { PageHeader } from '@/components/shared/PageHeader';
 import { getDaybook, listPaymentMethods } from '@/lib/api/cash';
 import { ApiError } from '@/lib/api/errors';
-import { PermissionGate } from '@/lib/auth/permissions';
+import { PermissionGate, usePermission } from '@/lib/auth/permissions';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
+import { paymentMethodLabel } from '../payment-options';
 
 /**
  * Libro diario de caja (API_CONTRACTS §8 `GET /cash/daybook`).
@@ -57,9 +59,10 @@ function DaybookScreen() {
   const gymId = useSessionStore((s) => s.gym?.id);
   const activeBranchId = useSessionStore((s) => s.activeBranchId ?? null);
 
-  const today = React.useMemo(() => new Date(), []);
-  const todayIso = React.useMemo(() => toIsoDate(today), [today]);
-  const [from, setFrom] = React.useState(() => toIsoDate(startOfMonth(today)));
+  const timezone = useSessionStore((s) => s.branches.find((b) => b.id === s.activeBranchId)?.timezone ?? DEFAULT_TIMEZONE);
+  const canReadMembers = usePermission('member:read');
+  const todayIso = toBusinessDate(new Date(), timezone);
+  const [from, setFrom] = React.useState(() => `${todayIso.slice(0, 8)}01`);
   const [to, setTo] = React.useState(todayIso);
   const [methodId, setMethodId] = React.useState('ALL');
   const [movementType, setMovementType] = React.useState('ALL');
@@ -129,13 +132,13 @@ function DaybookScreen() {
   }, [days]);
 
   const selectCurrentMonth = () => {
-    setFrom(toIsoDate(startOfMonth(today)));
+    setFrom(`${todayIso.slice(0, 8)}01`);
     setTo(todayIso);
   };
   const selectPreviousMonth = () => {
-    const prevMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-    setFrom(toIsoDate(startOfMonth(prevMonthEnd)));
-    setTo(toIsoDate(prevMonthEnd));
+    const prevMonthEnd = addDays(`${todayIso.slice(0, 8)}01`, -1);
+    setFrom(`${prevMonthEnd.slice(0, 8)}01`);
+    setTo(prevMonthEnd);
   };
 
   return (
@@ -205,8 +208,7 @@ function DaybookScreen() {
               options={[
                 { value: 'ALL', label: 'Todos los métodos' },
                 ...(paymentMethodsQuery.data?.data ?? [])
-                  .filter((method) => method.isActive)
-                  .map((method) => ({ value: method.id, label: method.name })),
+                  .map((method) => ({ value: method.id, label: paymentMethodLabel(method) })),
               ]}
             />
           )}
@@ -225,22 +227,22 @@ function DaybookScreen() {
             />
           )}
         </FormField>
-        <Button asChild variant="outline">
+        {canReadMembers && <Button asChild variant="outline">
           <Link href="/members/debt">Ver pendientes de pago</Link>
-        </Button>
+        </Button>}
       </div>
 
       {from && to && from > to ? (
-        <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+        <p role="alert" className="text-(length:--text-sm) font-medium text-(--color-danger)">
           El rango es inválido: la fecha "desde" es posterior a "hasta".
         </p>
       ) : null}
 
-      <DaybookContent
+      {from && to && from <= to ? <DaybookContent
         query={daybookQuery}
         filteredDays={days}
         paymentMethodById={paymentMethodById}
-      />
+      /> : null}
     </div>
   );
 }
@@ -306,6 +308,8 @@ interface DayBlockProps {
 }
 
 function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById }: DayBlockProps) {
+  const canReadMembers = usePermission('member:read');
+  const timezone = useSessionStore((s) => s.branches.find((b) => b.id === s.activeBranchId)?.timezone ?? DEFAULT_TIMEZONE);
   const shortSessionId = (id: string) => id.slice(0, 8);
   const sessionShortById = React.useMemo(
     () => new Map(sessions.map((s) => [s.id, shortSessionId(s.id)])),
@@ -320,13 +324,13 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
     {
       id: 'time',
       header: 'Hora',
-      cell: (m) => <span className="tabular-nums">{formatTime(m.createdAt)}</span>,
+      cell: (m) => <span className="tabular-nums">{formatTime(m.createdAt, timezone)}</span>,
     },
     {
       id: 'session',
       header: 'Sesión',
       cell: (m) => (
-        <span className="font-mono text-(--text-xs) text-(--color-muted)">
+        <span className="font-mono text-(length:--text-xs) text-(--color-muted)">
           {sessionShortById.get(m.cashSessionId) ?? shortSessionId(m.cashSessionId)}
         </span>
       ),
@@ -334,8 +338,7 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
     {
       id: 'method',
       header: 'Método',
-      cell: (m) =>
-        paymentMethodById.get(m.paymentMethodId)?.name ?? shortSessionId(m.paymentMethodId),
+      cell: (m) => { const method = paymentMethodById.get(m.paymentMethodId); return method ? paymentMethodLabel(method) : 'Medio no disponible'; },
     },
     {
       id: 'type',
@@ -350,11 +353,11 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
     {
       id: 'amount',
       header: 'Importe',
-      cell: (m) => (
+      cell: (m) => (<span className={m.isReversed ? 'line-through' : undefined}>
         <MoneyDisplay
           value={m.type === 'EXPENSE' ? `-${m.amount}` : m.amount}
           emphasizeNegative={m.type === 'EXPENSE'}
-        />
+        /></span>
       ),
       headerClassName: 'text-right',
       cellClassName: 'text-right',
@@ -363,7 +366,7 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
       id: 'member',
       header: 'Socio',
       cell: (m) =>
-        m.member ? (
+        m.member && canReadMembers ? (
           <Link
             href={`/members/${m.member.id}`}
             className="font-medium text-(--color-text) hover:underline"
@@ -371,16 +374,20 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
             {m.member.lastName}, {m.member.firstName}
           </Link>
         ) : (
-          <span className="text-(--color-muted)">—</span>
+          <span className="text-(--color-muted)">{m.member ? `${m.member.lastName}, ${m.member.firstName}` : '—'}</span>
         ),
+    },
+    {
+      id: 'correction', header: 'Estado / corrección',
+      cell: (m) => <div className="text-sm">{m.isReversed ? 'Revertido' : m.reversalOfId ? 'Corrección' : 'Registrado'}{m.reversalReason && <p className="text-xs text-(--color-muted)">{m.reversalReason}</p>}</div>,
     },
   ];
 
   return (
     <section aria-label={`Día ${date}`} className="flex flex-col gap-3">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-(--text-lg) font-semibold text-(--color-text) tabular-nums">{date}</h2>
-        <p className="text-(--text-sm) text-(--color-muted)">
+        <h2 className="text-(length:--text-lg) font-semibold text-(--color-text) tabular-nums">{date}</h2>
+        <p className="text-(length:--text-sm) text-(--color-muted)">
           {sessions.length} {sessions.length === 1 ? 'sesión' : 'sesiones'} · {movements.length}{' '}
           {movements.length === 1 ? 'movimiento' : 'movimientos'}
         </p>
@@ -396,10 +403,10 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
       />
 
       <div className="overflow-x-auto rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-4">
-        <h3 className="mb-2 text-(--text-sm) font-medium text-(--color-text)">
+        <h3 className="mb-2 text-(length:--text-sm) font-medium text-(--color-text)">
           Totales por método
         </h3>
-        <table className="w-full border-collapse text-(--text-sm)">
+        <table className="w-full border-collapse text-(length:--text-sm)">
           <thead>
             <tr className="border-b border-(--color-border)">
               <th scope="col" className="px-2 py-1.5 text-left font-medium text-(--color-muted)">
@@ -425,8 +432,7 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
                   className="border-b border-(--color-border) last:border-0"
                 >
                   <td className="px-2 py-1.5">
-                    {paymentMethodById.get(row.paymentMethodId)?.name ??
-                      row.paymentMethodId.slice(0, 8)}
+                    {paymentMethodById.has(row.paymentMethodId) ? paymentMethodLabel(paymentMethodById.get(row.paymentMethodId)!) : 'Medio no disponible'}
                   </td>
                   <td className="px-2 py-1.5 text-right">
                     <MoneyDisplay value={row.income} />
@@ -463,17 +469,6 @@ function DayBlock({ date, sessions, movements, totalsByMethod, paymentMethodById
 
 // ── helpers ─────────────────────────────────────────────────────────────
 
-function toIsoDate(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
 /** "01/08/2026 – 20/08/2026" para el subtítulo del período. */
 function formatRangeLabel(from: string, to: string): string {
   const fmt = (iso: string) => {
@@ -483,10 +478,10 @@ function formatRangeLabel(from: string, to: string): string {
   return from === to ? fmt(from) : `${fmt(from)} – ${fmt(to)}`;
 }
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, timeZone: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString('es-AR', { timeZone, hour: '2-digit', minute: '2-digit' });
 }
 
 function buildQuery(from: string, to: string, branchId: string | null): DaybookQuery {

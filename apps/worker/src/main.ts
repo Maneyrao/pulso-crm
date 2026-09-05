@@ -8,6 +8,7 @@ import { PrismaClient } from '@pulso/db';
 import { QUEUE_NAMES, createQueue } from './queues/index.js';
 import { dispatchOutboxBatch } from './jobs/outbox-dispatcher.js';
 import { expireMemberships } from './jobs/membership-expiration.js';
+import { renewMemberships } from './jobs/membership-renewal.js';
 import { createMessagingProvider } from './lib/messaging-provider.js';
 import { processMessageJob } from './jobs/send-message.js';
 
@@ -59,17 +60,27 @@ async function main(): Promise<void> {
     });
   }, OUTBOX_POLL_MS);
 
-  const expirationTimer = setInterval(() => {
-    void expireMemberships({ prisma, logger })
-      .then((r) => {
-        if (r.membershipsExpired > 0) logger.info(r, 'Barrido de vencimientos');
-      })
-      .catch((e: unknown) => logger.error({ err: e }, 'Fallo el barrido de vencimientos'));
-  }, EXPIRATION_INTERVAL_MS);
+  let membershipRun: Promise<void> | undefined;
+  const runMemberships = () => {
+    if (membershipRun) return;
+    membershipRun = (async () => {
+      const now = new Date();
+      const expired = await expireMemberships({ prisma, logger, now });
+      const renewed = await renewMemberships({ prisma, logger, now });
+      if (expired.membershipsExpired || renewed.membershipsRenewed || renewed.failures) {
+        logger.info({ ...expired, ...renewed }, 'Barrido de membresias');
+      }
+    })()
+      .catch((err: unknown) => logger.error({ err }, 'Fallo el barrido de membresias'))
+      .finally(() => {
+        membershipRun = undefined;
+      });
+  };
+  const expirationTimer = setInterval(runMemberships, EXPIRATION_INTERVAL_MS);
 
   // Una corrida al arrancar: si el worker estuvo caído toda la noche, no hay
   // que esperar una hora para que las membresías queden al día.
-  void expireMemberships({ prisma, logger }).catch(() => undefined);
+  runMemberships();
 
   logger.info({ env: env.NODE_ENV, provider: env.WHATSAPP_PROVIDER }, 'Worker iniciado');
 
@@ -77,6 +88,7 @@ async function main(): Promise<void> {
     logger.info({ signal }, 'Cerrando worker');
     clearInterval(outboxTimer);
     clearInterval(expirationTimer);
+    await membershipRun;
     // `close()` espera a que terminen los jobs en curso: cortar un envío a
     // mitad dejaría un mensaje en estado ambiguo.
     await messagingWorker.close();

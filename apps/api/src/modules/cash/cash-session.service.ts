@@ -57,7 +57,13 @@ export class CashSessionService {
   async getCurrent(): Promise<CashSessionDto | null> {
     const ctx = TenantContextStore.require();
     const branchId = ctx.activeBranchId ?? undefined;
-    const session = await findOpenSessionForUser(this.prisma.client, ctx.userId, branchId);
+    // Cast only at the type boundary: the runtime client is still the
+    // tenant-scoped client. Avoids a deep generic instantiation caused by the
+    // extended Prisma type after adding inventory models.
+    const session = await (this.prisma.client as unknown as Prisma.TransactionClient).cashSession.findFirst({
+      where: { openedByUserId: ctx.userId, status: 'OPEN', ...(branchId ? { branchId } : {}) },
+      select: { id: true, gymId: true, branchId: true, cashRegisterId: true },
+    });
     if (!session) return null;
 
     // findOpenSessionForUser sólo trae ids; para el DTO se relee la fila
@@ -221,7 +227,13 @@ export class CashSessionService {
       seen.add(item.paymentMethodId);
     }
 
-    const openSession = await findOpenSessionForUser(this.prisma.client, ctx.userId);
+    // El cliente tenant-extended dispara una instanciación genérica profunda
+    // al entrar al helper; el cast acota el contrato de lectura sin cambiar
+    // el cliente scoped que se ejecuta en runtime.
+    const openSession = await findOpenSessionForUser(
+      this.prisma.client as unknown as Prisma.TransactionClient,
+      ctx.userId,
+    );
     if (!openSession) {
       throw AppError.conflict(
         ErrorCode.NO_OPEN_CASH_SESSION,

@@ -1,5 +1,15 @@
 import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+import { extendTailwindMerge } from 'tailwind-merge';
+
+// Compatibilidad con consumidores anteriores: --text-* siempre es tamaño,
+// nunca color. En componentes nuevos usamos text-(length:--text-*).
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'font-size': [{ text: [(value: string) => /^\(--text-[\w-]+\)$/.test(value)] }],
+    },
+  },
+});
 
 /**
  * Combina clases condicionales (clsx) y resuelve conflictos de utilidades de

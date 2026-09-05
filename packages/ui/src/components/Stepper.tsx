@@ -42,7 +42,7 @@ export function Stepper({
               <span
                 aria-hidden="true"
                 className={cn(
-                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-(--radius-full) text-(--text-xs) font-medium',
+                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-(--radius-full) text-(length:--text-xs) font-medium',
                   isCompleted && 'bg-(--color-success) text-(--color-success-foreground)',
                   isCurrent &&
                     !isCompleted &&
@@ -56,7 +56,7 @@ export function Stepper({
               </span>
               <span
                 className={cn(
-                  'text-(--text-sm) font-medium',
+                  'text-(length:--text-sm) font-medium',
                   isCurrent ? 'text-(--color-text)' : 'text-(--color-muted)',
                 )}
               >
@@ -65,7 +65,7 @@ export function Stepper({
               </span>
             </div>
             {step.description ? (
-              <p className="pl-8 text-(--text-xs) text-(--color-muted)">{step.description}</p>
+              <p className="pl-8 text-(length:--text-xs) text-(--color-muted)">{step.description}</p>
             ) : null}
           </li>
         );

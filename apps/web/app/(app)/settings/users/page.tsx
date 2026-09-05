@@ -21,7 +21,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { listBranches } from '@/lib/api/tenancy';
 import {
   createUser,
-  deactivateUser,
+  deleteUser,
   listRoles,
   listUsers,
   resetUserPassword,
@@ -35,7 +35,7 @@ import { useSessionStore } from '@/lib/stores/session';
 /**
  * T-2.6 — Settings › Usuarios.
  *
- * Alta, edición, desactivación y reset de contraseña. La contraseña temporal
+ * Alta, edición, eliminación y reset de contraseña. La contraseña temporal
  * NUNCA la elige quien completa el formulario (API_CONTRACTS §5): el backend
  * la genera y este componente la muestra en un diálogo aparte, UNA sola vez
  * — no queda guardada en ningún estado que sobreviva a cerrar ese diálogo
@@ -84,7 +84,7 @@ function UsersScreen() {
   const [editing, setEditing] = React.useState<User | null>(null);
   const [form, setForm] = React.useState<UserFormState>(EMPTY_FORM);
   const [formError, setFormError] = React.useState<string | undefined>();
-  const [toDeactivate, setToDeactivate] = React.useState<User | null>(null);
+  const [toDelete, setToDelete] = React.useState<User | null>(null);
   const [toResetPassword, setToResetPassword] = React.useState<User | null>(null);
   /** Se muestra UNA vez y se descarta — nunca se persiste en la query cache ni en localStorage. */
   const [revealedPassword, setRevealedPassword] = React.useState<{
@@ -140,18 +140,16 @@ function UsersScreen() {
     onError: (error: unknown) => setFormError(errorMessage(error)),
   });
 
-  const deactivateMutation = useMutation({
-    mutationFn: (id: string) => deactivateUser(id),
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteUser(id),
     onSuccess: () => {
-      toast({ title: 'Usuario desactivado', tone: 'success' });
-      setToDeactivate(null);
+      toast({ title: 'Usuario eliminado', tone: 'success' });
+      setToDelete(null);
       invalidateUsers();
     },
     onError: (error: unknown) => {
-      // El invariante "último OWNER" (409 LAST_OWNER) llega acá: se muestra
-      // el detail del backend tal cual, no se reinterpreta en el frontend.
-      toast({ title: 'No se pudo desactivar', description: errorMessage(error), tone: 'danger' });
-      setToDeactivate(null);
+      toast({ title: 'No se pudo eliminar', description: errorMessage(error), tone: 'danger' });
+      setToDelete(null);
     },
   });
 
@@ -309,13 +307,11 @@ function UsersScreen() {
               Resetear contraseña
             </Button>
           </PermissionGate>
-          {u.status === 'ACTIVE' ? (
-            <PermissionGate permission="user:write">
-              <Button variant="danger" size="sm" onClick={() => setToDeactivate(u)}>
-                Desactivar
-              </Button>
-            </PermissionGate>
-          ) : null}
+          <PermissionGate permission="user:write">
+            <Button variant="danger" size="sm" onClick={() => setToDelete(u)}>
+              Eliminar
+            </Button>
+          </PermissionGate>
         </div>
       ),
       headerClassName: 'text-right',
@@ -467,15 +463,15 @@ function UsersScreen() {
       </Modal>
 
       <ConfirmDialog
-        open={toDeactivate !== null}
-        onOpenChange={(open) => !open && setToDeactivate(null)}
-        title="Desactivar usuario"
-        description={`"${toDeactivate?.firstName} ${toDeactivate?.lastName}" no va a poder iniciar sesión. Se revocan sus sesiones activas.`}
+        open={toDelete !== null}
+        onOpenChange={(open) => !open && setToDelete(null)}
+        title="Eliminar usuario"
+        description={`"${toDelete?.firstName} ${toDelete?.lastName}" perderá el acceso y desaparecerá de esta lista. Sus registros históricos se conservan.`}
         tone="danger"
-        confirmLabel="Desactivar"
-        loading={deactivateMutation.isPending}
+        confirmLabel="Eliminar usuario"
+        loading={deleteMutation.isPending}
         onConfirm={() => {
-          if (toDeactivate) deactivateMutation.mutate(toDeactivate.id);
+          if (toDelete) deleteMutation.mutate(toDelete.id);
         }}
       />
 

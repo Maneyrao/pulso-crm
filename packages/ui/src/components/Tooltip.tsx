@@ -25,7 +25,7 @@ export function Tooltip({ content, children, side = 'top', delayDuration = 200 }
           side={side}
           sideOffset={6}
           className={cn(
-            'z-50 rounded-(--radius-sm) bg-(--color-text) px-2.5 py-1.5 text-(--text-xs) text-(--color-text-foreground) shadow-(--shadow-md)',
+            'z-50 rounded-(--radius-sm) bg-(--color-text) px-2.5 py-1.5 text-(length:--text-xs) text-(--color-text-foreground) shadow-(--shadow-md)',
           )}
         >
           {content}

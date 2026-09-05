@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { Wallet } from 'lucide-react';
+import Link from 'next/link';
+import { Package, Plus, Undo2, Wallet } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CashConcept,
@@ -27,11 +28,11 @@ import {
   DataTable,
   EmptyState,
   FormField,
-  Input,
   Modal,
   MoneyDisplay,
   MoneyInput,
   Select,
+  Skeleton,
   StatusBadge,
   Textarea,
   useToast,
@@ -55,6 +56,7 @@ import { ApiError } from '@/lib/api/errors';
 import { PermissionGate, usePermission } from '@/lib/auth/permissions';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
+import { operatingPaymentMethods, paymentMethodLabel } from './payment-options';
 
 /**
  * Pantalla operativa de caja: abrir/cerrar sesión, listar movements, altas
@@ -84,6 +86,9 @@ function CashScreen() {
   const gymId = useSessionStore((s) => s.gym?.id);
   const activeBranchId = useSessionStore((s) => s.activeBranchId ?? null);
   const canOperate = usePermission('cash:operate');
+  const hasOpenClose = usePermission('cash:open_close');
+  const canOpenClose = canOperate && hasOpenClose;
+  const canReadProducts = usePermission('product:read');
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -126,12 +131,14 @@ function CashScreen() {
   );
   const conceptById = React.useMemo(() => new Map(concepts.map((c) => [c.id, c])), [concepts]);
 
+  if (sessionQuery.isError) return <div className="space-y-3"><PageHeader icon={Wallet} title="Caja" /><p role="alert">No se pudo consultar el estado de la caja.</p><Button variant="outline" onClick={() => void sessionQuery.refetch()}>Reintentar</Button></div>;
+
   return (
     <div className="flex flex-col gap-6">
       <SessionHeader
         session={session}
         loading={sessionQuery.isLoading}
-        canOperate={canOperate}
+        canOperate={canOpenClose}
         onOpened={() => {
           queryClient.invalidateQueries({ queryKey: qk.cashSession(gymId ?? '', activeBranchId) });
         }}
@@ -140,7 +147,14 @@ function CashScreen() {
         }}
         movements={movements}
         paymentMethods={paymentMethods}
+        dataReady={movementsQuery.isSuccess && paymentMethodsQuery.isSuccess}
       />
+
+      <nav aria-label="Acciones de caja" className="flex flex-wrap gap-2">
+        {canReadProducts && <Button asChild variant="outline"><Link href="/inventory"><Package className="h-4 w-4" aria-hidden />Vender producto</Link></Button>}
+        <Button asChild variant="outline"><Link href="/cash/daybook">Libro diario</Link></Button>
+      </nav>
+      {session && (paymentMethodsQuery.isError || conceptsQuery.isError) && <div role="alert" className="space-y-2"><p>No se pudieron verificar los medios o conceptos.</p><Button variant="outline" onClick={() => { void paymentMethodsQuery.refetch(); void conceptsQuery.refetch(); }}>Reintentar datos de caja</Button></div>}
 
       {session ? (
         <MovementsSection
@@ -153,9 +167,11 @@ function CashScreen() {
           conceptById={conceptById}
           paymentMethods={paymentMethods}
           concepts={concepts}
-          canOperate={canOperate}
+          canOperate={canOperate && paymentMethodsQuery.isSuccess && conceptsQuery.isSuccess}
           onChanged={() => {
             void movementsQuery.refetch();
+            void queryClient.invalidateQueries({ queryKey: ['daybook', gymId ?? '', activeBranchId] });
+            void queryClient.invalidateQueries({ queryKey: qk.dashboard(gymId ?? '', activeBranchId) });
             queryClient.invalidateQueries({
               queryKey: qk.cashSession(gymId ?? '', activeBranchId),
             });
@@ -172,7 +188,7 @@ function CashScreen() {
         <EmptyState title="Cargando caja" description="Buscando la sesión actual..." />
       ) : (
         <OpenCashCard
-          canOperate={canOperate}
+          canOperate={canOpenClose}
           onOpened={() =>
             queryClient.invalidateQueries({ queryKey: qk.cashSession(gymId ?? '', activeBranchId) })
           }
@@ -192,6 +208,7 @@ interface SessionHeaderProps {
   onClosed: () => void;
   movements: readonly CashMovement[];
   paymentMethods: readonly PaymentMethod[];
+  dataReady: boolean;
 }
 
 function SessionHeader({
@@ -202,6 +219,7 @@ function SessionHeader({
   onClosed,
   movements,
   paymentMethods,
+  dataReady,
 }: SessionHeaderProps) {
   const [openModal, setOpenModal] = React.useState(false);
   const [closeModal, setCloseModal] = React.useState(false);
@@ -242,7 +260,11 @@ function SessionHeader({
     () => sumMoney(movements.filter((m) => m.type === 'EXPENSE').map((m) => m.amount)),
     [movements],
   );
-  const balance = session ? addMoney(session.openingAmount, subMoney(income, expense)) : ZERO_MONEY;
+  const cashMovements = movements.filter((movement) => paymentMethods.some((method) => method.id === movement.paymentMethodId && method.countsAsCash));
+  const balance = session ? addMoney(session.openingAmount, subMoney(
+    sumMoney(cashMovements.filter((m) => m.type === 'INCOME').map((m) => m.amount)),
+    sumMoney(cashMovements.filter((m) => m.type === 'EXPENSE').map((m) => m.amount)),
+  )) : ZERO_MONEY;
 
   const description = loading
     ? 'Buscando la sesión actual...'
@@ -257,15 +279,15 @@ function SessionHeader({
         title="Caja · Sesión actual"
         description={description}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {loading ? null : session ? (
               <StatusBadge tone="success" label="Caja abierta" />
             ) : (
               <StatusBadge tone="neutral" label="Sin caja abierta" />
             )}
-            {canOperate ? (
+            {canOperate && !loading ? (
               session ? (
-                <Button variant="danger" onClick={() => setCloseModal(true)}>
+                <Button variant="outline" disabled={!dataReady} onClick={() => setCloseModal(true)}>
                   Cerrar caja
                 </Button>
               ) : (
@@ -278,9 +300,7 @@ function SessionHeader({
 
       {session ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <KpiCard label="Ingresos" value={income} />
-          <KpiCard label="Egresos" value={`-${expense}`} emphasizeNegative />
-          <KpiCard label="Saldo" value={balance} emphasizeNegative />
+          {dataReady ? <><KpiCard label="Ingresos registrados" value={income} /><KpiCard label="Salidas registradas" value={`-${expense}`} emphasizeNegative /><KpiCard label="Efectivo estimado" value={balance} emphasizeNegative /></> : <Skeleton className="col-span-full h-24 w-full" />}
         </div>
       ) : null}
 
@@ -293,6 +313,7 @@ function SessionHeader({
           movements={movements}
           paymentMethods={paymentMethods}
           onClosed={onClosed}
+          blocked={!dataReady}
         />
       ) : null}
     </div>
@@ -311,7 +332,7 @@ function KpiCard({ label, value, emphasizeNegative }: KpiCardProps) {
       <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-(--color-muted)">
         {label}
       </p>
-      <p className="mt-1 text-(--text-xl) font-semibold text-(--color-text)">
+      <p className="mt-1 text-(length:--text-xl) font-semibold text-(--color-text)">
         <MoneyDisplay value={value} emphasizeNegative={emphasizeNegative} />
       </p>
     </div>
@@ -351,6 +372,7 @@ function MovementsSection({
 }: MovementsSectionProps) {
   const [newOpen, setNewOpen] = React.useState(false);
   const [toReverse, setToReverse] = React.useState<CashMovement | null>(null);
+  const canReverse = usePermission('cash:reverse');
 
   const columns: DataTableColumn<CashMovement>[] = [
     {
@@ -366,12 +388,12 @@ function MovementsSection({
     {
       id: 'detail',
       header: 'Detalle',
-      cell: (m) => m.description ?? <span className="text-(--color-muted)">—</span>,
+      cell: (m) => <div><span className={m.isReversed ? 'line-through' : undefined}>{m.description ?? 'Sin detalle'}</span>{m.reversalReason && <p className="text-xs text-(--color-muted)">Motivo: {m.reversalReason}</p>}{m.reversalOfId && <p className="text-xs">Corrección de movimiento</p>}</div>,
     },
     {
       id: 'method',
       header: 'Método',
-      cell: (m) => paymentMethodById.get(m.paymentMethodId)?.name ?? '—',
+      cell: (m) => { const method = paymentMethodById.get(m.paymentMethodId); return method ? paymentMethodLabel(method) : 'Medio no disponible'; },
     },
     {
       id: 'amount',
@@ -389,9 +411,10 @@ function MovementsSection({
       id: 'actions',
       header: '',
       cell: (m) =>
-        canOperate && !m.isReversed && !m.reversalOfId ? (
+        canOperate && canReverse && !m.isReversed && !m.reversalOfId ? (
           <div className="flex justify-end">
             <Button variant="outline" size="sm" onClick={() => setToReverse(m)}>
+              <Undo2 className="h-4 w-4" aria-hidden />
               Revertir
             </Button>
           </div>
@@ -407,11 +430,11 @@ function MovementsSection({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <h2 className="text-(--text-lg) font-semibold text-(--color-text)">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-(length:--text-lg) font-semibold text-(--color-text)">
           Movimientos de la sesión
         </h2>
-        {canOperate ? <Button onClick={() => setNewOpen(true)}>Nuevo movimiento</Button> : null}
+        {canOperate ? <Button onClick={() => setNewOpen(true)}><Plus className="h-4 w-4" aria-hidden />Entrada / salida manual</Button> : null}
       </div>
 
       <DataTable
@@ -423,7 +446,7 @@ function MovementsSection({
         error={error}
         onRetry={onRetry}
         emptyTitle="Todavía no hay movimientos"
-        emptyDescription="Cargá el primer ingreso o egreso desde “Nuevo movimiento”."
+        emptyDescription="Esta sesión todavía no registra cobros ni salidas."
       />
 
       <NewMovementModal
@@ -447,7 +470,6 @@ function MovementsSection({
         }}
         onError={(err) => {
           onReverseError(err);
-          setToReverse(null);
         }}
       />
     </div>
@@ -534,7 +556,7 @@ function OpenCashModal({ open, onOpenChange, onOpened }: OpenCashModalProps) {
       setFormError('Elegí una caja.');
       return;
     }
-    if (!isMoneyString(openingAmount)) {
+    if (!isMoneyString(openingAmount) || openingAmount.startsWith('-')) {
       setFormError('El fondo de apertura no es válido.');
       return;
     }
@@ -551,21 +573,23 @@ function OpenCashModal({ open, onOpenChange, onOpened }: OpenCashModalProps) {
       open={open}
       onOpenChange={onOpenChange}
       title="Abrir caja"
+      busy={openMutation.isPending}
       description="Elegí la caja física, el fondo inicial y una nota opcional."
       footer={
         <>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={openMutation.isPending} onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button type="submit" form="open-cash-form" loading={openMutation.isPending}>
+          <Button type="submit" form="open-cash-form" disabled={!cashRegisterId || registersQuery.isError} loading={openMutation.isPending}>
             Abrir caja
           </Button>
         </>
       }
     >
       <form id="open-cash-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {registersQuery.isError && <p role="alert">No se pudieron cargar las cajas. <Button variant="outline" size="sm" onClick={() => void registersQuery.refetch()}>Reintentar</Button></p>}
         {formError ? (
-          <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+          <p role="alert" className="text-(length:--text-sm) font-medium text-(--color-danger)">
             {formError}
           </p>
         ) : null}
@@ -644,7 +668,6 @@ function NewMovementModal({
   const [paymentMethodId, setPaymentMethodId] = React.useState('');
   const [amount, setAmount] = React.useState('');
   const [detail, setDetail] = React.useState('');
-  const [memberId, setMemberId] = React.useState('');
   const [formError, setFormError] = React.useState<string | undefined>();
 
   React.useEffect(() => {
@@ -654,7 +677,6 @@ function NewMovementModal({
       setPaymentMethodId('');
       setAmount('');
       setDetail('');
-      setMemberId('');
       setFormError(undefined);
     }
   }, [open]);
@@ -665,11 +687,11 @@ function NewMovementModal({
   }, [type]);
 
   const filteredConcepts = React.useMemo(
-    () => concepts.filter((c) => c.type === type && c.isActive),
+    () => concepts.filter((c) => c.type === type && c.isActive && !c.isSystem),
     [concepts, type],
   );
   const activeMethods = React.useMemo(
-    () => paymentMethods.filter((m) => m.isActive),
+    () => operatingPaymentMethods(paymentMethods),
     [paymentMethods],
   );
 
@@ -704,13 +726,8 @@ function NewMovementModal({
       setFormError('Elegí un método de pago.');
       return;
     }
-    if (!isMoneyString(amount) || amount === '0.00' || amount === '0' || amount.startsWith('-')) {
+    if (!isMoneyString(amount) || /^0+(\.0+)?$/.test(amount) || amount.startsWith('-')) {
       setFormError('El importe debe ser mayor a cero.');
-      return;
-    }
-    const trimmedMemberId = memberId.trim();
-    if (trimmedMemberId && !UUID_RE.test(trimmedMemberId)) {
-      setFormError('El ID del socio no tiene un formato UUID válido.');
       return;
     }
     const payload: CreateCashMovementRequest = {
@@ -719,7 +736,6 @@ function NewMovementModal({
       paymentMethodId,
       amount,
       ...(detail.trim() ? { detail: detail.trim() } : {}),
-      ...(trimmedMemberId ? { memberId: trimmedMemberId } : {}),
     };
     createMutation.mutate(payload);
   };
@@ -730,12 +746,13 @@ function NewMovementModal({
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title="Nuevo movimiento"
-      description="Cargá un ingreso o egreso contra la caja abierta."
+      title="Entrada / salida manual"
+      description="Ingreso o gasto independiente de cuotas y ventas de productos."
+      busy={createMutation.isPending}
       size="lg"
       footer={
         <>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={createMutation.isPending} onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button type="submit" form="new-movement-form" loading={createMutation.isPending}>
@@ -746,7 +763,7 @@ function NewMovementModal({
     >
       <form id="new-movement-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         {formError ? (
-          <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+          <p role="alert" className="text-(length:--text-sm) font-medium text-(--color-danger)">
             {formError}
           </p>
         ) : null}
@@ -785,7 +802,7 @@ function NewMovementModal({
             {(field) => (
               <Select
                 {...field}
-                options={activeMethods.map((m) => ({ value: m.id, label: m.name }))}
+                options={activeMethods.map((m) => ({ value: m.id, label: paymentMethodLabel(m) }))}
                 value={paymentMethodId}
                 onValueChange={setPaymentMethodId}
                 placeholder={
@@ -799,20 +816,6 @@ function NewMovementModal({
             {(field) => <MoneyInput {...field} value={amount} onChange={setAmount} />}
           </FormField>
         </div>
-
-        <FormField
-          label="Socio (opcional)"
-          hint="Pegá el ID del socio si el movimiento se asocia a alguien puntual."
-        >
-          {(field) => (
-            <Input
-              {...field}
-              value={memberId}
-              onChange={(e) => setMemberId(e.target.value)}
-              placeholder="00000000-0000-0000-0000-000000000000"
-            />
-          )}
-        </FormField>
 
         <FormField label="Detalle">
           {(field) => (
@@ -850,6 +853,7 @@ function ReverseMovementModal({
   const idempotency = useIdempotencyKey();
   const { toast } = useToast();
   const [reason, setReason] = React.useState('');
+  const cancelRef = React.useRef<HTMLButtonElement>(null);
 
   React.useEffect(() => {
     if (!movement) setReason('');
@@ -879,10 +883,12 @@ function ReverseMovementModal({
       open={movement !== null}
       onOpenChange={onOpenChange}
       title="Revertir movimiento"
-      description="Se crea un movimiento contrario que anula al original. Es irreversible."
+      description={movement ? `Se anulará ${formatMoney(movement.amount)} con una corrección auditada. El original queda en el historial.` : undefined}
+      busy={reverseMutation.isPending}
+      onOpenAutoFocus={(event) => { event.preventDefault(); cancelRef.current?.focus(); }}
       footer={
         <>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button ref={cancelRef} variant="outline" disabled={reverseMutation.isPending} onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button
@@ -923,6 +929,7 @@ interface CloseCashModalProps {
   movements: readonly CashMovement[];
   paymentMethods: readonly PaymentMethod[];
   onClosed: () => void;
+  blocked: boolean;
 }
 
 function CloseCashModal({
@@ -932,6 +939,7 @@ function CloseCashModal({
   movements,
   paymentMethods,
   onClosed,
+  blocked,
 }: CloseCashModalProps) {
   const idempotency = useIdempotencyKey();
   const { toast } = useToast();
@@ -952,14 +960,12 @@ function CloseCashModal({
   const [formError, setFormError] = React.useState<string | undefined>();
 
   React.useEffect(() => {
-    if (open) {
-      const initial: Record<string, string> = {};
-      for (const m of methodsInSession) initial[m.id] = ZERO_MONEY;
-      setDeclared(initial);
+    if (!open) {
+      setDeclared({});
       setNotes('');
       setFormError(undefined);
     }
-  }, [open, methodsInSession]);
+  }, [open]);
 
   const closeMutation = useMutation({
     mutationFn: (payload: CloseCashSessionRequest) =>
@@ -984,10 +990,11 @@ function CloseCashModal({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(undefined);
-    const entries = Object.entries(declared);
+    if (blocked || closeMutation.isPending) return;
+    const entries = methodsInSession.map((method) => [method.id, declared[method.id] ?? ''] as const);
     for (const [, amount] of entries) {
       if (!isMoneyString(amount) || amount.startsWith('-')) {
-        setFormError('Todos los importes declarados deben ser positivos.');
+        setFormError('Completá cada importe contado, con cero o un valor positivo.');
         return;
       }
     }
@@ -1007,17 +1014,19 @@ function CloseCashModal({
       open={open}
       onOpenChange={onOpenChange}
       title="Cerrar caja"
-      description="Declará el efectivo y los totales por método. El backend calcula la diferencia."
+      description="Ingresá lo contado en efectivo y lo recibido por cada medio. El cierre conserva las diferencias."
+      busy={closeMutation.isPending}
       size="lg"
       footer={
         <>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" disabled={closeMutation.isPending} onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button
             type="submit"
             form="close-cash-form"
             variant="danger"
+            disabled={blocked}
             loading={closeMutation.isPending}
           >
             Cerrar caja
@@ -1027,12 +1036,12 @@ function CloseCashModal({
     >
       <form id="close-cash-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
         {formError ? (
-          <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+          <p role="alert" className="text-(length:--text-sm) font-medium text-(--color-danger)">
             {formError}
           </p>
         ) : null}
 
-        <p className="text-(--text-sm) text-(--color-muted)">
+        <p className="text-(length:--text-sm) text-(--color-muted)">
           Fondo de apertura: <MoneyDisplay value={session.openingAmount} />
         </p>
 
@@ -1046,12 +1055,12 @@ function CloseCashModal({
             {methodsInSession.map((method) => (
               <FormField
                 key={method.id}
-                label={`${method.name}${method.countsAsCash ? ' (efectivo)' : ''}`}
+                label={paymentMethodLabel(method)}
               >
                 {(field) => (
                   <MoneyInput
                     {...field}
-                    value={declared[method.id] ?? ZERO_MONEY}
+                    value={declared[method.id] ?? ''}
                     onChange={(v) => setDeclared((prev) => ({ ...prev, [method.id]: v }))}
                   />
                 )}
@@ -1077,8 +1086,6 @@ function CloseCashModal({
 }
 
 // ── helpers ─────────────────────────────────────────────────────────────
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function formatTime(iso: string): string {
   const date = new Date(iso);

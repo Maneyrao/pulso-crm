@@ -95,6 +95,9 @@ export const updateUserResponseSchema = userSchema;
 /** `POST /users/:id/deactivate` — `user:write`. `409 LAST_OWNER` si aplica. */
 export const deactivateUserResponseSchema = userSchema;
 
+/** `DELETE /users/:id` — baja lógica irreversible desde la UI. */
+export const deleteUserResponseSchema = userSchema;
+
 /** `POST /users/:id/reset-password` — `user:write`. */
 export const resetPasswordResponseSchema = z.object({
   temporaryPassword: z.string(),
