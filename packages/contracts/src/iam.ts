@@ -95,7 +95,10 @@ export const updateUserResponseSchema = userSchema;
 /** `POST /users/:id/deactivate` — `user:write`. `409 LAST_OWNER` si aplica. */
 export const deactivateUserResponseSchema = userSchema;
 
-/** `DELETE /users/:id` — baja lógica irreversible desde la UI. */
+/**
+ * `DELETE /users/:id` — borrado definitivo si la cuenta no tiene historial.
+ * Responde `409 USER_HAS_HISTORY` cuando hay registros que deben conservarse.
+ */
 export const deleteUserResponseSchema = userSchema;
 
 /** `POST /users/:id/reset-password` — `user:write`. */

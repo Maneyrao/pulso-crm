@@ -164,10 +164,11 @@ describe('UsersSettingsPage', () => {
     render(withProviders(<UsersSettingsPage />));
 
     await screen.findByText('Ana Torres');
-    fireEvent.click(screen.getByRole('button', { name: 'Eliminar' }));
-    expect(screen.getByRole('dialog', { name: 'Eliminar usuario' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Eliminar usuario' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar' }));
+    expect(screen.getByRole('dialog', { name: 'Borrar usuario' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Borrar definitivamente' }));
 
     await waitFor(() => expect(deleteUserMock).toHaveBeenCalledWith(target.id));
+    await waitFor(() => expect(screen.queryByText('Ana Torres')).not.toBeInTheDocument());
   });
 });

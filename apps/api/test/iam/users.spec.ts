@@ -291,8 +291,8 @@ describe('desactivar invalida la sesión', () => {
   });
 });
 
-describe('DELETE /users/:id — eliminación lógica', () => {
-  it('oculta al usuario del listado, revoca su sesión y conserva la fila auditada', async () => {
+describe('DELETE /users/:id — borrado definitivo', () => {
+  it('elimina una cuenta sin historial, revoca su sesión y la quita del listado', async () => {
     const owner = await loginAs('OWNER');
     const receptionistRoleId = await roleId('RECEPTIONIST');
     const created = await owner.post('/api/v1/users', {
@@ -319,14 +319,53 @@ describe('DELETE /users/:id — eliminación lógica', () => {
     expect(removed.status).toBe(200);
     expect((removed.body as { status: string }).status).toBe('INACTIVE');
 
-    const stored = await ctx.db.raw.user.findUniqueOrThrow({ where: { id: userId } });
-    expect(stored.deletedAt).not.toBeNull();
-    expect(stored.status).toBe('INACTIVE');
+    const stored = await ctx.db.raw.user.findUnique({ where: { id: userId } });
+    expect(stored).toBeNull();
 
     const listed = await owner.get('/api/v1/users');
     const ids = (listed.body as { data: Array<{ id: string }> }).data.map((user) => user.id);
     expect(ids).not.toContain(userId);
     expect((await targetSession.post('/api/v1/auth/refresh')).status).toBe(401);
+  });
+
+  it('bloquea el borrado físico cuando la cuenta tiene historial de caja', async () => {
+    const owner = await loginAs('OWNER');
+    const receptionistRoleId = await roleId('RECEPTIONIST');
+    const created = await owner.post('/api/v1/users', {
+      email: 'usuario-con-historial@iam-users-gym.test',
+      firstName: 'Usuario',
+      lastName: 'Historial',
+      roleIds: [receptionistRoleId],
+      branchIds: [],
+    });
+    const userId = (created.body as { user: { id: string } }).user.id;
+
+    const register = await ctx.db.raw.cashRegister.create({
+      data: {
+        gymId: gym.gym.id,
+        branchId: gym.branch.id,
+        name: `Caja historial ${userId}`,
+      },
+    });
+    await ctx.db.raw.cashSession.create({
+      data: {
+        gymId: gym.gym.id,
+        branchId: gym.branch.id,
+        cashRegisterId: register.id,
+        status: 'OPEN',
+        openedByUserId: userId,
+        openingAmount: '0.00',
+        businessDate: new Date('2026-09-06T00:00:00.000Z'),
+      },
+    });
+
+    const removed = await owner.del(`/api/v1/users/${userId}`);
+    expect(removed.status).toBe(409);
+    expect((removed.body as { code: string }).code).toBe('USER_HAS_HISTORY');
+
+    const stored = await ctx.db.raw.user.findUniqueOrThrow({ where: { id: userId } });
+    expect(stored.status).toBe('ACTIVE');
+    expect(stored.deletedAt).toBeNull();
   });
 
   it('no permite eliminar al último Owner activo', async () => {

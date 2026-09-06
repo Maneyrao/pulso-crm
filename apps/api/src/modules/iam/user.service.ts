@@ -257,13 +257,19 @@ export class UserService {
     });
   }
 
-  /** Eliminación lógica: desaparece del CRM sin romper auditoría ni historial. */
+  /**
+   * Borrado definitivo de una cuenta sin actividad histórica.
+   *
+   * Las cuentas que ya participaron en caja, biometría, inventario o
+   * cualquier otra operación auditable no se pueden borrar físicamente: sus
+   * referencias son necesarias para conservar la trazabilidad. En ese caso
+   * se devuelve un conflicto y la UI puede ofrecer la baja lógica.
+   */
   async remove(id: string): Promise<User> {
     const existing = await this.findActiveOrThrow(id);
     const ctx = TenantContextStore.require();
-    const deletedAt = new Date();
 
-    const removed = await this.prisma.client.$transaction(async (tx) => {
+    await this.prisma.client.$transaction(async (tx) => {
       await this.lockOwnerRole(tx, ctx.gymId);
       await this.assertNotLastOwnerTx(
         tx,
@@ -271,26 +277,32 @@ export class UserService {
         'No se puede eliminar al último Owner activo del gimnasio.',
       );
 
-      const row = await tx.user.update({
-        where: { id },
-        data: { status: 'INACTIVE', deletedAt },
-      });
-      await tx.refreshToken.updateMany({
-        where: { userId: id, revokedAt: null },
-        data: { revokedAt: deletedAt, revokedReason: 'USER_DELETED' },
-      });
+      if (ctx.userId === id) {
+        throw AppError.conflict(ErrorCode.CONFLICT, 'No podés borrar tu propio usuario.');
+      }
+
+      await this.assertNoHistoricalReferencesTx(tx, id);
+      await tx.user.delete({ where: { id } });
+
       await this.audit.recordIn(tx, {
         action: 'USER_DELETED',
         resourceType: 'User',
         resourceId: id,
-        before: { status: existing.status, deletedAt: existing.deletedAt },
-        after: { status: row.status, deletedAt },
+        before: {
+          email: existing.email,
+          firstName: existing.firstName,
+          lastName: existing.lastName,
+          status: existing.status,
+        },
+        after: { deleted: true },
       });
-      return row;
     });
 
+    // El endpoint conserva el shape de User por compatibilidad con clientes
+    // existentes, aunque la fila ya no exista en la base.
     return serializeUser({
-      ...removed,
+      ...existing,
+      status: 'INACTIVE',
       roleAssignments: existing.roleAssignments,
       branchAccess: existing.branchAccess,
     });
@@ -456,6 +468,52 @@ export class UserService {
       throw AppError.conflict(
         ErrorCode.CONFLICT,
         'No podés quitarte el permiso de administración de usuarios a vos mismo.',
+      );
+    }
+  }
+
+  /**
+   * Verifica referencias de negocio antes del borrado físico. AuditEvent no
+   * se cuenta: su actor es nullable y debe sobrevivir para conservar la
+   * trazabilidad de las operaciones realizadas por la cuenta.
+   */
+  private async assertNoHistoricalReferencesTx(
+    tx: PulsoTransactionClient,
+    userId: string,
+  ): Promise<void> {
+    const counts = await Promise.all([
+      tx.memberDocument.count({ where: { uploadedByUserId: userId } }),
+      tx.ledgerEntry.count({ where: { createdByUserId: userId } }),
+      tx.membership.count({ where: { createdByUserId: userId } }),
+      tx.cashSession.count({
+        where: { OR: [{ openedByUserId: userId }, { closedByUserId: userId }] },
+      }),
+      tx.cashMovement.count({ where: { createdByUserId: userId } }),
+      tx.cashOperationRequest.count({
+        where: { OR: [{ requestedByUserId: userId }, { resolvedByUserId: userId }] },
+      }),
+      tx.accessAttempt.count({ where: { createdByUserId: userId } }),
+      tx.localAgent.count({
+        where: { OR: [{ approvedByUserId: userId }, { revokedByUserId: userId }] },
+      }),
+      tx.biometricConsent.count({
+        where: { OR: [{ capturedByUserId: userId }, { revokedByUserId: userId }] },
+      }),
+      tx.biometricEnrollment.count({ where: { startedByUserId: userId } }),
+      tx.biometricCredential.count({
+        where: { OR: [{ createdByUserId: userId }, { revokedByUserId: userId }] },
+      }),
+      tx.biometricCaptureEvent.count({ where: { userId } }),
+      tx.inventorySale.count({ where: { createdByUserId: userId } }),
+      tx.inventoryStockMovement.count({ where: { createdByUserId: userId } }),
+    ]);
+
+    const total = counts.reduce((sum, count) => sum + count, 0);
+    if (total > 0) {
+      throw AppError.conflict(
+        ErrorCode.USER_HAS_HISTORY,
+        'No se puede borrar definitivamente porque este usuario tiene historial operativo. Desactivá su acceso para conservar esos registros.',
+        { historicalRecords: total },
       );
     }
   }

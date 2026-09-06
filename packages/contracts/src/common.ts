@@ -68,6 +68,7 @@ export const ERROR_CODES = [
   'BRANCH_HAS_ACTIVE_DATA',
   // IAM (§5)
   'LAST_OWNER',
+  'USER_HAS_HISTORY',
   // Socios (§6)
   'DUPLICATE_DOCUMENT',
   'DUPLICATE_CARD',

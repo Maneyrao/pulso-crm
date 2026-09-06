@@ -3,7 +3,12 @@
 import * as React from 'react';
 import { Users as UsersIcon } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CreateUserRequest, UpdateUserRequest, User } from '@pulso/contracts/iam';
+import type {
+  CreateUserRequest,
+  ListUsersResponse,
+  UpdateUserRequest,
+  User,
+} from '@pulso/contracts/iam';
 import {
   Button,
   Checkbox,
@@ -142,10 +147,19 @@ function UsersScreen() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteUser(id),
-    onSuccess: () => {
+    onSuccess: (_result, id) => {
       toast({ title: 'Usuario eliminado', tone: 'success' });
       setToDelete(null);
-      invalidateUsers();
+      queryClient.setQueryData<ListUsersResponse>(qk.users(gymId ?? '', {}), (current) =>
+        current ? { ...current, data: current.data.filter((user) => user.id !== id) } : current,
+      );
+      // La mutación ya confirmó el borrado. Marcamos la consulta como stale
+      // sin reconsultarla en este instante para que una respuesta vieja no
+      // vuelva a pintar la fila eliminada antes del próximo refresh.
+      void queryClient.invalidateQueries({
+        queryKey: ['users', gymId ?? ''],
+        refetchType: 'none',
+      });
     },
     onError: (error: unknown) => {
       toast({ title: 'No se pudo eliminar', description: errorMessage(error), tone: 'danger' });
@@ -309,7 +323,7 @@ function UsersScreen() {
           </PermissionGate>
           <PermissionGate permission="user:write">
             <Button variant="danger" size="sm" onClick={() => setToDelete(u)}>
-              Eliminar
+              Borrar
             </Button>
           </PermissionGate>
         </div>
@@ -465,10 +479,10 @@ function UsersScreen() {
       <ConfirmDialog
         open={toDelete !== null}
         onOpenChange={(open) => !open && setToDelete(null)}
-        title="Eliminar usuario"
-        description={`"${toDelete?.firstName} ${toDelete?.lastName}" perderá el acceso y desaparecerá de esta lista. Sus registros históricos se conservan.`}
+        title="Borrar usuario"
+        description={`"${toDelete?.firstName} ${toDelete?.lastName}" perderá el acceso y se eliminará definitivamente. Si tiene historial de caja, biometría u operaciones, el borrado se bloqueará para conservar esos registros.`}
         tone="danger"
-        confirmLabel="Eliminar usuario"
+        confirmLabel="Borrar definitivamente"
         loading={deleteMutation.isPending}
         onConfirm={() => {
           if (toDelete) deleteMutation.mutate(toDelete.id);
