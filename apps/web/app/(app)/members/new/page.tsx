@@ -13,7 +13,7 @@ import type {
   MembershipCharge,
 } from '@pulso/contracts/memberships';
 import type { Plan } from '@pulso/contracts/catalog';
-import { Fingerprint } from 'lucide-react';
+import { ArrowLeft, Fingerprint } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -41,7 +41,7 @@ import { useSessionStore } from '@/lib/stores/session';
 import { EnrollmentDialog } from '@/components/biometrics/EnrollmentDialog';
 
 /**
- * Alta de socio (Fase 2B, LEODARROSAFIT_ALIGNMENT_PLAN.md): wizard de tres
+ * Alta de socio (Fase 2B, LEODARROSAFIT_ALIGNMENT_PLAN.md): wizard de cuatro
  * pasos que compone llamadas reales y ya probadas — `POST /members`,
  * `POST /members/:id/memberships` (con `charge` embebido: el backend crea el
  * `CashMovement` atómicamente cuando `mode: 'NOW'`, no hace falta un
@@ -368,6 +368,20 @@ function NewMemberScreen() {
     setDone(doneSummary);
   };
 
+  const handlePreviousStep = (): void => {
+    if (stepId === 'plan') {
+      setStepId('personal');
+      return;
+    }
+    if (stepId === 'payment') {
+      setStepId('plan');
+      return;
+    }
+    if (stepId === 'biometric') {
+      setStepId(doneSummary?.membership ? 'payment' : 'plan');
+    }
+  };
+
   const handleStartEnrollment = (): void => {
     if (!member || grantingBiometricConsent || enrollmentOpen) return;
     setBiometricError(undefined);
@@ -480,15 +494,21 @@ function NewMemberScreen() {
         <Button variant="ghost" asChild>
           <Link href="/members">Cancelar</Link>
         </Button>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {stepId !== 'personal' ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePreviousStep}
+              disabled={enrollmentOpen || grantingBiometricConsent}
+            >
+              <ArrowLeft aria-hidden="true" size={16} />
+              Volver
+            </Button>
+          ) : null}
           {stepId === 'plan' ? (
             <Button variant="outline" onClick={handleSkipPlan}>
               Omitir plan
-            </Button>
-          ) : null}
-          {stepId === 'payment' ? (
-            <Button variant="outline" onClick={() => setStepId('plan')}>
-              Anterior
             </Button>
           ) : null}
 

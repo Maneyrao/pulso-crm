@@ -277,6 +277,39 @@ describe('NewMemberPage', () => {
     await waitFor(() => expect(screen.getByText(/Plan y membresía/i)).toBeInTheDocument());
   });
 
+  it('permite volver desde el plan y conserva los datos personales cargados', async () => {
+    createMemberMock.mockResolvedValueOnce(CREATED_MEMBER);
+    const { default: NewMemberPage } = await import('./page');
+    render(withQuery(<NewMemberPage />));
+
+    await fillPersonalStep();
+    fireEvent.click(screen.getByRole('button', { name: /Crear socio y continuar/i }));
+    await screen.findByText(/Plan y membresía/i);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Volver$/i }));
+
+    expect(screen.getByLabelText(/^Nombre\b/i)).toHaveValue('Lucía');
+    expect(screen.getByLabelText(/Número de documento/i)).toHaveValue('20123456');
+    expect(screen.getByRole('button', { name: /Continuar/i })).toBeInTheDocument();
+  });
+
+  it('muestra volver en la huella y regresa al paso lógico anterior', async () => {
+    createMemberMock.mockResolvedValueOnce(CREATED_MEMBER);
+    createMembershipMock.mockResolvedValueOnce(membershipResponse());
+    const { default: NewMemberPage } = await import('./page');
+    render(withQuery(<NewMemberPage />));
+
+    await fillPersonalStep();
+    fireEvent.click(screen.getByRole('button', { name: /Crear socio y continuar/i }));
+    await screen.findByText(/Plan y membresía/i);
+    fireEvent.click(screen.getByRole('button', { name: /^Omitir plan$/i }));
+
+    expect(await screen.findByText(/¿Querés registrar la huella ahora\?/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Volver$/i }));
+
+    expect(screen.getByText(/Plan y membresía/i)).toBeInTheDocument();
+  });
+
   it('vacío en el paso 1 muestra los alerts de validación y no crea el socio', async () => {
     const { default: NewMemberPage } = await import('./page');
     render(withQuery(<NewMemberPage />));
