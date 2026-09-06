@@ -8,12 +8,12 @@ import type { Plan } from '@pulso/contracts/catalog';
 import type { CreateMembershipResponse } from '@pulso/contracts/memberships';
 
 /**
- * Alta de socio (Fase 2B): wizard de 3 pasos que compone `POST /members` →
+ * Alta de socio (Fase 2B): wizard de 4 pasos que compone `POST /members` →
  * `POST /members/:id/memberships` (con `charge` embebido — el backend crea
  * el `CashMovement` atómicamente cuando `mode: 'NOW'`). Foco de estos tests:
  * disciplina de la composición (el socio nunca se re-crea si falla un paso
  * siguiente), idempotencia, y los tres desenlaces del paso de pago (sin
- * plan, sin caja abierta, con caja abierta).
+ * plan, sin caja abierta, con caja abierta) y el registro opcional de huella.
  */
 
 const routerPush = vi.fn();
@@ -56,6 +56,33 @@ const listPaymentMethodsMock = vi.fn();
 vi.mock('@/lib/api/cash', () => ({
   getCurrentCashSession: (...args: unknown[]) => getCurrentCashSessionMock(...args),
   listPaymentMethods: (...args: unknown[]) => listPaymentMethodsMock(...args),
+}));
+
+const grantConsentMock = vi.fn();
+vi.mock('@/lib/api/biometrics', () => ({
+  grantConsent: (...args: unknown[]) => grantConsentMock(...args),
+}));
+
+vi.mock('@/components/biometrics/EnrollmentDialog', () => ({
+  EnrollmentDialog: ({
+    open,
+    onOpenChange,
+    onEnrolled,
+  }: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onEnrolled?: () => void;
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="Enrolar huella digital">
+        <button type="button" onClick={onEnrolled}>
+          Simular huella registrada
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Listo
+        </button>
+      </div>
+    ) : null,
 }));
 
 function withQuery(children: ReactNode): ReactNode {
@@ -199,6 +226,7 @@ beforeEach(async () => {
   listBranchesMock.mockReset();
   getCurrentCashSessionMock.mockReset();
   listPaymentMethodsMock.mockReset();
+  grantConsentMock.mockReset();
 
   listPlansMock.mockResolvedValue({ data: [makePlan()] });
   listBranchesMock.mockResolvedValue({
@@ -218,6 +246,7 @@ beforeEach(async () => {
   });
   getCurrentCashSessionMock.mockResolvedValue(null);
   listPaymentMethodsMock.mockResolvedValue({ data: [] });
+  grantConsentMock.mockResolvedValue({ consent: { id: 'consent-1' } });
 
   await primeSession();
 });
@@ -325,7 +354,7 @@ describe('NewMemberPage', () => {
     expect(secondKey).not.toBe(firstKey);
   });
 
-  it('omitir el plan cierra el alta sin crear membresía', async () => {
+  it('omitir el plan lleva al paso opcional de huella sin crear membresía', async () => {
     createMemberMock.mockResolvedValueOnce(CREATED_MEMBER);
     const { default: NewMemberPage } = await import('./page');
     render(withQuery(<NewMemberPage />));
@@ -334,7 +363,10 @@ describe('NewMemberPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Crear socio y continuar/i }));
     await screen.findByText(/Plan y membresía/i);
 
-    fireEvent.click(screen.getByRole('button', { name: /Omitir plan y finalizar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Omitir plan$/i }));
+
+    expect(await screen.findByText(/¿Querés registrar la huella ahora\?/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Omitir por ahora/i }));
 
     await waitFor(() => expect(screen.getByText('El socio quedó activo')).toBeInTheDocument());
     expect(screen.getByText(/No se asignó ninguna/i)).toBeInTheDocument();
@@ -356,7 +388,7 @@ describe('NewMemberPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
 
     await screen.findByText(/No hay una caja abierta/i);
-    fireEvent.click(screen.getByRole('button', { name: /Confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Omitir pago y continuar/i }));
 
     await waitFor(() => expect(createMembershipMock).toHaveBeenCalledTimes(1));
     const [memberId, payload] = createMembershipMock.mock.calls[0] as [
@@ -366,6 +398,8 @@ describe('NewMemberPage', () => {
     expect(memberId).toBe('m1');
     expect(payload).toMatchObject({ planId: 'p1', charge: { mode: 'DEBT' } });
 
+    expect(await screen.findByText(/¿Querés registrar la huella ahora\?/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Omitir por ahora/i }));
     await waitFor(() => expect(screen.getByText('El socio quedó activo')).toBeInTheDocument());
     expect(screen.getByText(/No — queda como saldo pendiente/i)).toBeInTheDocument();
   });
@@ -450,6 +484,8 @@ describe('NewMemberPage', () => {
       charge: { mode: 'NOW', paymentMethodId: 'pm1', amount: '20000.00' },
     });
 
+    expect(await screen.findByText(/¿Querés registrar la huella ahora\?/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Omitir por ahora/i }));
     await waitFor(() => expect(screen.getByText('El socio quedó activo')).toBeInTheDocument());
     // Dos filas con "Sí —": membresía activa y pago cobrado. La ausencia del texto de deuda
     // confirma que el resumen refleja el cobro NOW.
@@ -481,14 +517,43 @@ describe('NewMemberPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
     await screen.findByText(/No hay una caja abierta/i);
 
-    fireEvent.click(screen.getByRole('button', { name: /Confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Omitir pago y continuar/i }));
     await screen.findByText(/La membresía explotó\./i);
 
     // Reintentar: el socio NO se vuelve a crear.
     createMembershipMock.mockResolvedValueOnce(membershipResponse());
-    fireEvent.click(screen.getByRole('button', { name: /Confirmar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Omitir pago y continuar/i }));
 
     await waitFor(() => expect(createMembershipMock).toHaveBeenCalledTimes(2));
     expect(createMemberMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('ofrece registrar la huella después de crear al socio y del pago', async () => {
+    createMemberMock.mockResolvedValueOnce(CREATED_MEMBER);
+    createMembershipMock.mockResolvedValueOnce(membershipResponse());
+    getCurrentCashSessionMock.mockResolvedValue(null);
+    const { default: NewMemberPage } = await import('./page');
+    render(withQuery(<NewMemberPage />));
+
+    await fillPersonalStep();
+    fireEvent.click(screen.getByRole('button', { name: /Crear socio y continuar/i }));
+    await screen.findByText(/Plan y membresía/i);
+    await selectPlan();
+    fireEvent.click(screen.getByRole('button', { name: /^Siguiente$/i }));
+    await screen.findByText(/No hay una caja abierta/i);
+    fireEvent.click(screen.getByRole('button', { name: /Omitir pago y continuar/i }));
+
+    expect(await screen.findByText(/¿Querés registrar la huella ahora\?/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Registrar huella/i }));
+    await waitFor(() => expect(grantConsentMock).toHaveBeenCalledWith(
+      'm1',
+      { version: 'v1', grantedMethod: 'IN_PERSON_SIGNED' },
+    ));
+    expect(await screen.findByRole('dialog', { name: /Enrolar huella digital/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Simular huella registrada/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Listo$/i }));
+    await waitFor(() => expect(screen.getByText('El socio quedó activo')).toBeInTheDocument());
+    expect(screen.getByText('Registrada')).toBeInTheDocument();
   });
 });

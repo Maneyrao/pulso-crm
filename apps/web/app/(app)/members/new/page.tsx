@@ -13,6 +13,7 @@ import type {
   MembershipCharge,
 } from '@pulso/contracts/memberships';
 import type { Plan } from '@pulso/contracts/catalog';
+import { Fingerprint } from 'lucide-react';
 import {
   Alert,
   Button,
@@ -30,12 +31,14 @@ import { createMembership } from '@/lib/api/memberships';
 import { listPlans } from '@/lib/api/catalog';
 import { listBranches } from '@/lib/api/tenancy';
 import { getCurrentCashSession, listPaymentMethods } from '@/lib/api/cash';
+import { grantConsent } from '@/lib/api/biometrics';
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
 import { PermissionGate } from '@/lib/auth/permissions';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { qk } from '@/lib/query/keys';
 import { useSessionStore } from '@/lib/stores/session';
+import { EnrollmentDialog } from '@/components/biometrics/EnrollmentDialog';
 
 /**
  * Alta de socio (Fase 2B, LEODARROSAFIT_ALIGNMENT_PLAN.md): wizard de tres
@@ -46,17 +49,18 @@ import { useSessionStore } from '@/lib/stores/session';
  * ya se creó, un reintento NUNCA vuelve a crearlo, retoma desde el paso que
  * falló.
  *
- * Paso 2 (plan) y paso 3 (pago) son omitibles: un socio puede darse de alta
- * sin membresía, y una membresía puede quedar sin cobrar si no hay caja
- * abierta (o si el operador elige cobrar después).
+ * El plan, el pago y la huella son opcionales: un socio puede darse de alta
+ * sin membresía, una membresía puede quedar sin cobrar y la huella puede
+ * registrarse después desde la ficha.
  */
 
-type StepId = 'personal' | 'plan' | 'payment';
+type StepId = 'personal' | 'plan' | 'payment' | 'biometric';
 
 const STEPS: readonly StepperStep[] = [
   { id: 'personal', label: 'Datos personales', description: 'Nombre, documento y contacto.' },
   { id: 'plan', label: 'Plan y membresía', description: 'Opcional: se puede omitir.' },
   { id: 'payment', label: 'Pago', description: 'Opcional: requiere caja abierta.' },
+  { id: 'biometric', label: 'Huella', description: 'Opcional: podés registrarla ahora.' },
 ];
 
 const DOCUMENT_OPTIONS = DOCUMENT_TYPES.map((type) => ({ value: type, label: type }));
@@ -95,6 +99,7 @@ function todayYmd(): string {
 interface DoneSummary {
   member: Member;
   membership: CreateMembershipResponse | null;
+  biometricEnrolled: boolean;
 }
 
 export default function NewMemberPage() {
@@ -141,8 +146,13 @@ function NewMemberScreen() {
   const [paymentMethodId, setPaymentMethodId] = React.useState('');
   const [chargeAmount, setChargeAmount] = React.useState('');
   const [paymentError, setPaymentError] = React.useState<string | undefined>();
+  const [biometricError, setBiometricError] = React.useState<string | undefined>();
+  const [enrollmentOpen, setEnrollmentOpen] = React.useState(false);
+  const [grantingBiometricConsent, setGrantingBiometricConsent] = React.useState(false);
+  const [biometricEnrolled, setBiometricEnrolled] = React.useState(false);
 
   const [done, setDone] = React.useState<DoneSummary | null>(null);
+  const [doneSummary, setDoneSummary] = React.useState<DoneSummary | null>(null);
 
   const plansQuery = useQuery({
     queryKey: qk.plans(gymId),
@@ -220,7 +230,10 @@ function NewMemberScreen() {
       return createMembership(member.id, payload, membershipIdempotency.getKey());
     },
     onSuccess: (result) => {
-      if (member) setDone({ member, membership: result });
+      setCompleted((c) => Array.from(new Set([...c, 'payment' as StepId])));
+      setStepId('biometric');
+      if (!member) return;
+      setDoneSummary({ member, membership: result, biometricEnrolled: false });
     },
     onError: (err: unknown) => {
       renewAfterServerRejection(err, membershipIdempotency.renew);
@@ -305,12 +318,14 @@ function NewMemberScreen() {
   const handleSkipPlan = (): void => {
     setPlanForm((f) => ({ ...f, planId: '' }));
     setCompleted((c) => Array.from(new Set([...c, 'plan' as StepId])));
-    // Sin plan no hay nada que cobrar: se salta directo al cierre.
-    finalizeWithoutMembership();
+    // Sin plan no hay nada que cobrar: se continúa al registro opcional de huella.
+    goToBiometricStep(null);
   };
 
-  const finalizeWithoutMembership = (): void => {
-    if (member) setDone({ member, membership: null });
+  const goToBiometricStep = (membership: CreateMembershipResponse | null): void => {
+    if (!member) return;
+    setDoneSummary({ member, membership, biometricEnrolled: false });
+    setStepId('biometric');
   };
 
   const submitMembership = (charge: MembershipCharge): void => {
@@ -347,6 +362,24 @@ function NewMemberScreen() {
   const handleFinishWithoutCharge = (): void => {
     submitMembership({ mode: 'DEBT' });
   };
+
+  const finishWithoutBiometric = (): void => {
+    if (!doneSummary) return;
+    setDone(doneSummary);
+  };
+
+  const handleStartEnrollment = (): void => {
+    if (!member || grantingBiometricConsent || enrollmentOpen) return;
+    setBiometricError(undefined);
+    setGrantingBiometricConsent(true);
+    void grantConsent(member.id, { version: 'v1', grantedMethod: 'IN_PERSON_SIGNED' })
+      .then(() => setEnrollmentOpen(true))
+      .catch((reason: unknown) => setBiometricError(errorMessage(reason)))
+      .finally(() => setGrantingBiometricConsent(false));
+  };
+
+  const enrollmentBranchId = planForm.branchId || member?.branchId || branchId || '';
+  const enrollmentMemberName = member ? `${member.firstName} ${member.lastName}` : undefined;
 
   const hasCashSession = Boolean(cashSessionQuery.data);
 
@@ -397,6 +430,14 @@ function NewMemberScreen() {
             priceQuote={priceQuote}
           />
         ) : null}
+        {stepId === 'biometric' ? (
+          <BiometricStep
+            enrolling={enrollmentOpen}
+            loading={grantingBiometricConsent}
+            error={biometricError}
+            onEnroll={handleStartEnrollment}
+          />
+        ) : null}
         {stepId === 'plan' && selectedPlan?.billingCycle === 'MONTHLY' && <label className="mt-4 flex items-center gap-2"><Checkbox checked={autoRenew} onChange={(event) => setAutoRenew(event.target.checked)} />Generar la próxima cuota cada mes</label>}
       </Card>
 
@@ -416,6 +457,25 @@ function NewMemberScreen() {
         </Alert>
       ) : null}
 
+      {stepId === 'biometric' && member && enrollmentBranchId ? (
+        <EnrollmentDialog
+          open={enrollmentOpen}
+          onOpenChange={(open) => {
+            setEnrollmentOpen(open);
+            if (!open && biometricEnrolled) finishWithoutBiometric();
+          }}
+          memberId={member.id}
+          memberName={enrollmentMemberName}
+          branchId={enrollmentBranchId}
+          onEnrolled={() => {
+            setBiometricEnrolled(true);
+            setDoneSummary((current) =>
+              current ? { ...current, biometricEnrolled: true } : current,
+            );
+          }}
+        />
+      ) : null}
+
       <div className="flex items-center justify-between">
         <Button variant="ghost" asChild>
           <Link href="/members">Cancelar</Link>
@@ -423,7 +483,7 @@ function NewMemberScreen() {
         <div className="flex gap-2">
           {stepId === 'plan' ? (
             <Button variant="outline" onClick={handleSkipPlan}>
-              Omitir plan y finalizar
+              Omitir plan
             </Button>
           ) : null}
           {stepId === 'payment' ? (
@@ -451,7 +511,7 @@ function NewMemberScreen() {
                   loading={createMembershipMutation.isPending}
                   disabled={createMembershipMutation.isPending}
                 >
-                  Finalizar sin cobrar
+                  Omitir pago
                 </Button>
                 <Button
                   onClick={handleChargeNow}
@@ -467,9 +527,18 @@ function NewMemberScreen() {
                 loading={createMembershipMutation.isPending}
                 disabled={createMembershipMutation.isPending || cashSessionQuery.isLoading}
               >
-                Confirmar
+                Omitir pago y continuar
               </Button>
             )
+          ) : null}
+          {stepId === 'biometric' ? (
+            <Button
+              variant="outline"
+              onClick={finishWithoutBiometric}
+              disabled={enrollmentOpen || grantingBiometricConsent}
+            >
+              Omitir por ahora
+            </Button>
           ) : null}
         </div>
       </div>
@@ -694,6 +763,44 @@ function PaymentStep({
   );
 }
 
+interface BiometricStepProps {
+  enrolling: boolean;
+  loading: boolean;
+  error?: string;
+  onEnroll: () => void;
+}
+
+function BiometricStep({ enrolling, loading, error, onEnroll }: BiometricStepProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-(--radius-full) border-2 border-(--color-primary) text-(--color-primary)">
+          <Fingerprint className="h-5 w-5" aria-hidden={true} />
+        </span>
+        <div>
+          <h2 className="text-(--text-lg) font-semibold text-(--color-text)">
+            ¿Querés registrar la huella ahora?
+          </h2>
+          <p className="mt-1 text-(--text-sm) text-(--color-muted)">
+            Es opcional. Si la registrás, el socio podrá identificarse con el lector al ingresar.
+            También podés hacerlo más adelante desde su ficha.
+          </p>
+        </div>
+      </div>
+      {error ? (
+        <Alert tone="danger" title="No pudimos preparar la biometría" live>
+          {error}
+        </Alert>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={onEnroll} loading={loading || enrolling} disabled={loading || enrolling}>
+          <Fingerprint className="h-4 w-4" aria-hidden={true} /> Registrar huella
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function DoneScreen({ summary }: { summary: DoneSummary }) {
   const { member, membership } = summary;
   const chargedNow = Boolean(membership?.cashMovement);
@@ -726,6 +833,7 @@ function DoneScreen({ summary }: { summary: DoneSummary }) {
             }
           />
         ) : null}
+        <SummaryRow label="Huella" value={summary.biometricEnrolled ? 'Registrada' : 'No registrada'} />
       </Card>
       <div className="flex gap-2">
         <Button asChild>
