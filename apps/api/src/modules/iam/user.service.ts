@@ -263,7 +263,8 @@ export class UserService {
    * Las cuentas que ya participaron en caja, biometría, inventario o
    * cualquier otra operación auditable no se pueden borrar físicamente: sus
    * referencias son necesarias para conservar la trazabilidad. En ese caso
-   * se devuelve un conflicto y la UI puede ofrecer la baja lógica.
+   * se hace una baja lógica dentro de la misma operación para que el usuario
+   * desaparezca del CRM y pierda el acceso sin romper el historial.
    */
   async remove(id: string): Promise<User> {
     const existing = await this.findActiveOrThrow(id);
@@ -281,7 +282,33 @@ export class UserService {
         throw AppError.conflict(ErrorCode.CONFLICT, 'No podés borrar tu propio usuario.');
       }
 
-      await this.assertNoHistoricalReferencesTx(tx, id);
+      const historicalRecords = await this.countHistoricalReferencesTx(tx, id);
+      if (historicalRecords > 0) {
+        const deletedAt = new Date();
+        await tx.user.update({
+          where: { id },
+          data: { status: 'INACTIVE', deletedAt },
+        });
+        await tx.refreshToken.updateMany({
+          where: { userId: id, revokedAt: null },
+          data: { revokedAt: deletedAt, revokedReason: 'USER_DELETED' },
+        });
+
+        await this.audit.recordIn(tx, {
+          action: 'USER_DELETED',
+          resourceType: 'User',
+          resourceId: id,
+          before: {
+            email: existing.email,
+            firstName: existing.firstName,
+            lastName: existing.lastName,
+            status: existing.status,
+          },
+          after: { deleted: true, mode: 'SOFT', historicalRecords },
+        });
+        return;
+      }
+
       await tx.user.delete({ where: { id } });
 
       await this.audit.recordIn(tx, {
@@ -294,7 +321,7 @@ export class UserService {
           lastName: existing.lastName,
           status: existing.status,
         },
-        after: { deleted: true },
+        after: { deleted: true, mode: 'HARD' },
       });
     });
 
@@ -473,14 +500,14 @@ export class UserService {
   }
 
   /**
-   * Verifica referencias de negocio antes del borrado físico. AuditEvent no
-   * se cuenta: su actor es nullable y debe sobrevivir para conservar la
+   * Cuenta referencias de negocio antes del borrado físico. AuditEvent no se
+   * cuenta: su actor es nullable y debe sobrevivir para conservar la
    * trazabilidad de las operaciones realizadas por la cuenta.
    */
-  private async assertNoHistoricalReferencesTx(
+  private async countHistoricalReferencesTx(
     tx: PulsoTransactionClient,
     userId: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const counts = await Promise.all([
       tx.memberDocument.count({ where: { uploadedByUserId: userId } }),
       tx.ledgerEntry.count({ where: { createdByUserId: userId } }),
@@ -509,13 +536,7 @@ export class UserService {
     ]);
 
     const total = counts.reduce((sum, count) => sum + count, 0);
-    if (total > 0) {
-      throw AppError.conflict(
-        ErrorCode.USER_HAS_HISTORY,
-        'No se puede borrar definitivamente porque este usuario tiene historial operativo. Desactivá su acceso para conservar esos registros.',
-        { historicalRecords: total },
-      );
-    }
+    return total;
   }
 
   private translateWriteError(err: unknown): unknown {

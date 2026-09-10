@@ -328,7 +328,7 @@ describe('DELETE /users/:id — borrado definitivo', () => {
     expect((await targetSession.post('/api/v1/auth/refresh')).status).toBe(401);
   });
 
-  it('bloquea el borrado físico cuando la cuenta tiene historial de caja', async () => {
+  it('oculta y revoca una cuenta con historial sin romper la trazabilidad', async () => {
     const owner = await loginAs('OWNER');
     const receptionistRoleId = await roleId('RECEPTIONIST');
     const created = await owner.post('/api/v1/users', {
@@ -360,12 +360,16 @@ describe('DELETE /users/:id — borrado definitivo', () => {
     });
 
     const removed = await owner.del(`/api/v1/users/${userId}`);
-    expect(removed.status).toBe(409);
-    expect((removed.body as { code: string }).code).toBe('USER_HAS_HISTORY');
+    expect(removed.status).toBe(200);
+    expect((removed.body as { status: string }).status).toBe('INACTIVE');
 
     const stored = await ctx.db.raw.user.findUniqueOrThrow({ where: { id: userId } });
-    expect(stored.status).toBe('ACTIVE');
-    expect(stored.deletedAt).toBeNull();
+    expect(stored.status).toBe('INACTIVE');
+    expect(stored.deletedAt).not.toBeNull();
+
+    const listed = await owner.get('/api/v1/users');
+    const ids = (listed.body as { data: Array<{ id: string }> }).data.map((user) => user.id);
+    expect(ids).not.toContain(userId);
   });
 
   it('no permite eliminar al último Owner activo', async () => {

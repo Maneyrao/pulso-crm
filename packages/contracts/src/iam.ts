@@ -96,8 +96,9 @@ export const updateUserResponseSchema = userSchema;
 export const deactivateUserResponseSchema = userSchema;
 
 /**
- * `DELETE /users/:id` — borrado definitivo si la cuenta no tiene historial.
- * Responde `409 USER_HAS_HISTORY` cuando hay registros que deben conservarse.
+ * `DELETE /users/:id` — quita el acceso y oculta la cuenta del CRM. Si no
+ * tiene historial se borra físicamente; de lo contrario se conserva mediante
+ * baja lógica para no romper la trazabilidad.
  */
 export const deleteUserResponseSchema = userSchema;
 

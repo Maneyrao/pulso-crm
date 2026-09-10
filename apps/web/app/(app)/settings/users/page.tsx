@@ -480,7 +480,7 @@ function UsersScreen() {
         open={toDelete !== null}
         onOpenChange={(open) => !open && setToDelete(null)}
         title="Borrar usuario"
-        description={`"${toDelete?.firstName} ${toDelete?.lastName}" perderá el acceso y se eliminará definitivamente. Si tiene historial de caja, biometría u operaciones, el borrado se bloqueará para conservar esos registros.`}
+        description={`"${toDelete?.firstName} ${toDelete?.lastName}" perderá el acceso y dejará de aparecer en el CRM. Sus registros históricos se conservarán para mantener la trazabilidad.`}
         tone="danger"
         confirmLabel="Borrar definitivamente"
         loading={deleteMutation.isPending}
