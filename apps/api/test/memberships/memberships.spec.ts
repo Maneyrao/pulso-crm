@@ -783,31 +783,43 @@ describe('recurrencia mensual opt-in', () => {
     ).toBe(false);
   });
 
-  it.each(['cash:operate', 'payment:collect'])('requiere %s en NOW aun con membership:write', async (missing) => {
-    const gym = await seedGymWithUsers(ctx.db, { slug: `membership-no-${missing.replace(':', '-')}` });
-    const role = await ctx.db.raw.role.findFirstOrThrow({
-      where: { gymId: gym.gym.id, code: 'RECEPTIONIST' },
-    });
-    await ctx.db.raw.role.update({
-      where: { id: role.id },
-      data: { permissions: ['membership:write', 'member:read', 'cash:operate', 'payment:collect'].filter((p) => p !== missing) },
-    });
-    const client = await loginAs(gym, 'RECEPTIONIST');
-    const memberId = await createMember(gym);
-    const planId = await createPlan(gym);
-    const response = await client.post(
-      `/api/v1/members/${memberId}/memberships`,
-      {
-        planId,
-        branchId: gym.branch.id,
-        startDate: '2030-09-21',
-        charge: { mode: 'NOW', paymentMethodId: randomUUID(), amount: '1000.00' },
-      },
-      idem(),
-    );
-    expect(response.status).toBe(403);
-    expect(await ctx.db.raw.membership.count({ where: { memberId } })).toBe(0);
-  });
+  it.each(['cash:operate', 'payment:collect'])(
+    'requiere %s en NOW aun con membership:write',
+    async (missing) => {
+      const gym = await seedGymWithUsers(ctx.db, {
+        slug: `membership-no-${missing.replace(':', '-')}`,
+      });
+      const role = await ctx.db.raw.role.findFirstOrThrow({
+        where: { gymId: gym.gym.id, code: 'RECEPTIONIST' },
+      });
+      await ctx.db.raw.role.update({
+        where: { id: role.id },
+        data: {
+          permissions: [
+            'membership:write',
+            'member:read',
+            'cash:operate',
+            'payment:collect',
+          ].filter((p) => p !== missing),
+        },
+      });
+      const client = await loginAs(gym, 'RECEPTIONIST');
+      const memberId = await createMember(gym);
+      const planId = await createPlan(gym);
+      const response = await client.post(
+        `/api/v1/members/${memberId}/memberships`,
+        {
+          planId,
+          branchId: gym.branch.id,
+          startDate: '2030-09-21',
+          charge: { mode: 'NOW', paymentMethodId: randomUUID(), amount: '1000.00' },
+        },
+        idem(),
+      );
+      expect(response.status).toBe(403);
+      expect(await ctx.db.raw.membership.count({ where: { memberId } })).toBe(0);
+    },
+  );
 
   it.each([
     ['TRANSFER', '45000.01'],
@@ -863,6 +875,75 @@ describe('recurrencia mensual opt-in', () => {
       (await ctx.db.raw.member.findUniqueOrThrow({ where: { id: memberId } })).balance.toFixed(2),
     ).toBe('0.00');
     expect(await ctx.db.raw.ledgerEntry.count({ where: { memberId } })).toBe(2);
+  });
+});
+
+describe('POST /memberships/:id/renew', () => {
+  it('registra un nuevo pago y conserva el dia ancla de la primera membresia', async () => {
+    const gym = await seedGymWithUsers(ctx.db, { slug: 'manual-renewal-anchor' });
+    const owner = await loginAs(gym, 'OWNER');
+    const memberId = await createMember(gym);
+    const planId = await createPlan(gym, { price: '40000.00' });
+    const cash = await ctx.db.raw.paymentMethod.create({
+      data: { gymId: gym.gym.id, code: 'CASH', name: 'Efectivo', countsAsCash: true },
+    });
+    const transfer = await ctx.db.raw.paymentMethod.create({
+      data: { gymId: gym.gym.id, code: 'TRANSFER', name: 'Transferencia' },
+    });
+    const register = await ctx.db.raw.cashRegister.create({
+      data: { gymId: gym.gym.id, branchId: gym.branch.id, name: 'Caja principal' },
+    });
+    await ctx.db.raw.cashSession.create({
+      data: {
+        gymId: gym.gym.id,
+        branchId: gym.branch.id,
+        cashRegisterId: register.id,
+        openedByUserId: gym.users['OWNER']!.id,
+        openingAmount: '0.00',
+        businessDate: new Date('2030-01-31'),
+      },
+    });
+
+    const assigned = await owner.post(
+      `/api/v1/members/${memberId}/memberships`,
+      {
+        planId,
+        branchId: gym.branch.id,
+        startDate: '2030-01-31',
+        charge: { mode: 'NOW', paymentMethodId: cash.id, amount: '40000.00' },
+      },
+      idem(),
+    );
+    expect(assigned.status).toBe(201);
+    const first = createMembershipResponseSchema.parse(assigned.body).membership;
+
+    const response = await owner.post(
+      `/api/v1/memberships/${first.id}/renew`,
+      {
+        charge: {
+          mode: 'NOW',
+          paymentMethodId: transfer.id,
+          amount: '45000.00',
+        },
+      },
+      idem(),
+    );
+
+    expect(response.status).toBe(201);
+    const renewed = createMembershipResponseSchema.parse(response.body);
+    expect(renewed.membership).toMatchObject({
+      renewedFromId: first.id,
+      startDate: '2030-02-28',
+      endDate: '2030-03-30',
+      renewalAnchorDay: 31,
+      pricePaid: '45000.00',
+    });
+    expect(renewed.cashMovement?.amount).toBe('45000.00');
+    expect(
+      (await ctx.db.raw.member.findUniqueOrThrow({ where: { id: memberId } })).balance.toFixed(2),
+    ).toBe('0.00');
+    expect(await ctx.db.raw.membership.count({ where: { memberId } })).toBe(2);
+    expect(await ctx.db.raw.ledgerEntry.count({ where: { memberId } })).toBe(4);
   });
 });
 

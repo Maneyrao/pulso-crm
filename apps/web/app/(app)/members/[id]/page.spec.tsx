@@ -47,10 +47,13 @@ vi.mock('@/lib/api/members', () => ({
 const listMemberMembershipsMock = vi.fn();
 const createMembershipMock = vi.fn();
 const cancelMembershipMock = vi.fn();
+const renewMembershipMock = vi.fn();
 vi.mock('@/lib/api/memberships', () => ({
   listMemberMemberships: (...args: unknown[]) => listMemberMembershipsMock(...args),
   createMembership: (...args: unknown[]) => createMembershipMock(...args),
   cancelMembership: (...args: unknown[]) => cancelMembershipMock(...args),
+  renewMembership: (...args: unknown[]) => renewMembershipMock(...args),
+  configureMembershipRenewal: vi.fn(),
 }));
 
 const listPlansMock = vi.fn();
@@ -163,7 +166,10 @@ function makeBranch(overrides: Partial<Branch> = {}): Branch {
 
 function makeMembership(overrides: Partial<Membership> = {}): Membership {
   return {
-    autoRenew: false, renewalAnchorDay: null, nextRenewalDate: null, renewedFromId: null,
+    autoRenew: false,
+    renewalAnchorDay: null,
+    nextRenewalDate: null,
+    renewedFromId: null,
     id: '00000000-0000-0000-0000-000000000m01',
     gymId: 'g1',
     memberId: '00000000-0000-0000-0000-000000000abc',
@@ -223,6 +229,7 @@ beforeEach(async () => {
   listMemberMembershipsMock.mockReset();
   createMembershipMock.mockReset();
   cancelMembershipMock.mockReset();
+  renewMembershipMock.mockReset();
   listPlansMock.mockReset();
   listBranchesMock.mockReset();
   getCurrentCashSessionMock.mockReset();
@@ -583,6 +590,77 @@ describe('MemberDetailPage', () => {
         amount: '30000.00',
       },
     });
+  });
+
+  it('permite registrar otro pago y renovar sin mover el dia original de vencimiento', async () => {
+    await primeSession([
+      'member:read',
+      'membership:write',
+      'plan:read',
+      'config:read',
+      'cash:read',
+      'cash:operate',
+      'payment:collect',
+    ]);
+    getMemberMock.mockResolvedValueOnce(makeMember());
+    listMemberMembershipsMock.mockResolvedValueOnce({
+      data: [
+        makeMembership({
+          startDate: '2026-01-31',
+          endDate: '2026-02-27',
+          renewalAnchorDay: 31,
+        }),
+      ],
+    });
+    getCurrentCashSessionMock.mockResolvedValueOnce({
+      id: '00000000-0000-0000-0000-000000000401',
+      gymId: 'g1',
+      branchId: 'b1',
+      cashRegisterId: '00000000-0000-0000-0000-000000000402',
+      status: 'OPEN',
+      openedByUserId: 'u',
+      openedAt: '2026-02-20T12:00:00.000Z',
+      openingAmount: '0.00',
+      openingNotes: null,
+      closedByUserId: null,
+      closedAt: null,
+      closingNotes: null,
+      expectedCash: null,
+      declaredCash: null,
+      cashDifference: null,
+      businessDate: '2026-02-20',
+    });
+    renewMembershipMock.mockResolvedValueOnce({
+      membership: makeMembership({
+        id: '00000000-0000-0000-0000-000000000m02',
+        renewedFromId: '00000000-0000-0000-0000-000000000m01',
+        startDate: '2026-02-28',
+        endDate: '2026-03-30',
+        renewalAnchorDay: 31,
+      }),
+      ledgerEntry: {},
+      cashMovement: {},
+    });
+
+    const user = userEvent.setup();
+    const { default: MemberDetailPage } = await import('./page');
+    render(withQuery(<MemberDetailPage />));
+
+    await screen.findByText('Pérez, Lucía');
+    await user.click(screen.getByRole('button', { name: /Registrar nuevo pago/i }));
+    expect(await screen.findByText(/Conserva el día 31/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Registrar pago y renovar/i }));
+
+    await waitFor(() => expect(renewMembershipMock).toHaveBeenCalledTimes(1));
+    expect(renewMembershipMock.mock.calls[0]?.[0]).toBe('00000000-0000-0000-0000-000000000m01');
+    expect(renewMembershipMock.mock.calls[0]?.[1]).toEqual({
+      charge: {
+        mode: 'NOW',
+        paymentMethodId: '00000000-0000-0000-0000-000000000301',
+        amount: '25000.00',
+      },
+    });
+    expect(renewMembershipMock.mock.calls[0]?.[2]).toMatch(/^[0-9a-f-]{36}$/i);
   });
 
   it('la baja de un socio con balance negativo reconoce la deuda y envía force con motivo', async () => {

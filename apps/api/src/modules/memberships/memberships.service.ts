@@ -4,6 +4,8 @@ import {
   addDays,
   compareMoney,
   membershipEndDate,
+  monthlyEndDate,
+  nextMonthlyDate,
   nextMonthlyDateAfter,
   quoteEnrollmentPrice,
   toBusinessDate,
@@ -13,6 +15,7 @@ import type {
   CancelMembershipRequest,
   CreateMembershipRequest,
   ConfigureMembershipRenewalRequest,
+  RenewMembershipRequest,
 } from '@pulso/contracts/memberships';
 // Imports de VALOR: dependencias del constructor (ver infra/redis/redis.service.ts).
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- ver nota arriba
@@ -367,6 +370,243 @@ export class MembershipsService {
     return { data: rows.map(serializeMembership) };
   }
 
+  // ── POST /memberships/:id/renew ──────────────────────────────────────
+
+  async renew(id: string, input: RenewMembershipRequest): Promise<CreateMembershipResult> {
+    const ctx = TenantContextStore.require();
+
+    // Para cobrar, la caja pertenece a la misma sede del período que se renueva.
+    // Esta lectura es scoped por gimnasio y no filtra ids de otros tenants.
+    if (input.charge.mode === 'NOW') {
+      if (!ctx.permissions.has('cash:operate') || !ctx.permissions.has('payment:collect')) {
+        throw AppError.forbidden();
+      }
+      const preview = await this.prisma.client.membership.findFirst({ where: { id } });
+      if (!preview) throw AppError.notFound('La membresia');
+      if (!preview.branchId) {
+        throw AppError.conflict(ErrorCode.CONFLICT, 'La membresia no tiene una sede asignada.');
+      }
+      const branchId = TenantContextStore.requireBranch(preview.branchId);
+      await requireOpenSessionForUser(
+        {
+          cashSession: {
+            findFirst: (args: Prisma.CashSessionFindFirstArgs) =>
+              this.prisma.client.cashSession.findFirst(args),
+          },
+        },
+        ctx.userId,
+        branchId,
+      );
+    }
+
+    try {
+      const result = await this.prisma.client.$transaction(async (tx) => {
+        const preview = await tx.membership.findFirst({ where: { id } });
+        if (!preview) throw AppError.notFound('La membresia');
+        if (!preview.branchId) {
+          throw AppError.conflict(ErrorCode.CONFLICT, 'La membresia no tiene una sede asignada.');
+        }
+        const branchId = TenantContextStore.requireBranch(preview.branchId);
+
+        if (input.charge.mode === 'NOW') {
+          await tx.$queryRaw`
+            SELECT "id" FROM "cash_sessions"
+            WHERE "gymId" = ${ctx.gymId}::uuid AND "openedByUserId" = ${ctx.userId}::uuid
+              AND "branchId" = ${branchId}::uuid AND "status" = 'OPEN' FOR UPDATE
+          `;
+          await requireOpenSessionForUser(
+            {
+              cashSession: {
+                findFirst: (args: Prisma.CashSessionFindFirstArgs) =>
+                  tx.cashSession.findFirst(args),
+              },
+            },
+            ctx.userId,
+            branchId,
+          );
+        }
+
+        const existing = await this.lockPeriod(tx, id);
+        if (!['ACTIVE', 'EXPIRED'].includes(existing.status) || !existing.endDate) {
+          throw AppError.conflict(
+            ErrorCode.MEMBERSHIP_NOT_ACTIVE,
+            'Esta membresia no se puede renovar.',
+          );
+        }
+
+        await tx.$queryRaw`SELECT "id" FROM "plans"
+          WHERE "id" = ${existing.planId}::uuid AND "gymId" = ${ctx.gymId}::uuid FOR SHARE`;
+        const [member, plan, branch, newer] = await Promise.all([
+          tx.member.findFirst({
+            where: { id: existing.memberId, status: 'ACTIVE', deletedAt: null },
+          }),
+          tx.plan.findFirst({
+            where: {
+              id: existing.planId,
+              isActive: true,
+              deletedAt: null,
+              billingCycle: 'MONTHLY',
+            },
+          }),
+          tx.branch.findFirst({ where: { id: branchId, isActive: true, deletedAt: null } }),
+          tx.membership.findFirst({
+            where: {
+              memberId: existing.memberId,
+              id: { not: existing.id },
+              OR: [{ renewedFromId: existing.id }, { startDate: { gt: existing.startDate } }],
+            },
+          }),
+        ]);
+        if (!member) throw AppError.conflict(ErrorCode.CONFLICT, 'El socio esta inactivo.');
+        if (!plan || plan.price.lte(0)) {
+          throw AppError.conflict(
+            ErrorCode.CONFLICT,
+            'El plan mensual ya no esta disponible para renovar.',
+          );
+        }
+        if (!branch) throw AppError.notFound('La sede');
+        if (newer) {
+          throw AppError.conflict(ErrorCode.CONFLICT, 'Renova desde el ultimo periodo del socio.');
+        }
+
+        const anchor = existing.renewalAnchorDay ?? existing.startDate.getUTCDate();
+        const today = toBusinessDate(new Date(), branch.timezone);
+        let start = addDays(toDateOnly(existing.endDate), 1);
+        let next = nextMonthlyDate(start, anchor);
+        // Si hubo meses sin pagar, genera sólo el período que cubre hoy.
+        while (next <= today) {
+          start = next;
+          next = nextMonthlyDate(start, anchor);
+        }
+        const end = monthlyEndDate(start, anchor);
+
+        const paymentMethod =
+          input.charge.mode === 'NOW'
+            ? await tx.paymentMethod.findFirst({
+                where: { id: input.charge.paymentMethodId, isActive: true },
+              })
+            : null;
+        if (input.charge.mode === 'NOW' && !paymentMethod) {
+          throw AppError.notFound('El metodo de pago');
+        }
+        const quote = quoteEnrollmentPrice(plan.price.toFixed(2), start, paymentMethod?.code);
+        if (input.charge.mode === 'NOW' && compareMoney(input.charge.amount!, quote.total) !== 0) {
+          throw AppError.unprocessable(
+            ErrorCode.VALIDATION_ERROR,
+            `El importe correcto para este plan y medio de pago es ${quote.total}.`,
+          );
+        }
+
+        const keepAutoRenew = existing.autoRenew;
+        await tx.membership.update({
+          where: { id: existing.id },
+          data: {
+            status: toDateOnly(existing.endDate) < today ? 'EXPIRED' : existing.status,
+            autoRenew: false,
+            nextRenewalDate: null,
+          },
+        });
+        const membership = await tx.membership.create({
+          data: scoped({
+            memberId: existing.memberId,
+            planId: plan.id,
+            branchId,
+            status: 'ACTIVE' as const,
+            startDate: fromDateOnly(start),
+            endDate: fromDateOnly(end),
+            autoRenew: keepAutoRenew,
+            renewalAnchorDay: anchor,
+            nextRenewalDate: keepAutoRenew ? fromDateOnly(next) : null,
+            renewedFromId: existing.id,
+            pricePaid: new Prisma.Decimal(quote.total),
+            classesIncluded: plan.classesIncluded,
+            classesRemaining: plan.classesIncluded,
+            createdByUserId: ctx.userId,
+          }),
+        });
+
+        const { entry } = await postLedgerEntry(tx, ctx.gymId, {
+          memberId: existing.memberId,
+          type: 'DEBIT',
+          reason: 'MEMBERSHIP_CHARGE',
+          amount: new Prisma.Decimal(quote.total),
+          membershipId: membership.id,
+          branchId,
+          createdByUserId: ctx.userId,
+          description: `Renovacion de membresia: ${plan.name} (${start} - ${end})`,
+        });
+
+        let cashMovement: CashMovementDto | undefined;
+        if (input.charge.mode === 'NOW') {
+          const openSession = await requireOpenSessionForUser(
+            {
+              cashSession: {
+                findFirst: (args: Prisma.CashSessionFindFirstArgs) =>
+                  tx.cashSession.findFirst(args),
+              },
+            },
+            ctx.userId,
+            branchId,
+          );
+          const concept = await ensureSystemConcept(
+            tx as unknown as Parameters<typeof ensureSystemConcept>[0],
+            'MEMBERSHIP_CHARGE',
+          );
+          const movement = await tx.cashMovement.create({
+            data: scoped({
+              cashSessionId: openSession.id,
+              type: 'INCOME',
+              amount: new Prisma.Decimal(quote.total),
+              paymentMethodId: paymentMethod!.id,
+              cashConceptId: concept.id,
+              description: `Renovacion de membresia: ${plan.name}`,
+              memberId: existing.memberId,
+              membershipId: membership.id,
+              createdByUserId: ctx.userId,
+            }),
+          });
+          await postLedgerEntry(tx, ctx.gymId, {
+            memberId: existing.memberId,
+            type: 'CREDIT',
+            reason: 'PAYMENT',
+            amount: movement.amount,
+            membershipId: membership.id,
+            cashMovementId: movement.id,
+            branchId,
+            createdByUserId: ctx.userId,
+            description: `Pago de renovacion: ${plan.name}`,
+          });
+          cashMovement = serializeCashMovement(movement);
+        }
+
+        await this.audit.recordIn(tx, {
+          action: 'MEMBERSHIP_RENEWED',
+          resourceType: 'Membership',
+          resourceId: membership.id,
+          after: {
+            renewedFromId: existing.id,
+            startDate: start,
+            endDate: end,
+            renewalAnchorDay: anchor,
+            pricePaid: quote.total,
+            mode: input.charge.mode,
+          },
+          branchId,
+        });
+
+        return { membership, entry, cashMovement };
+      });
+
+      return {
+        membership: serializeMembership(result.membership),
+        ledgerEntry: serializeLedgerEntry(result.entry),
+        ...(result.cashMovement ? { cashMovement: result.cashMovement } : {}),
+      };
+    } catch (err) {
+      throw this.translateWriteError(err);
+    }
+  }
+
   // ── POST /memberships/:id/cancel ──────────────────────────────────────
 
   async cancel(id: string, input: CancelMembershipRequest): Promise<MembershipDto> {
@@ -433,7 +673,8 @@ export class MembershipsService {
           : null;
         if (
           !member ||
-          !plan || plan.price.lte(0) ||
+          !plan ||
+          plan.price.lte(0) ||
           !branch ||
           !existing.endDate ||
           !['ACTIVE', 'EXPIRED'].includes(existing.status)

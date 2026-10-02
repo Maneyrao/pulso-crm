@@ -104,6 +104,24 @@ export const createMembershipResponseSchema = z.object({
 export type CreateMembershipResponse = z.infer<typeof createMembershipResponseSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────
+// POST /memberships/:id/renew
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Renueva el último período del socio conservando el día de alta original.
+ * El dueño configura si cobra ahora o deja la nueva cuota como deuda.
+ */
+export const renewMembershipRequestSchema = z
+  .object({
+    charge: membershipChargeSchema,
+  })
+  .strict();
+export type RenewMembershipRequest = z.infer<typeof renewMembershipRequestSchema>;
+
+export const renewMembershipResponseSchema = createMembershipResponseSchema;
+export type RenewMembershipResponse = z.infer<typeof renewMembershipResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
 // GET /members/:id/memberships
 // ─────────────────────────────────────────────────────────────────────────
 

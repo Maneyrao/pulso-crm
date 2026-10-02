@@ -4,6 +4,8 @@ import type {
   CreateMembershipResponse,
   ListMemberMembershipsResponse,
   Membership,
+  RenewMembershipRequest,
+  RenewMembershipResponse,
 } from '@pulso/contracts/memberships';
 import { apiFetch } from './client.js';
 
@@ -33,6 +35,26 @@ export function cancelMembership(
   });
 }
 
-export function configureMembershipRenewal(membershipId: string, autoRenew: boolean, idempotencyKey: string): Promise<Membership> {
-  return apiFetch(`/memberships/${membershipId}/renewal`, { method: 'POST', body: { autoRenew }, idempotencyKey });
+export function configureMembershipRenewal(
+  membershipId: string,
+  autoRenew: boolean,
+  idempotencyKey: string,
+): Promise<Membership> {
+  return apiFetch(`/memberships/${membershipId}/renewal`, {
+    method: 'POST',
+    body: { autoRenew },
+    idempotencyKey,
+  });
+}
+
+export function renewMembership(
+  membershipId: string,
+  payload: RenewMembershipRequest,
+  idempotencyKey: string,
+): Promise<RenewMembershipResponse> {
+  return apiFetch<RenewMembershipResponse>(`/memberships/${membershipId}/renew`, {
+    method: 'POST',
+    body: payload,
+    idempotencyKey,
+  });
 }

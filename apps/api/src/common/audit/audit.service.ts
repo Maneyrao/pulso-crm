@@ -45,6 +45,7 @@ export type AuditAction =
   | 'PLAN_DEACTIVATED'
   // Membresías
   | 'MEMBERSHIP_CREATED'
+  | 'MEMBERSHIP_RENEWED'
   | 'MEMBERSHIP_CANCELLED'
   // Caja
   | 'CASH_SESSION_OPENED'

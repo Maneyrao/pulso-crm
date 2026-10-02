@@ -71,8 +71,10 @@ function send(client: TestClient, method: string, url: string, body?: unknown) {
 
 /** Un body válido y mínimo para no chocar con la validación Zod antes de llegar al service. */
 function bodyFor(route: DiscoveredRoute): Record<string, unknown> | undefined {
-  if (route.path === '/api/v1/inventory/sales/:id/reverse') return { reason: 'Venta anulada en prueba' };
+  if (route.path === '/api/v1/inventory/sales/:id/reverse')
+    return { reason: 'Venta anulada en prueba' };
   if (route.path === '/api/v1/memberships/:id/renewal') return { autoRenew: false };
+  if (route.path === '/api/v1/memberships/:id/renew') return { charge: { mode: 'DEBT' } };
   if (route.path.endsWith('/pay-debt')) {
     return { paymentMethodId: randomUUID(), expectedTotal: '0.00', ledgerVersion: null };
   }

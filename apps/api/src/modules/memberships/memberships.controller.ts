@@ -6,6 +6,8 @@ import {
   createMembershipRequestSchema,
   type ConfigureMembershipRenewalRequest,
   configureMembershipRenewalRequestSchema,
+  type RenewMembershipRequest,
+  renewMembershipRequestSchema,
 } from '@pulso/contracts/memberships';
 import { uuidSchema } from '@pulso/contracts/common';
 import { RequiresPermission } from '../../common/auth/decorators.js';
@@ -69,5 +71,16 @@ export class MembershipsController {
     @ZodBody(configureMembershipRenewalRequestSchema) body: ConfigureMembershipRenewalRequest,
   ) {
     return this.memberships.configureRenewal(id, body);
+  }
+
+  @RequiresPermission('membership:write')
+  @Idempotent()
+  @Post('memberships/:id/renew')
+  @HttpCode(HttpStatus.CREATED)
+  renew(
+    @ZodParam('id', uuidSchema) id: string,
+    @ZodBody(renewMembershipRequestSchema) body: RenewMembershipRequest,
+  ) {
+    return this.memberships.renew(id, body);
   }
 }

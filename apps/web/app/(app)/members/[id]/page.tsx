@@ -18,6 +18,7 @@ import type {
   Membership,
   MembershipChargeMode,
   MembershipStatus,
+  RenewMembershipRequest,
 } from '@pulso/contracts/memberships';
 import type { Plan } from '@pulso/contracts/catalog';
 import { enrollmentPriceBandLabel, quoteEnrollmentPrice } from '@pulso/config';
@@ -53,7 +54,13 @@ import {
 import { listPlans } from '@/lib/api/catalog';
 import { getCurrentCashSession, listPaymentMethods } from '@/lib/api/cash';
 import { listBranches } from '@/lib/api/tenancy';
-import { cancelMembership, createMembership, listMemberMemberships, configureMembershipRenewal } from '@/lib/api/memberships';
+import {
+  cancelMembership,
+  configureMembershipRenewal,
+  createMembership,
+  listMemberMemberships,
+  renewMembership,
+} from '@/lib/api/memberships';
 import { Checkbox } from '@pulso/ui';
 import { useIdempotencyKey } from '@/lib/api/idempotency';
 import { ApiError } from '@/lib/api/errors';
@@ -119,6 +126,7 @@ function MemberDetailScreen() {
   const [tab, setTab] = React.useState(initialTab);
   const [assignOpen, setAssignOpen] = React.useState(false);
   const [paymentOpen, setPaymentOpen] = React.useState(false);
+  const [renewOpen, setRenewOpen] = React.useState(false);
   const canWrite = usePermission('member:write');
   const canDelete = usePermission('member:delete');
   const queryClient = useQueryClient();
@@ -227,11 +235,51 @@ function MemberDetailScreen() {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {hasDebt ? <PermissionGate permission="cash:operate"><PermissionGate permission="cash:read"><PermissionGate permission="payment:collect">
-            <Button onClick={() => setPaymentOpen(true)}><Banknote className="h-4 w-4" aria-hidden />Pagar</Button>
-          </PermissionGate></PermissionGate></PermissionGate> : <Button variant="outline" onClick={() => setTab('payments')}>Ver pagos</Button>}
+          {hasDebt ? (
+            <PermissionGate permission="cash:operate">
+              <PermissionGate permission="cash:read">
+                <PermissionGate permission="payment:collect">
+                  <Button onClick={() => setPaymentOpen(true)}>
+                    <Banknote className="h-4 w-4" aria-hidden />
+                    Pagar
+                  </Button>
+                </PermissionGate>
+              </PermissionGate>
+            </PermissionGate>
+          ) : (
+            <Button variant="outline" onClick={() => setTab('payments')}>
+              Ver pagos
+            </Button>
+          )}
+          {member.status === 'ACTIVE' && !hasDebt ? (
+            <PermissionGate permission="membership:write">
+              <PermissionGate permission="cash:operate">
+                <PermissionGate permission="cash:read">
+                  <PermissionGate permission="payment:collect">
+                    <Button
+                      onClick={() => {
+                        setTab('memberships');
+                        setRenewOpen(true);
+                      }}
+                    >
+                      <Banknote className="h-4 w-4" aria-hidden />
+                      Registrar nuevo pago
+                    </Button>
+                  </PermissionGate>
+                </PermissionGate>
+              </PermissionGate>
+            </PermissionGate>
+          ) : null}
           <PermissionGate permission="membership:write">
-            <Button variant="outline" onClick={() => { setTab('memberships'); setAssignOpen(true); }}>Asignar plan</Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTab('memberships');
+                setAssignOpen(true);
+              }}
+            >
+              Asignar plan
+            </Button>
           </PermissionGate>
           <Button asChild variant="ghost">
             <Link href="/members">Volver</Link>
@@ -263,7 +311,15 @@ function MemberDetailScreen() {
         </TabsContent>
 
         <TabsContent value="memberships">
-          <MembershipsSection memberId={id} gymId={gymId} assignOpen={assignOpen} setAssignOpen={setAssignOpen} />
+          <MembershipsSection
+            memberId={id}
+            gymId={gymId}
+            assignOpen={assignOpen}
+            setAssignOpen={setAssignOpen}
+            renewOpen={renewOpen}
+            setRenewOpen={setRenewOpen}
+            hasDebt={hasDebt}
+          />
         </TabsContent>
 
         <TabsContent value="payments">
@@ -755,7 +811,23 @@ interface AssignFormState {
 }
 
 /** Tab operativo: activa el plan y resuelve en el mismo flujo si pagó o debe. */
-function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { memberId: string; gymId: string; assignOpen: boolean; setAssignOpen: (open: boolean) => void }) {
+function MembershipsSection({
+  memberId,
+  gymId,
+  assignOpen,
+  setAssignOpen,
+  renewOpen,
+  setRenewOpen,
+  hasDebt,
+}: {
+  memberId: string;
+  gymId: string;
+  assignOpen: boolean;
+  setAssignOpen: (open: boolean) => void;
+  renewOpen: boolean;
+  setRenewOpen: (open: boolean) => void;
+  hasDebt: boolean;
+}) {
   const branchId = useSessionStore((s) => s.activeBranchId);
   const branches = useSessionStore((s) => s.branches);
   const canWrite = usePermission('membership:write');
@@ -765,8 +837,11 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const idempotency = useIdempotencyKey();
+  const renewalPaymentKey = useIdempotencyKey();
 
   const [assignError, setAssignError] = React.useState<string | undefined>();
+  const [renewError, setRenewError] = React.useState<string | undefined>();
+  const [renewPaymentMethodId, setRenewPaymentMethodId] = React.useState('');
   const [assignForm, setAssignForm] = React.useState<AssignFormState>(() => ({
     autoRenew: true,
     planId: '',
@@ -778,8 +853,13 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
 
   const renewalKey = useIdempotencyKey();
   const renewalMutation = useMutation({
-    mutationFn: ({ id, autoRenew }: { id: string; autoRenew: boolean }) => configureMembershipRenewal(id, autoRenew, renewalKey.getKey()),
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: qk.memberMemberships(gymId, memberId) }); renewalKey.renew(); toast({ title: 'Renovación actualizada', tone: 'success' }); },
+    mutationFn: ({ id, autoRenew }: { id: string; autoRenew: boolean }) =>
+      configureMembershipRenewal(id, autoRenew, renewalKey.getKey()),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: qk.memberMemberships(gymId, memberId) });
+      renewalKey.renew();
+      toast({ title: 'Renovación actualizada', tone: 'success' });
+    },
     onError: (error) => toast({ title: errorMessage(error), tone: 'danger' }),
   });
   const [toCancel, setToCancel] = React.useState<Membership | null>(null);
@@ -854,6 +934,30 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
     () => paymentMethods.map((method) => ({ value: method.id, label: method.name })),
     [paymentMethods],
   );
+  const latestRenewableMembership = React.useMemo(() => {
+    const latest = membershipsQuery.data?.data[0];
+    if (!latest) return null;
+    const plan = planById.get(latest.planId);
+    return plan?.billingCycle === 'MONTHLY' &&
+      (latest.status === 'ACTIVE' || latest.status === 'EXPIRED')
+      ? latest
+      : null;
+  }, [membershipsQuery.data, planById]);
+  const renewalPlan = latestRenewableMembership
+    ? planById.get(latestRenewableMembership.planId)
+    : undefined;
+  const effectiveRenewPaymentMethodId = renewPaymentMethodId || paymentMethods[0]?.id || '';
+  const renewPaymentMethod = paymentMethods.find(
+    (method) => method.id === effectiveRenewPaymentMethodId,
+  );
+  const renewalQuote = React.useMemo(() => {
+    if (!renewalPlan) return null;
+    try {
+      return quoteEnrollmentPrice(renewalPlan.price, todayYmd(), renewPaymentMethod?.code);
+    } catch {
+      return null;
+    }
+  }, [renewalPlan, renewPaymentMethod?.code]);
   const effectivePaymentMethodId = assignForm.paymentMethodId || paymentMethods[0]?.id || '';
   const selectedPaymentMethod = paymentMethods.find(
     (method) => method.id === effectivePaymentMethodId,
@@ -899,6 +1003,24 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
     onError: (err: unknown) => setAssignError(errorMessage(err)),
   });
 
+  const renewMutation = useMutation({
+    mutationFn: ({
+      membershipId,
+      payload,
+    }: {
+      membershipId: string;
+      payload: RenewMembershipRequest;
+    }) => renewMembership(membershipId, payload, renewalPaymentKey.getKey()),
+    onSuccess: () => {
+      toast({ title: 'Pago registrado y membresía renovada', tone: 'success' });
+      renewalPaymentKey.renew();
+      setRenewOpen(false);
+      setRenewError(undefined);
+      invalidateAll();
+    },
+    onError: (err: unknown) => setRenewError(errorMessage(err)),
+  });
+
   const cancelMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: CancelMembershipRequest }) =>
       cancelMembership(id, payload),
@@ -922,6 +1044,40 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
     });
     setAssignError(undefined);
     setAssignOpen(true);
+  };
+
+  const openRenew = () => {
+    setRenewPaymentMethodId(paymentMethods[0]?.id ?? '');
+    setRenewError(undefined);
+    renewalPaymentKey.renew();
+    setRenewOpen(true);
+  };
+
+  const handleRenewSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setRenewError(undefined);
+    if (!latestRenewableMembership) {
+      setRenewError('Este socio todavía no tiene una membresía mensual para renovar.');
+      return;
+    }
+    if (!cashSessionQuery.data) {
+      setRenewError('Para registrar el pago primero tiene que haber una caja abierta.');
+      return;
+    }
+    if (!effectiveRenewPaymentMethodId || !renewalQuote) {
+      setRenewError('Elegí el medio de pago.');
+      return;
+    }
+    renewMutation.mutate({
+      membershipId: latestRenewableMembership.id,
+      payload: {
+        charge: {
+          mode: 'NOW',
+          paymentMethodId: effectiveRenewPaymentMethodId,
+          amount: renewalQuote.total,
+        },
+      },
+    });
   };
 
   const onPlanChange = (planId: string) => {
@@ -1046,8 +1202,25 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
       cellClassName: 'text-right',
     },
     {
-      id: 'renewal', header: 'Cuota mensual',
-      cell: (m) => planById.get(m.planId)?.billingCycle === 'MONTHLY' && m.status === 'ACTIVE' ? <label className="flex items-center gap-2"><Checkbox aria-label={`Renovar ${planById.get(m.planId)?.name ?? 'plan'} cada mes`} checked={m.autoRenew ?? false} disabled={!canWrite || renewalMutation.isPending} onChange={(event) => { renewalKey.renew(); renewalMutation.mutate({ id: m.id, autoRenew: event.target.checked }); }} />{m.autoRenew ? 'Automática' : 'Sin renovar'}</label> : <span className="text-(--color-muted)">No aplica</span>,
+      id: 'renewal',
+      header: 'Cuota mensual',
+      cell: (m) =>
+        planById.get(m.planId)?.billingCycle === 'MONTHLY' && m.status === 'ACTIVE' ? (
+          <label className="flex items-center gap-2">
+            <Checkbox
+              aria-label={`Renovar ${planById.get(m.planId)?.name ?? 'plan'} cada mes`}
+              checked={m.autoRenew ?? false}
+              disabled={!canWrite || renewalMutation.isPending}
+              onChange={(event) => {
+                renewalKey.renew();
+                renewalMutation.mutate({ id: m.id, autoRenew: event.target.checked });
+              }}
+            />
+            {m.autoRenew ? 'Automática' : 'Sin renovar'}
+          </label>
+        ) : (
+          <span className="text-(--color-muted)">No aplica</span>
+        ),
     },
     {
       id: 'actions',
@@ -1067,9 +1240,23 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {!hasDebt ? (
+          <PermissionGate permission="membership:write">
+            <PermissionGate permission="cash:operate">
+              <PermissionGate permission="cash:read">
+                <PermissionGate permission="payment:collect">
+                  <Button onClick={openRenew} disabled={!canWrite}>
+                    <Banknote className="h-4 w-4" aria-hidden />
+                    Registrar nuevo pago
+                  </Button>
+                </PermissionGate>
+              </PermissionGate>
+            </PermissionGate>
+          </PermissionGate>
+        ) : null}
         <PermissionGate permission="membership:write">
-          <Button onClick={openAssign} disabled={!canWrite}>
+          <Button variant="outline" onClick={openAssign} disabled={!canWrite}>
             Asignar membresía
           </Button>
         </PermissionGate>
@@ -1091,6 +1278,136 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
           </PermissionGate>
         }
       />
+
+      <Modal
+        open={renewOpen}
+        onOpenChange={(open) => {
+          if (!open && !renewMutation.isPending) {
+            setRenewOpen(false);
+            setRenewError(undefined);
+          }
+        }}
+        title="Renovar membresía"
+        description="Registrá el nuevo pago sin cambiar el día mensual original del socio."
+        size="lg"
+        footer={
+          <>
+            <Button
+              variant="outline"
+              disabled={renewMutation.isPending}
+              onClick={() => setRenewOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              form="renew-membership-form"
+              loading={renewMutation.isPending}
+              disabled={
+                renewMutation.isPending ||
+                !latestRenewableMembership ||
+                !cashSessionQuery.data ||
+                !effectiveRenewPaymentMethodId ||
+                !renewalQuote
+              }
+            >
+              Registrar pago y renovar
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="renew-membership-form"
+          onSubmit={handleRenewSubmit}
+          className="flex flex-col gap-4"
+        >
+          {renewError ? (
+            <p role="alert" className="text-(--text-sm) font-medium text-(--color-danger)">
+              {renewError}
+            </p>
+          ) : null}
+
+          {membershipsQuery.isLoading || plansQuery.isLoading ? (
+            <p role="status" className="text-(--color-muted)">
+              Preparando renovación...
+            </p>
+          ) : latestRenewableMembership && renewalPlan ? (
+            <>
+              <div className="grid grid-cols-1 gap-3 border-2 border-(--color-border) bg-(--color-muted-subtle) p-4 sm:grid-cols-2">
+                <div>
+                  <p className="text-(--text-xs) font-semibold uppercase tracking-wide text-(--color-muted)">
+                    Plan
+                  </p>
+                  <p className="mt-1 font-semibold text-(--color-text)">{renewalPlan.name}</p>
+                </div>
+                <div>
+                  <p className="text-(--text-xs) font-semibold uppercase tracking-wide text-(--color-muted)">
+                    Regla de vencimiento
+                  </p>
+                  <p className="mt-1 font-semibold text-(--color-text)">
+                    Conserva el día{' '}
+                    {latestRenewableMembership.renewalAnchorDay ??
+                      Number(latestRenewableMembership.startDate.slice(8, 10))}
+                  </p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-(--text-sm) text-(--color-muted)">
+                    Última vigencia: {latestRenewableMembership.startDate} al{' '}
+                    {latestRenewableMembership.endDate ?? 'sin vencimiento'}
+                  </p>
+                </div>
+              </div>
+
+              {!cashSessionQuery.data ? (
+                <Alert tone="warning" title="Abrí la caja para cobrar">
+                  El pago y la nueva vigencia se registran juntos. Primero abrí la caja de esta
+                  sede.
+                </Alert>
+              ) : null}
+
+              <FormField label="Medio de pago" required>
+                {(field) => (
+                  <Select
+                    {...field}
+                    options={paymentMethodOptions}
+                    value={effectiveRenewPaymentMethodId}
+                    onValueChange={(paymentMethodId) => {
+                      setRenewPaymentMethodId(paymentMethodId);
+                      renewalPaymentKey.renew();
+                      renewMutation.reset();
+                    }}
+                    placeholder="Elegí cómo pagó"
+                    disabled={renewMutation.isPending}
+                  />
+                )}
+              </FormField>
+
+              {renewalQuote ? (
+                <div className="flex flex-wrap items-end justify-between gap-3 border-2 border-(--color-border) p-4">
+                  <div>
+                    <p className="text-(--text-xs) font-semibold uppercase tracking-wide text-(--color-muted)">
+                      Total a cobrar
+                    </p>
+                    {renewalQuote.transferSurcharge !== '0.00' ? (
+                      <p className="mt-1 text-(--text-sm) font-medium text-(--color-warning)">
+                        Incluye recargo por transferencia de{' '}
+                        <MoneyDisplay value={renewalQuote.transferSurcharge} />
+                      </p>
+                    ) : null}
+                  </div>
+                  <span className="text-(--text-xl) font-semibold text-(--color-text)">
+                    <MoneyDisplay value={renewalQuote.total} />
+                  </span>
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <Alert tone="warning" title="No hay una cuota mensual para renovar">
+              Primero asigná un plan mensual al socio.
+            </Alert>
+          )}
+        </form>
+      </Modal>
 
       <Modal
         open={assignOpen}
@@ -1161,10 +1478,23 @@ function MembershipsSection({ memberId, gymId, assignOpen, setAssignOpen }: { me
                 />
               )}
             </FormField>
-            <div className="space-y-2"><p className="text-sm font-medium">Precio del plan</p><MoneyDisplay value={selectedPlan?.price ?? '0.00'} /></div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Precio del plan</p>
+              <MoneyDisplay value={selectedPlan?.price ?? '0.00'} />
+            </div>
           </div>
 
-          {selectedPlan?.billingCycle === 'MONTHLY' && <label className="flex items-center gap-2"><Checkbox checked={assignForm.autoRenew} onChange={(event) => setAssignForm((form) => ({ ...form, autoRenew: event.target.checked }))} />Generar la próxima cuota cada mes</label>}
+          {selectedPlan?.billingCycle === 'MONTHLY' && (
+            <label className="flex items-center gap-2">
+              <Checkbox
+                checked={assignForm.autoRenew}
+                onChange={(event) =>
+                  setAssignForm((form) => ({ ...form, autoRenew: event.target.checked }))
+                }
+              />
+              Generar la próxima cuota cada mes
+            </label>
+          )}
           <fieldset className="space-y-2">
             <legend className="text-(--text-sm) font-medium text-(--color-text)">
               Estado del pago
